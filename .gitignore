@@ -1,0 +1,13 @@
+.DS_Store
+Thumbs.db
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+backend/.uv-cache/
+backend/.env
+backend/.git-backup/
+.env
+.env.*
+frontend/.env.local
+frontend/.env.*.local
+.aider*
