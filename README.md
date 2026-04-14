@@ -4,6 +4,16 @@ ChessView is a full-stack chess platform focused on live play, review, and study
 
 It combines server-authoritative multiplayer chess with replay, browser-local Stockfish analysis, puzzles, tournaments, profiles, ratings, and study tooling in one product surface.
 
+## Status
+
+ChessView is frozen at `v1.0.0` as a stable baseline for multi-engineer development.
+
+What that means:
+
+- the product surface is feature-complete for v1
+- pull requests to `main` should stay incremental and reviewable
+- repository guardrails and CI are part of the baseline, not optional follow-up work
+
 ## v1 Features
 
 - JWT authentication with guarded frontend routes
@@ -15,18 +25,6 @@ It combines server-authoritative multiplayer chess with replay, browser-local St
 - Puzzle mode with starter content and attempt tracking
 - Tournaments with pairings, standings, and round progression
 - Avatar uploads and polished application shell/navigation
-
-## Screenshots
-
-For the final release pass, capture and add these assets:
-
-- `docs/screenshots/dashboard.png`
-- `docs/screenshots/live-game.png`
-- `docs/screenshots/analysis.png`
-- `docs/screenshots/puzzles.png`
-- `docs/screenshots/tournaments.png`
-
-Once those files exist, link them here in the release README or on GitHub.
 
 ## Tech Stack
 
@@ -46,10 +44,13 @@ ChessView uses a domain-oriented backend and a feature-sliced frontend.
 More detail:
 
 - architecture: `docs/architecture.md`
+- contribution guide: `CONTRIBUTING.md`
 - domain map: `docs/domain-map.md`
 - event contract: `docs/event-contract.md`
-- release checklist: `docs/release-checklist.md`
-- demo script: `docs/demo-script.md`
+- GitHub admin checklist: `docs/github-admin.md`
+- scaling notes: `docs/scaling.md`
+- backend notes: `backend/README.md`
+- frontend notes: `frontend/README.md`
 
 ## Supported Workflows
 
@@ -126,6 +127,7 @@ The root `justfile` provides the main day-to-day commands:
 ```powershell
 just docker-up
 just stack-up
+just backend-smoke
 just backend-dev
 just frontend-dev
 just frontend-lint
@@ -154,8 +156,9 @@ Backend:
 
 ```powershell
 cd C:\Users\Anek\chessview\backend
+uv run python -m compileall app domains infrastructure shared tests
+uv run python -c "import app.main"
 uv run pytest tests
-python -m compileall domains infrastructure shared tests app
 ```
 
 Frontend:
@@ -166,40 +169,21 @@ yarn lint
 yarn build
 ```
 
-## Demo Flow
+## Collaboration Guardrails
 
-Use this order for a short release demo:
+ChessView now includes:
 
-1. Login
-2. Play a live game in two browser sessions
-3. Show premove / move flow
-4. Finish the game
-5. Open history and replay
-6. Open analysis
-7. Use the board editor
-8. Import a PGN
-9. Solve a puzzle
-10. Open tournaments
+- pull-request CI in `.github/workflows/pr-ci.yml`
+- CODEOWNERS in `.github/CODEOWNERS`
+- a pull request template and a minimal bug template
+- contributor guidance in `CONTRIBUTING.md`
+- a GitHub branch protection checklist in `docs/github-admin.md`
 
-There is also a dedicated script in `docs/demo-script.md`.
+## Maintenance Rule
 
-## Future Work
+Treat this repository as a production-ready v1 baseline:
 
-These are explicitly post-v1 ideas, not blockers:
-
-- puzzle streaks and puzzle rating progression
-- saved studies and persistent analysis sessions
-- opening explorer
-- notifications
-- broader community or content surfaces
-
-## Release Notes
-
-ChessView v1 is intentionally focused on finishing well:
-
-- correct auth and protected routing
-- synchronized live gameplay and review surfaces
-- real study and puzzle tooling
-- coherent dev tooling and docs
-
-This is the point to freeze features, tag the release, and ship.
+- no direct pushes to `main`
+- no speculative architecture rewrites
+- no feature creep disguised as cleanup
+- prefer bug fixes, DevEx improvements, documentation clarity, and operational hardening

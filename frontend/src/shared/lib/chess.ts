@@ -47,6 +47,11 @@ export interface SandboxMove {
   fenAfter: string;
 }
 
+export interface AnalysisEligibility {
+  ok: boolean;
+  reason: string | null;
+}
+
 interface ParsedUciMove {
   from: string;
   to: string;
@@ -55,6 +60,10 @@ interface ParsedUciMove {
 
 function toChessColor(color: PlayerColor) {
   return color === "white" ? "w" : "b";
+}
+
+function oppositeColor(color: PlayerColor): PlayerColor {
+  return color === "white" ? "black" : "white";
 }
 
 function buildPreviewBoard(fen: string, color?: PlayerColor): Chess {
@@ -138,6 +147,117 @@ export function fenMetadataFromFen(fen: string): FenMetadata {
   };
 }
 
+function countPieces(position: BoardPosition) {
+  const counts = {
+    white: { total: 0, pawns: 0, queens: 0, rooks: 0, bishops: 0, knights: 0 },
+    black: { total: 0, pawns: 0, queens: 0, rooks: 0, bishops: 0, knights: 0 },
+  };
+
+  for (const piece of Object.values(position)) {
+    if (!piece) {
+      continue;
+    }
+
+    const bucket = piece[0] === "w" ? counts.white : counts.black;
+    const type = piece[1];
+    bucket.total += 1;
+
+    switch (type) {
+      case "P":
+        bucket.pawns += 1;
+        break;
+      case "Q":
+        bucket.queens += 1;
+        break;
+      case "R":
+        bucket.rooks += 1;
+        break;
+      case "B":
+        bucket.bishops += 1;
+        break;
+      case "N":
+        bucket.knights += 1;
+        break;
+      default:
+        break;
+    }
+  }
+
+  return counts;
+}
+
+function getCastlingValidationError(position: BoardPosition, castlingToken: string): string | null {
+  const castlingRequirements: Array<{ token: string; kingSquare: string; rookSquare: string; king: EditorPieceCode; rook: EditorPieceCode; label: string }> = [
+    { token: "K", kingSquare: "e1", rookSquare: "h1", king: "wK", rook: "wR", label: "White kingside castling" },
+    { token: "Q", kingSquare: "e1", rookSquare: "a1", king: "wK", rook: "wR", label: "White queenside castling" },
+    { token: "k", kingSquare: "e8", rookSquare: "h8", king: "bK", rook: "bR", label: "Black kingside castling" },
+    { token: "q", kingSquare: "e8", rookSquare: "a8", king: "bK", rook: "bR", label: "Black queenside castling" },
+  ];
+
+  for (const requirement of castlingRequirements) {
+    if (!castlingToken.includes(requirement.token)) {
+      continue;
+    }
+
+    if (position[requirement.kingSquare] !== requirement.king || position[requirement.rookSquare] !== requirement.rook) {
+      return `${requirement.label} is enabled, but the king and rook are not on their home squares.`;
+    }
+  }
+
+  return null;
+}
+
+function getMaterialValidationError(position: BoardPosition): string | null {
+  const counts = countPieces(position);
+
+  for (const [label, pieces] of Object.entries(counts)) {
+    if (pieces.pawns > 8) {
+      return `${label === "white" ? "White" : "Black"} has more than eight pawns.`;
+    }
+
+    if (pieces.total > 16) {
+      return `${label === "white" ? "White" : "Black"} has more than sixteen pieces on the board.`;
+    }
+
+    const promotedPiecesNeeded =
+      Math.max(0, pieces.queens - 1) +
+      Math.max(0, pieces.rooks - 2) +
+      Math.max(0, pieces.bishops - 2) +
+      Math.max(0, pieces.knights - 2);
+    const availablePromotions = 8 - pieces.pawns;
+
+    if (promotedPiecesNeeded > availablePromotions) {
+      return `${label === "white" ? "White" : "Black"} has more promoted material than its missing pawns allow.`;
+    }
+  }
+
+  return null;
+}
+
+function isKingInCheck(fen: string, color: PlayerColor): boolean {
+  const game = new Chess(fen);
+  game.setTurn(toChessColor(color));
+  return game.isCheck();
+}
+
+function getCheckValidationError(fen: string): string | null {
+  const [, activeColorToken = "w"] = fen.split(" ");
+  const activeColor = activeColorToken === "b" ? "black" : "white";
+  const inactiveColor = oppositeColor(activeColor);
+  const whiteInCheck = isKingInCheck(fen, "white");
+  const blackInCheck = isKingInCheck(fen, "black");
+
+  if (whiteInCheck && blackInCheck) {
+    return "Both kings are in check. Fix the board setup before analysis can start.";
+  }
+
+  if (isKingInCheck(fen, inactiveColor)) {
+    return `${inactiveColor === "white" ? "White" : "Black"} cannot already be in check when it is ${activeColor}'s turn.`;
+  }
+
+  return null;
+}
+
 function fenPlacementFromBoardPosition(position: BoardPosition): string {
   return BOARD_RANKS.map((rank) => {
     let emptyCount = 0;
@@ -193,6 +313,48 @@ export function buildFenFromEditorState(position: BoardPosition, metadata: FenMe
       error: error instanceof Error ? error.message : "Invalid board setup.",
     };
   }
+}
+
+export function getAnalysisEligibility(fen: string): AnalysisEligibility {
+  try {
+    new Chess(fen);
+  } catch (error) {
+    return {
+      ok: false,
+      reason: error instanceof Error ? error.message : "Invalid board setup.",
+    };
+  }
+
+  const position = boardPositionFromFen(fen);
+  const [, , castlingToken = "-"] = fen.split(" ");
+  const castlingError = getCastlingValidationError(position, castlingToken);
+  if (castlingError) {
+    return {
+      ok: false,
+      reason: castlingError,
+    };
+  }
+
+  const materialError = getMaterialValidationError(position);
+  if (materialError) {
+    return {
+      ok: false,
+      reason: materialError,
+    };
+  }
+
+  const checkError = getCheckValidationError(fen);
+  if (checkError) {
+    return {
+      ok: false,
+      reason: checkError,
+    };
+  }
+
+  return {
+    ok: true,
+    reason: null,
+  };
 }
 
 export function applySandboxMove(fen: string, uci: string): SandboxMove | null {

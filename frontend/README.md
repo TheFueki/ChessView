@@ -2,6 +2,8 @@
 
 React + Vite frontend for ChessView.
 
+Repository version: `1.0.0`
+
 ## Package Manager
 
 This frontend now uses Yarn Classic:
@@ -13,7 +15,7 @@ yarn lint
 yarn build
 ```
 
-The committed lockfile is `yarn.lock`. `npm` may still work in a pinch, but Yarn is the supported workflow for this repo.
+The committed lockfile is `yarn.lock`. Yarn is the supported workflow for this repo.
 
 ## Local Development
 

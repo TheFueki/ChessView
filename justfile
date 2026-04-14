@@ -21,8 +21,11 @@ frontend-lint:
 frontend-build:
     Set-Location frontend; yarn build
 
+backend-smoke:
+    Set-Location backend; uv run python -m compileall app domains infrastructure shared tests; uv run python -c "import app.main"
+
 backend-tests:
     Set-Location backend; uv run pytest tests
 
 check:
-    Set-Location backend; uv run pytest tests; Set-Location ..\frontend; yarn lint; yarn build
+    Set-Location backend; uv run python -m compileall app domains infrastructure shared tests; uv run python -c "import app.main"; uv run pytest tests; Set-Location ..\frontend; yarn lint; yarn build

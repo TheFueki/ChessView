@@ -2,6 +2,8 @@
 
 FastAPI backend for ChessView.
 
+Repository version: `1.0.0`
+
 ## Local Run
 
 ```powershell
@@ -15,7 +17,8 @@ uv run uvicorn app.main:app --reload --host localhost --port 8000
 ```powershell
 cd C:\Users\Anek\chessview\backend
 uv run pytest tests
-python -m compileall domains infrastructure shared tests app
+uv run python -m compileall app domains infrastructure shared tests
+uv run python -c "import app.main"
 ```
 
 ## Notes
@@ -23,5 +26,6 @@ python -m compileall domains infrastructure shared tests app
 - local development creates tables on startup
 - dev compatibility helpers run during startup bootstrap
 - starter puzzle data is seeded automatically when needed
+- the current runtime model is single-instance; see `../docs/scaling.md` for the next scaling step
 
 See the repo root [README](../README.md) for Docker Compose and full-stack workflows.

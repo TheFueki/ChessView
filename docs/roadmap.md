@@ -1,10 +1,10 @@
 # ChessView Roadmap
 
-## v1 Status
+## Frozen Baseline
 
-ChessView v1 is feature-complete and ready to freeze.
+ChessView `v1.0.0` is the frozen baseline.
 
-Implemented:
+The v1 surface already includes:
 
 - auth
 - live multiplayer games
@@ -19,20 +19,21 @@ Implemented:
 - puzzles
 - tournaments
 
-## Release Rule
+## Repository Rule
 
-Do not expand the feature set before shipping v1.
+Do not treat this repo as an open-ended feature sprint.
 
-The right move now is:
+Prefer:
 
-- freeze features
-- polish documentation and release assets
-- tag the release
-- record the demo
+- bug fixes
+- test coverage
+- developer experience improvements
+- operational hardening
+- documentation clarity
 
 ## v1.1 Candidates
 
-These are valid next steps after the v1 tag:
+These are valid next steps after the frozen v1 baseline:
 
 - puzzle streaks and puzzle rating progression
 - saved studies
@@ -42,7 +43,7 @@ These are valid next steps after the v1 tag:
 
 ## Not v1 Work
 
-These are intentionally not blockers for the release:
+These are intentionally not baseline maintenance work:
 
 - blog/community surface
 - major UI redesign

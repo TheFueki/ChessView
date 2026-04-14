@@ -29,6 +29,7 @@ import {
   buildFenFromEditorState,
   fenMetadataFromFen,
   formatPrincipalVariation,
+  getAnalysisEligibility,
   getLegalMoves,
   getMoveSquares,
   getSquareColor,
@@ -115,17 +116,41 @@ export function AnalysisWorkspace() {
     [currentMoveIndex, lineMoves, rootFen],
   );
   const editorValidation = useMemo(() => buildFenFromEditorState(editorPosition, editorMetadata), [editorPosition, editorMetadata]);
+  const editorAnalysisEligibility = useMemo(
+    () => (editorValidation.fen ? getAnalysisEligibility(editorValidation.fen) : null),
+    [editorValidation.fen],
+  );
   const analysisFen = mode === "edit" ? editorValidation.fen : currentFen;
-  const analysis = useStockfishAnalysis({ fen: analysisFen ?? STANDARD_START_FEN, enabled: Boolean(analysisFen), depth: 15, debounceMs: 250 });
+  const analysisEligibility = useMemo(
+    () => (analysisFen ? getAnalysisEligibility(analysisFen) : null),
+    [analysisFen],
+  );
+  const analysisUnavailableReason = !analysisFen
+    ? editorValidation.error ?? "Create a valid position in the editor to start local analysis."
+    : analysisEligibility?.ok
+      ? null
+      : analysisEligibility?.reason ?? "Analysis is unavailable for this position.";
+  const analysis = useStockfishAnalysis({
+    fen: analysisFen ?? STANDARD_START_FEN,
+    enabled: Boolean(analysisFen && analysisEligibility?.ok),
+    depth: 15,
+    debounceMs: 250,
+  });
   const normalizedScore = useMemo(
-    () => (analysisFen ? scoreFromWhitePerspective(analysisFen, analysis.score) : null),
-    [analysis.score, analysisFen],
+    () => (analysisFen && !analysisUnavailableReason ? scoreFromWhitePerspective(analysisFen, analysis.score) : null),
+    [analysis.score, analysisFen, analysisUnavailableReason],
   );
   const bestMoveLabel = useMemo(
-    () => (analysisFen && analysis.bestMove ? formatPrincipalVariation(analysisFen, [analysis.bestMove]) || analysis.bestMove : null),
-    [analysis.bestMove, analysisFen],
+    () =>
+      analysisFen && !analysisUnavailableReason && analysis.bestMove
+        ? formatPrincipalVariation(analysisFen, [analysis.bestMove]) || analysis.bestMove
+        : null,
+    [analysis.bestMove, analysisFen, analysisUnavailableReason],
   );
-  const bestMoveSquares = useMemo(() => getMoveSquares(analysis.bestMove), [analysis.bestMove]);
+  const bestMoveSquares = useMemo(
+    () => (analysisUnavailableReason ? null : getMoveSquares(analysis.bestMove)),
+    [analysis.bestMove, analysisUnavailableReason],
+  );
   const bestMoveArrows = useMemo<[Square, Square, string?][]>(
     () => (bestMoveSquares && analysisFen ? [[bestMoveSquares[0] as Square, bestMoveSquares[1] as Square, "rgba(16, 185, 129, 0.85)"]] : []),
     [analysisFen, bestMoveSquares],
@@ -139,7 +164,11 @@ export function AnalysisWorkspace() {
     }),
     [currentFen, currentMoveIndex, editorValidation.fen, legalTargets, lineMoves, mode, selectedSquare],
   );
-  const currentPv = useMemo(() => (analysisFen ? formatPrincipalVariation(analysisFen, analysis.pv) : ""), [analysis.pv, analysisFen]);
+  const currentPv = useMemo(
+    () => (analysisFen && !analysisUnavailableReason ? formatPrincipalVariation(analysisFen, analysis.pv) : ""),
+    [analysis.pv, analysisFen, analysisUnavailableReason],
+  );
+  const analysisStatusLabel = analysisUnavailableReason ? "Unavailable" : formatAnalysisStatus(analysis.status);
 
   const syncEditorFromFen = (fen: string) => {
     setEditorPosition(boardPositionFromFen(fen));
@@ -379,7 +408,7 @@ export function AnalysisWorkspace() {
                   customLightSquareStyle={{ backgroundColor: "#D9DFC8" }}
                   customBoardStyle={{ borderRadius: "1rem" }}
                   customSquareStyles={boardHighlights}
-                  customArrows={analysisFen ? bestMoveArrows : []}
+                  customArrows={analysisUnavailableReason ? [] : bestMoveArrows}
                 />
               </div>
             </div>
@@ -387,7 +416,7 @@ export function AnalysisWorkspace() {
               <div className="grid gap-3 md:grid-cols-3">
                 <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4"><div className="text-xs font-medium uppercase tracking-[0.2em] text-neutral-500">Current FEN</div><div className="mt-3 break-all font-mono text-sm text-neutral-100">{analysisFen ?? "Editor position is not valid yet"}</div></div>
                 <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4"><div className="text-xs font-medium uppercase tracking-[0.2em] text-neutral-500">Line Length</div><div className="mt-3 text-2xl font-semibold text-neutral-100">{lineMoves.length} plies</div><div className="mt-1 text-sm text-neutral-500">Current step {currentMoveIndex}</div></div>
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4"><div className="text-xs font-medium uppercase tracking-[0.2em] text-neutral-500">Analysis</div><div className="mt-3 text-2xl font-semibold text-neutral-100">{formatAnalysisStatus(analysis.status)}</div><div className="mt-1 text-sm text-neutral-500">{analysisFen ? "Local Stockfish keeps up with the displayed position." : "Waiting for a valid position."}</div></div>
+                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4"><div className="text-xs font-medium uppercase tracking-[0.2em] text-neutral-500">Analysis</div><div className="mt-3 text-2xl font-semibold text-neutral-100">{analysisStatusLabel}</div><div className="mt-1 text-sm text-neutral-500">{analysisUnavailableReason ?? (analysisFen ? "Local Stockfish keeps up with the displayed position." : "Waiting for a valid position.")}</div></div>
               </div>
             </div>
           </Card>
@@ -414,11 +443,15 @@ export function AnalysisWorkspace() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.25em] text-neutral-500">Computer Analysis</div>
-                <div className="mt-2 text-sm text-neutral-400">{analysisFen ? "The engine is evaluating the currently displayed sandbox position." : "Create a valid position in the editor to start local analysis."}</div>
+                <div className="mt-2 text-sm text-neutral-400">{analysisUnavailableReason ?? (analysisFen ? "The engine is evaluating the currently displayed sandbox position." : "Create a valid position in the editor to start local analysis.")}</div>
               </div>
-              <div className="rounded-full border border-neutral-800 bg-neutral-950/70 px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">{formatAnalysisStatus(analysis.status)}</div>
+              <div className="rounded-full border border-neutral-800 bg-neutral-950/70 px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">{analysisStatusLabel}</div>
             </div>
-            {analysis.error ? (
+            {analysisUnavailableReason ? (
+              <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
+                Analysis unavailable: {analysisUnavailableReason}
+              </div>
+            ) : analysis.error ? (
               <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-200">{analysis.error}</div>
             ) : (
               <>
@@ -473,7 +506,13 @@ export function AnalysisWorkspace() {
               <Button variant="secondary" size="sm" onClick={() => syncEditorFromFen(STANDARD_START_FEN)}><WandSparkles className="h-4 w-4" />Reset Editor</Button>
               <Button variant="ghost" size="sm" onClick={() => setEditorSelection("erase")}><Eraser className="h-4 w-4" />Eraser</Button>
             </div>
-            <div className={`rounded-2xl border p-4 text-sm ${editorValidation.fen ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100" : "border-amber-500/20 bg-amber-500/10 text-amber-100"}`}>{editorValidation.fen ? `Valid editor position: ${editorValidation.fen}` : editorValidation.error ?? "Place pieces to build a position."}</div>
+            <div className={`rounded-2xl border p-4 text-sm ${editorValidation.fen && editorAnalysisEligibility?.ok ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100" : "border-amber-500/20 bg-amber-500/10 text-amber-100"}`}>
+              {editorValidation.fen && editorAnalysisEligibility?.ok
+                ? `Valid editor position: ${editorValidation.fen}`
+                : editorValidation.fen
+                  ? `Board setup loaded, but analysis is disabled: ${editorAnalysisEligibility?.reason ?? "Adjust the position to continue."}`
+                  : editorValidation.error ?? "Place pieces to build a position."}
+            </div>
           </Card>
           <Card className="space-y-4">
             <div className="text-xs font-semibold uppercase tracking-[0.25em] text-neutral-500">FEN Tools</div>
