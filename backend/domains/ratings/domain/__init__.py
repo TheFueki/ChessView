@@ -1,0 +1,1 @@
+"""Ratings domain layer."""

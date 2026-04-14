@@ -1,0 +1,149 @@
+"""SQLAlchemy profile read repository."""
+
+from uuid import UUID
+
+from sqlalchemy import func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from domains.game.domain.value_objects import GameResult, GameStatus
+from domains.game.infrastructure.models import GameModel, MoveModel
+from domains.identity.infrastructure.models import UserModel
+from domains.profiles.domain.entities import ProfileGamePreview, ProfilePlayer, ProfileSummary
+from domains.profiles.domain.repository import AbstractProfileRepository
+
+UNKNOWN_PLAYER_USERNAME = "?"
+UNKNOWN_PLAYER_RATING = 1200
+
+
+class SqlAlchemyProfileRepository(AbstractProfileRepository):
+    """Builds profile read models from users and games."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get_profile_summary(self, user_id: UUID, recent_game_limit: int = 8) -> ProfileSummary | None:
+        user_stmt = select(UserModel).where(UserModel.id == user_id)
+        user_result = await self._session.execute(user_stmt)
+        user = user_result.scalar_one_or_none()
+        if user is None:
+            return None
+
+        game_condition = or_(GameModel.white_id == user_id, GameModel.black_id == user_id)
+        games_stmt = select(GameModel).where(game_condition).order_by(GameModel.started_at.desc())
+        games_result = await self._session.execute(games_stmt)
+        games = list(games_result.scalars().all())
+
+        completed_games = [game for game in games if game.status not in {GameStatus.ACTIVE, GameStatus.ABORTED}]
+        wins, losses, draws = self._summarize_results(user_id, completed_games)
+        games_played = len(completed_games)
+
+        recent_games = games[:recent_game_limit]
+        user_ids = {user_id}
+        for game in recent_games:
+            user_ids.add(game.white_id)
+            user_ids.add(game.black_id)
+
+        players = await self._build_player_lookup(user_ids)
+
+        move_counts = await self._get_move_counts([game.id for game in recent_games])
+
+        previews: list[ProfileGamePreview] = []
+        for game in recent_games:
+            player_color = "white" if game.white_id == user_id else "black"
+            opponent_id = game.black_id if player_color == "white" else game.white_id
+
+            previews.append(
+                ProfileGamePreview(
+                    id=str(game.id),
+                    white=players.get(game.white_id) or self._unknown_player(game.white_id),
+                    black=players.get(game.black_id) or self._unknown_player(game.black_id),
+                    opponent=players.get(opponent_id) or self._unknown_player(opponent_id),
+                    player_color=player_color,
+                    time_control_name=game.time_control_name,
+                    result=game.result,
+                    status=game.status,
+                    termination_reason=game.termination_reason,
+                    move_count=move_counts.get(game.id, 0),
+                    started_at=game.started_at,
+                    ended_at=game.ended_at,
+                    rated=game.rated,
+                    rating_delta=self._rating_delta_for_user(game, player_color),
+                )
+            )
+
+        win_rate = round((wins / games_played) * 100, 1) if games_played else 0.0
+
+        return ProfileSummary(
+            id=str(user.id),
+            username=user.username,
+            rating=user.rating,
+            avatar_url=user.avatar_path,
+            created_at=user.created_at,
+            games_played=games_played,
+            wins=wins,
+            losses=losses,
+            draws=draws,
+            win_rate=win_rate,
+            recent_games=previews,
+        )
+
+    async def _get_move_counts(self, game_ids: list[UUID]) -> dict[UUID, int]:
+        if not game_ids:
+            return {}
+
+        stmt = (
+            select(MoveModel.game_id, func.count(MoveModel.id))
+            .where(MoveModel.game_id.in_(game_ids))
+            .group_by(MoveModel.game_id)
+        )
+        result = await self._session.execute(stmt)
+        return {game_id: count for game_id, count in result.all()}
+
+    async def _build_player_lookup(self, user_ids: set[UUID]) -> dict[UUID, ProfilePlayer]:
+        player_stmt = select(UserModel).where(UserModel.id.in_(list(user_ids)))
+        player_result = await self._session.execute(player_stmt)
+        return {
+            player.id: ProfilePlayer(
+                id=str(player.id),
+                username=player.username,
+                rating=player.rating,
+                avatar_url=player.avatar_path,
+            )
+            for player in player_result.scalars().all()
+        }
+
+    @staticmethod
+    def _summarize_results(user_id: UUID, completed_games: list[GameModel]) -> tuple[int, int, int]:
+        wins = 0
+        losses = 0
+        draws = 0
+
+        for game in completed_games:
+            if game.result == GameResult.DRAW:
+                draws += 1
+            elif (game.result == GameResult.WHITE_WINS and game.white_id == user_id) or (
+                game.result == GameResult.BLACK_WINS and game.black_id == user_id
+            ):
+                wins += 1
+            elif game.result is not None:
+                losses += 1
+
+        return wins, losses, draws
+
+    @staticmethod
+    def _rating_delta_for_user(game: GameModel, player_color: str) -> int | None:
+        if not game.rated:
+            return None
+        if player_color == "white" and game.white_rating_after is not None:
+            return game.white_rating_after - game.white_rating_before
+        if player_color == "black" and game.black_rating_after is not None:
+            return game.black_rating_after - game.black_rating_before
+        return None
+
+    @staticmethod
+    def _unknown_player(user_id: UUID) -> ProfilePlayer:
+        return ProfilePlayer(
+            id=str(user_id),
+            username=UNKNOWN_PLAYER_USERNAME,
+            rating=UNKNOWN_PLAYER_RATING,
+        )

@@ -1,0 +1,1 @@
+"""Puzzles bounded context."""

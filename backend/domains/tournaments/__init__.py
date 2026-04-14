@@ -1,0 +1,1 @@
+"""Swiss tournaments bounded context."""
