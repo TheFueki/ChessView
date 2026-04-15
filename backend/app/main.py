@@ -40,7 +40,7 @@ async def lifespan(application: FastAPI):
 
 
 def create_app() -> FastAPI:
-    application = FastAPI(title="ChessView API", version="1.0.0", lifespan=lifespan)
+    application = FastAPI(title="ChessView API", version="1.0.1", lifespan=lifespan)
     register_middleware(application)
     _register_static(application)
     _register_routers(application)

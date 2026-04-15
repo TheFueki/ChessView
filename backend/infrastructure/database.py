@@ -32,7 +32,7 @@ class Base(DeclarativeBase):
 
 
 async def init_db() -> None:
-    """Create the development schema and backfill compatibility columns."""
+    """Apply schema migrations and seed development bootstrap data."""
     from infrastructure.database_bootstrap import initialize_database
 
     await initialize_database(engine)

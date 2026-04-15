@@ -1,6 +1,6 @@
 [project]
 name = "chessview-backend"
-version = "1.0.0"
+version = "1.0.1"
 description = "ChessView — multiplayer 1v1 chess platform with webcam support"
 readme = "README.md"
 requires-python = ">=3.12"

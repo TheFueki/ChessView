@@ -56,7 +56,7 @@ Important current backend choices:
 
 - live chess state remains server-authoritative
 - persistence models describe storage concerns, not product policy
-- dev database bootstrap is separated from model registration and compatibility helpers
+- database bootstrap applies tracked Alembic migrations before seeding starter puzzle data
 - repositories use explicit mapping helpers instead of generic magic or copy-paste walls
 
 ## Frontend Architecture

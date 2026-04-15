@@ -6,7 +6,7 @@ It combines server-authoritative multiplayer chess with replay, browser-local St
 
 ## Status
 
-ChessView is frozen at `v1.0.0` as a stable baseline for multi-engineer development.
+ChessView is frozen at `v1.0.1` as a stable refinement baseline for multi-engineer development.
 
 What that means:
 
@@ -73,8 +73,9 @@ Endpoints:
 
 Notes:
 
-- local schema creation runs on backend startup
+- tracked Alembic migrations are applied on backend startup, and already-populated legacy dev databases are auto-adopted into the current tracked revision
 - starter puzzle data seeds automatically when the puzzle catalog is empty
+- once the stack is running, Docker-backed maintenance commands are available through the root `justfile`
 
 ### B. Local Split
 
@@ -92,6 +93,7 @@ docker compose up -d postgres
 ```powershell
 cd C:\Users\Anek\chessview\backend
 uv sync
+uv run alembic upgrade head
 uv run uvicorn app.main:app --reload --host localhost --port 8000
 ```
 
@@ -126,7 +128,14 @@ The root `justfile` provides the main day-to-day commands:
 
 ```powershell
 just docker-up
+just docker-down
+just docker-rebuild
 just stack-up
+just docker-ps
+just docker-logs-backend
+just docker-backend-db-current
+just docker-backend-db-upgrade
+just docker-backend-db-check
 just backend-smoke
 just backend-dev
 just frontend-dev
@@ -157,9 +166,50 @@ Backend:
 ```powershell
 cd C:\Users\Anek\chessview\backend
 uv run python -m compileall app domains infrastructure shared tests
+uv run alembic upgrade head
+uv run alembic check
 uv run python -c "import app.main"
 uv run pytest tests
 ```
+
+## Backend Migrations
+
+Alembic is now the source of truth for backend schema changes.
+
+Apply migrations:
+
+```powershell
+cd C:\Users\Anek\chessview\backend
+uv run alembic upgrade head
+```
+
+If your local database predates the new Alembic workflow, start the backend once first so the legacy dev schema can be adopted into the tracked revision safely.
+
+Docker Compose equivalents for a running stack:
+
+```powershell
+cd C:\Users\Anek\chessview
+just docker-backend-db-current
+just docker-backend-db-upgrade
+just docker-backend-db-check
+just docker-backend-db-revision MESSAGE="describe_change"
+```
+
+Create a new migration after changing SQLAlchemy models:
+
+```powershell
+cd C:\Users\Anek\chessview\backend
+uv run alembic revision --autogenerate -m "describe_change"
+```
+
+Check that migrations and metadata still match:
+
+```powershell
+cd C:\Users\Anek\chessview\backend
+uv run alembic check
+```
+
+For convenience, backend startup still applies tracked migrations automatically in Docker Compose and local dev. What changed is that startup no longer does `create_all` or ad hoc `ALTER TABLE` compatibility writes.
 
 Frontend:
 

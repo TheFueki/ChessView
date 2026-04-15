@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.events import EventType, WSEnvelope
 from shared.ws_manager import manager
-from domains.game.application.commands import MakeMoveCommand, ResignCommand
+from domains.game.application.commands import AcceptDrawCommand, MakeMoveCommand, ResignCommand
 from domains.game.application.services import GameService, current_clock_snapshot
 from domains.game.domain.exceptions import GameNotActive, GameNotFound, IllegalMove, NotYourTurn
 from domains.game.infrastructure.repository import SqlAlchemyGameRepository
@@ -198,28 +198,15 @@ async def handle_draw_accept(envelope: WSEnvelope, user_id: str, session: AsyncS
         await manager.send_error(user_id, "NOT_IN_GAME", "game_id required")
         return
 
-    # Finalize draw in DB
     service = _build_service(session)
     try:
-        game = await service.get_game(UUID(game_id))
+        game = await service.accept_draw(
+            AcceptDrawCommand(game_id=UUID(game_id), user_id=UUID(user_id))
+        )
     except GameNotFound:
         return
-
-    if game.status != "active":
+    except GameNotActive:
         return
-
-    from datetime import datetime, timezone
-    clock_state = current_clock_snapshot(game)
-    game.status = "draw"
-    game.result = "1/2-1/2"
-    game.white_time_ms = clock_state["white_time_ms"]
-    game.black_time_ms = clock_state["black_time_ms"]
-    game.ended_at = datetime.now(timezone.utc)
-    game.termination_reason = "draw_agreement"
-    game.last_clock_started_at = None
-    game.disconnected_player_id = None
-    game.disconnect_grace_deadline_at = None
-    game = await SqlAlchemyGameRepository(session).update(game)
 
     rating_update = await _apply_ratings_if_needed(UUID(game_id), session)
     await _sync_tournament_if_needed(UUID(game_id), session)

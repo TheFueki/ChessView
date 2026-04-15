@@ -3,12 +3,19 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from domains.game.application.commands import CreateGameCommand, MakeMoveCommand, ResignCommand
+from domains.game.application.commands import AcceptDrawCommand, CreateGameCommand, MakeMoveCommand, ResignCommand
 from domains.game.domain.entities import Game, Move
 from domains.game.domain.exceptions import GameNotActive, GameNotFound
 from domains.game.domain.clock import active_player_id, active_remaining_time_ms, capture_clock_snapshot
 from domains.game.domain.moves import apply_player_move
-from domains.game.domain.outcomes import abort_game, pause_for_disconnect, resign_game, resume_after_reconnect, timeout_game
+from domains.game.domain.outcomes import (
+    abort_game,
+    accept_draw,
+    pause_for_disconnect,
+    resign_game,
+    resume_after_reconnect,
+    timeout_game,
+)
 from domains.game.domain.policies import DEFAULT_DISCONNECT_GRACE_SECONDS, is_meaningfully_started
 from domains.game.domain.repository import AbstractGameRepository
 from domains.game.domain.value_objects import GameStatus
@@ -16,6 +23,7 @@ from domains.game.domain.value_objects import GameStatus
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
 
 def current_clock_snapshot(game: Game, now: datetime | None = None) -> dict:
     return capture_clock_snapshot(game, now or utc_now()).to_payload()
@@ -66,6 +74,14 @@ class GameService:
         now = utc_now()
         snapshot = capture_clock_snapshot(game, now)
         resign_game(game, cmd.user_id, snapshot, now)
+        return await self._repo.update(game)
+
+    async def accept_draw(self, cmd: AcceptDrawCommand) -> Game:
+        """Finalize a draw agreement for an active game."""
+        game = await self._require_active_game(cmd.game_id)
+        now = utc_now()
+        snapshot = capture_clock_snapshot(game, now)
+        accept_draw(game, snapshot, now)
         return await self._repo.update(game)
 
     async def get_game(self, game_id: UUID) -> Game:

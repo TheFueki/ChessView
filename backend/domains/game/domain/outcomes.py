@@ -39,6 +39,12 @@ def resign_game(game: Game, user_id: UUID, snapshot: ClockSnapshot, now: datetim
     _finish_game(game, status=GameStatus.RESIGNED, result=result, reason="resignation", now=now)
 
 
+def accept_draw(game: Game, snapshot: ClockSnapshot, now: datetime) -> None:
+    game.white_time_ms = snapshot.white_time_ms
+    game.black_time_ms = snapshot.black_time_ms
+    _finish_game(game, status=GameStatus.DRAW, result=GameResult.DRAW, reason="draw_agreement", now=now)
+
+
 def timeout_game(game: Game, losing_player_id: UUID, snapshot: ClockSnapshot, now: datetime, reason: str) -> None:
     if losing_player_id == game.white_id:
         white_time_ms = 0

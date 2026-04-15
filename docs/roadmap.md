@@ -2,7 +2,7 @@
 
 ## Frozen Baseline
 
-ChessView `v1.0.0` is the frozen baseline.
+ChessView `v1.0.1` is the frozen refinement baseline.
 
 The v1 surface already includes:
 
