@@ -41,7 +41,7 @@ export type ConnectionState = "idle" | "connecting" | "open" | "disconnected" | 
 export type PlayerColor = "white" | "black";
 export type GameStatus = "active" | "checkmate" | "stalemate" | "draw" | "resigned" | "timeout" | "aborted";
 export type GameResult = "1-0" | "0-1" | "1/2-1/2";
-export type TimeControlKey = "3+0" | "3+2" | "5+0" | "5+3" | "10+0";
+export type TimeControlKey = "1+0" | "1+1" | "1+2" |  "2+1" | "3+0" | "3+1" | "3+2" | "5+0" | "5+3" | "10+0" | "15+0" | "15+10";
 export type TerminationReason =
   | "checkmate"
   | "stalemate"
@@ -273,6 +273,7 @@ export interface ProfileResponse {
   id: string;
   username: string;
   rating: number;
+  global_rank: number;
   avatar_url?: string | null;
   created_at: string;
   games_played: number;
@@ -280,6 +281,7 @@ export interface ProfileResponse {
   losses: number;
   draws: number;
   win_rate: number;
+  coins: number;
   recent_games: ProfileRecentGameResponse[];
 }
 

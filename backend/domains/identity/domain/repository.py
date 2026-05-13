@@ -1,5 +1,5 @@
 """
-Abstract user repository — the port that infrastructure implements.
+Abstract user repository   the port that infrastructure implements.
 
 Domain layer defines the interface; infrastructure provides the adapter.
 """

@@ -6,10 +6,6 @@
  *
  * FSD layer: features
  * May import: entities, shared
- *
- * TODO: Implement GuestForm component
- * TODO: Call POST /api/identity/guest (or register with generated creds)
- * TODO: Store tokens in user entity store
  */
 
 export {};

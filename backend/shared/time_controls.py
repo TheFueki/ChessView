@@ -14,11 +14,18 @@ class TimeControl:
 
 
 _PRESET_CATALOG = (
+    TimeControl(name="1+0", initial_time_ms=60_000, increment_ms=0),
+    TimeControl(name="1+1", initial_time_ms=60_000, increment_ms=1_000),
+    TimeControl(name="1+2", initial_time_ms=60_000, increment_ms=2_000),
+    TimeControl(name="2+1", initial_time_ms=120_000, increment_ms=1_000),
     TimeControl(name="3+0", initial_time_ms=180_000, increment_ms=0),
+    TimeControl(name="3+1", initial_time_ms=180_000, increment_ms=1_000),
     TimeControl(name="3+2", initial_time_ms=180_000, increment_ms=2_000),
     TimeControl(name="5+0", initial_time_ms=300_000, increment_ms=0),
     TimeControl(name="5+3", initial_time_ms=300_000, increment_ms=3_000),
     TimeControl(name="10+0", initial_time_ms=600_000, increment_ms=0),
+    TimeControl(name="15+0", initial_time_ms=900_000, increment_ms=0),
+    TimeControl(name="15+10", initial_time_ms=900_000, increment_ms=10_000),
 )
 
 DEFAULT_TIME_CONTROL = next(preset for preset in _PRESET_CATALOG if preset.name == "5+0")

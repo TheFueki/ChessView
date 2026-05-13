@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 class EventType(StrEnum):
     """All WebSocket event types used by client and server."""
 
-    # Client → Server
+    # Client   Server
     QUEUE_JOIN = "queue_join"
     QUEUE_LEAVE = "queue_leave"
     MOVE = "move"
@@ -27,7 +27,7 @@ class EventType(StrEnum):
     RTC_ANSWER = "rtc_answer"
     RTC_ICE = "rtc_ice"
 
-    # Server → Client
+    # Server   Client
     QUEUE_JOINED = "queue_joined"
     MATCH_FOUND = "match_found"
     GAME_STATE = "game_state"

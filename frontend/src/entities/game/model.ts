@@ -25,6 +25,7 @@ import type {
 } from "@/shared/types";
 
 export interface GamePlayer {
+  avatar_url?: string;
   id: string;
   username: string;
   rating: number;
@@ -124,6 +125,7 @@ function toGamePlayer(player: PlayerSummary | null): GamePlayer | null {
     id: player.id,
     username: player.username,
     rating: player.rating,
+    avatar_url: player.avatar_url ?? "",
   };
 }
 

@@ -43,3 +43,5 @@ class ProfileSummary:
     draws: int
     win_rate: float
     recent_games: list[ProfileGamePreview] = field(default_factory=list)
+    global_rank: int = 0  
+    bio: str | None = None 

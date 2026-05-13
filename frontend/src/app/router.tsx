@@ -19,12 +19,16 @@ const AuthPage = lazy(() => import("@/pages/auth-page/AuthPage"));
 const AnalysisPage = lazy(() => import("@/pages/analysis-page/AnalysisPage"));
 const LobbyPage = lazy(() => import("@/pages/lobby-page/LobbyPage"));
 const GamePage = lazy(() => import("@/pages/game-page/GamePage"));
+const SettingsPage = lazy(() => import("@/pages/settings-page/SettingsPage"));
 const HistoryPage = lazy(() => import("@/pages/history-page/HistoryPage"));
+const LeaderboardPage = lazy(() => import("@/pages/leaderboard-page/LeaderboardPage"));
 const GameReviewPage = lazy(() => import("@/pages/game-review-page/GameReviewPage"));
 const PuzzlePage = lazy(() => import("@/pages/puzzle-page/PuzzlePage"));
 const ProfilePage = lazy(() => import("@/pages/profile-page/ProfilePage"));
 const TournamentsPage = lazy(() => import("@/pages/tournaments-page/TournamentsPage"));
 const TournamentDetailPage = lazy(() => import("@/pages/tournament-detail-page/TournamentDetailPage"));
+const ShopPage = lazy(() => import("@/pages/shop-page/ShopPage"));
+const ClubsPage = lazy(() => import("@/pages/clubs-page/ClubsPage"));
 const routeErrorElement = <RouteErrorPage />;
 
 function SuspenseWrapper({ children }: { children: ReactNode }) {
@@ -105,6 +109,28 @@ const router = createBrowserRouter([
         <RedirectIfAuthenticated>
           <AuthPage />
         </RedirectIfAuthenticated>
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: "/settings",
+    errorElement: routeErrorElement,
+    element: (
+      <SuspenseWrapper>
+        <RequireAuth>
+          <SettingsPage />
+        </RequireAuth>
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: "/leaderboard",
+    errorElement: routeErrorElement,
+    element: (
+      <SuspenseWrapper>
+        <RequireAuth>
+          <LeaderboardPage />
+        </RequireAuth>
       </SuspenseWrapper>
     ),
   },
@@ -203,6 +229,28 @@ const router = createBrowserRouter([
       <SuspenseWrapper>
         <RequireAuth>
           <GameReviewPage />
+        </RequireAuth>
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: "/shop",
+    errorElement: routeErrorElement,
+    element: (
+      <SuspenseWrapper>
+        <RequireAuth>
+          <ShopPage />
+        </RequireAuth>
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: "/clubs",
+    errorElement: routeErrorElement,
+    element: (
+      <SuspenseWrapper>
+        <RequireAuth>
+          <ClubsPage />
         </RequireAuth>
       </SuspenseWrapper>
     ),

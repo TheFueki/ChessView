@@ -1,6 +1,5 @@
 """Small SQLAlchemy column helpers for consistent backend models."""
 
-from datetime import datetime
 import uuid
 
 from sqlalchemy import ForeignKey

@@ -208,7 +208,7 @@ export function HistoryTable({
                               : "text-neutral-300"
                         }`}
                       >
-                        {formatRatingDelta(game.rating_delta)} • {formatMoveCount(game.move_count)}
+                        {formatRatingDelta(game.rating_delta)}   {formatMoveCount(game.move_count)}
                       </div>
                     </div>
                   </div>

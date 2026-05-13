@@ -80,7 +80,7 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
             <Button onClick={this.reloadPage}>Reload App</Button>
-            <Button variant="secondary" onClick={() => (window.location.href = "/lobby")}>
+            <Button variant="secondary" onClick={() => (window.location.href = "/")}>
               Back to Lobby
             </Button>
           </div>

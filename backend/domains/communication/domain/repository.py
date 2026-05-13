@@ -1,5 +1,5 @@
 """
-Abstract chat message repository — port for persistence.
+Abstract chat message repository   port for persistence.
 """
 
 from abc import ABC, abstractmethod

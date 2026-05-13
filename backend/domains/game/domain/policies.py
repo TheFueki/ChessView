@@ -1,6 +1,5 @@
 """Product policy rules for live games."""
 
-from shared.time_controls import DEFAULT_TIME_CONTROL
 
 MEANINGFUL_START_MOVE_COUNT = 2
 DEFAULT_DISCONNECT_GRACE_SECONDS = 20

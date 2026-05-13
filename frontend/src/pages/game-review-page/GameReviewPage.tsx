@@ -86,7 +86,7 @@ function ReplayContent({
                   {game.white.username} vs {game.black.username}
                 </h2>
                 <div className="mt-2 text-sm text-neutral-400">
-                  {formatResult(game.result, game.status)} • {game.time_control_name} • {formatDateTime(game.ended_at ?? game.started_at)}
+                  {formatResult(game.result, game.status)}   {game.time_control_name}   {formatDateTime(game.ended_at ?? game.started_at)}
                 </div>
                 {game.termination_reason ? (
                   <div className="mt-1 text-sm capitalize text-neutral-500">

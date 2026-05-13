@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { BarChart3, Brain, Crown, History, LayoutGrid, Shield, Swords, Trophy } from "lucide-react";
+import { BarChart3, Brain, Crown, History, LayoutGrid, Shield, Swords, Trophy, Settings, Medal } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router";
 import { useMatchmakingStore } from "@/entities/matchmaking";
 import { useUserStore } from "@/entities/user";
@@ -24,6 +24,8 @@ const navItems = [
   { to: "/puzzles", label: "Puzzles", icon: Brain },
   { to: "/tournaments", label: "Tournaments", icon: Trophy },
   { to: "/profile", label: "Profile", icon: Shield },
+  { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/leaderboards", label: "Leaderboards", icon: Medal },
 ];
 
 export function AppShell({

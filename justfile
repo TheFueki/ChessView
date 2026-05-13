@@ -1,52 +1,54 @@
 set shell := ["powershell.exe", "-NoProfile", "-Command"]
 
+docker := "New-Item -ItemType Directory -Force .docker | Out-Null; if (!(Test-Path .docker\\config.json)) { Copy-Item .docker\\config.example.json .docker\\config.json }; $env:DOCKER_CONFIG=(Resolve-Path .docker).Path; docker compose"
+
 default:
     just --list
 
 docker-ps:
-    docker compose ps
+    {{docker}} ps
 
 docker-logs:
-    docker compose logs -f
+    {{docker}} logs -f
 
 docker-logs-backend:
-    docker compose logs -f backend
+    {{docker}} logs -f backend
 
 docker-logs-frontend:
-    docker compose logs -f frontend
+    {{docker}} logs -f frontend
 
 docker-up:
-    docker compose up -d
+    {{docker}} up -d
 
 docker-down:
-    docker compose down
+    {{docker}} down
 
 docker-rebuild:
-    docker compose up --build -d
+    {{docker}} up --build -d
 
 stack-up:
-    docker compose up --build
+    {{docker}} up --build
 
 docker-restart-backend:
-    docker compose restart backend
+    {{docker}} restart backend
 
 docker-backend-shell:
-    docker compose exec backend sh
+    {{docker}} exec backend sh
 
 docker-frontend-shell:
-    docker compose exec frontend sh
+    {{docker}} exec frontend sh
 
 docker-backend-db-current:
-    docker compose exec backend uv run alembic current
+    {{docker}} exec backend uv run alembic current
 
 docker-backend-db-upgrade:
-    docker compose exec backend uv run alembic upgrade head
+    {{docker}} exec backend uv run alembic upgrade head
 
 docker-backend-db-check:
-    docker compose exec backend uv run alembic check
+    {{docker}} exec backend uv run alembic check
 
 docker-backend-db-revision MESSAGE="describe_change":
-    docker compose exec backend uv run alembic revision --autogenerate -m "{{MESSAGE}}"
+    {{docker}} exec backend uv run alembic revision --autogenerate -m "{{MESSAGE}}"
 
 backend-dev:
     Set-Location backend; uv sync; uv run uvicorn app.main:app --reload --host localhost --port 8000

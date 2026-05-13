@@ -17,10 +17,9 @@ router = APIRouter()
 def _build_service(session: AsyncSession) -> ProfileService:
     return ProfileService(profile_repo=SqlAlchemyProfileRepository(session))
 
-
 def _serialize_profile(profile) -> ProfileResponse:
     return ProfileResponse(
-        id=profile.id,
+        id=str(profile.id),
         username=profile.username,
         rating=profile.rating,
         avatar_url=profile.avatar_url,
@@ -30,12 +29,28 @@ def _serialize_profile(profile) -> ProfileResponse:
         losses=profile.losses,
         draws=profile.draws,
         win_rate=profile.win_rate,
+        global_rank=getattr(profile, "global_rank", 0), 
         recent_games=[
             ProfileGameResponse(
-                id=game.id,
-                white=ProfilePlayerResponse(**game.white.__dict__),
-                black=ProfilePlayerResponse(**game.black.__dict__),
-                opponent=ProfilePlayerResponse(**game.opponent.__dict__),
+                id=str(game.id),
+                white=ProfilePlayerResponse(
+                    id=str(game.white.id),
+                    username=game.white.username,
+                    rating=game.white.rating,
+                    avatar_url=game.white.avatar_url
+                ),
+                black=ProfilePlayerResponse(
+                    id=str(game.black.id),
+                    username=game.black.username,
+                    rating=game.black.rating,
+                    avatar_url=game.black.avatar_url
+                ),
+                opponent=ProfilePlayerResponse(
+                    id=str(game.opponent.id),
+                    username=game.opponent.username,
+                    rating=game.opponent.rating,
+                    avatar_url=game.opponent.avatar_url
+                ),
                 player_color=game.player_color,
                 time_control_name=game.time_control_name,
                 result=game.result,
@@ -47,10 +62,9 @@ def _serialize_profile(profile) -> ProfileResponse:
                 rated=game.rated,
                 rating_delta=game.rating_delta,
             )
-            for game in profile.recent_games
+            for game in (profile.recent_games or []) 
         ],
     )
-
 
 @router.get("/me", response_model=ProfileResponse)
 async def get_my_profile(
@@ -65,6 +79,14 @@ async def get_my_profile(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return _serialize_profile(profile)
 
+@router.get("/leaderboard", response_model=list[ProfileResponse])
+async def get_global_leaderboard(
+    limit: int = Query(50, ge=1, le=100),
+    session: AsyncSession = Depends(get_db),
+):
+    service = _build_service(session)
+    leaders = await service.get_top_players(limit=limit)
+    return [_serialize_profile(p) for p in leaders]
 
 @router.get("/{user_id}", response_model=ProfileResponse)
 async def get_profile(

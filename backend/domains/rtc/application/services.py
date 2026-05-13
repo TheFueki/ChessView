@@ -1,7 +1,7 @@
 """
 RTC signaling application service.
 
-Stateless relay — receives a signal from one peer and forwards it to the other.
+Stateless relay   receives a signal from one peer and forwards it to the other.
 Uses ConnectionManager to determine the opponent in a game room.
 """
 

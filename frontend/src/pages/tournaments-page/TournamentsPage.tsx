@@ -1,27 +1,27 @@
-import { useMemo, useState } from "react";
-import { Plus, Trophy } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { 
+  BarChart3, PlayCircle, Swords, Trophy, 
+  Settings, ChevronLeft, ChevronRight, ShoppingBag, Users,
+  Medal, Plus, Info
+} from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { http } from "@/shared/api";
-import type { TimeControlKey, TournamentSummaryResponse } from "@/shared/types";
-import { Button, Card, Input, Spinner } from "@/shared/ui";
-import { AppShell } from "@/widgets/app-shell";
+import { Avatar, Button, Card, Spinner, Input } from "@/shared/ui"; 
+import type { ProfileResponse, TournamentSummaryResponse, TimeControlKey } from "@/shared/types";
+import "../../pages-style/dashboard-page/dashboardpage.scss";
+import logoImage from "../../assets/logo.jpeg";
 
-const TIME_CONTROL_OPTIONS: TimeControlKey[] = ["3+0", "3+2", "5+0", "5+3", "10+0"];
+const TIME_CONTROL_OPTIONS: TimeControlKey[] = ["1+0", "1+1", "1+2", "2+1", "3+0", "3+1", "3+2", "5+0", "5+3", "10+0", "15+0", "15+10"];
 
-function formatDateTime(value: string | null) {
-  if (!value) {
-    return "--";
-  }
+const LocalAppShell = ({ children, className }: { children: React.ReactNode; className?: string }) => {
+  return (
+    <div className={`app-shell-container ${className || ''}`}>
+      {children}
+    </div>
+  );
+};
 
-  return new Date(value).toLocaleString([], {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 function formatStatus(status: TournamentSummaryResponse["status"]) {
   return status.replaceAll("_", " ");
@@ -30,9 +30,16 @@ function formatStatus(status: TournamentSummaryResponse["status"]) {
 export default function TournamentsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [uiState, setUiState] = useState({ left: true, right: true });
+  
   const [name, setName] = useState("");
   const [timeControlName, setTimeControlName] = useState<TimeControlKey>("5+0");
   const [actionError, setActionError] = useState<string | null>(null);
+
+  const profileQuery = useQuery({
+    queryKey: ["dashboard-profile"],
+    queryFn: () => http.get<ProfileResponse>("/profiles/me"),
+  });
 
   const tournamentsQuery = useQuery({
     queryKey: ["tournaments"],
@@ -78,16 +85,12 @@ export default function TournamentsPage() {
     },
   });
 
+  const profile = profileQuery.data ?? null;
   const tournaments = tournamentsQuery.data ?? [];
+
   const error = useMemo(() => {
-    if (actionError) {
-      return actionError;
-    }
-
-    if (tournamentsQuery.error instanceof Error) {
-      return tournamentsQuery.error.message;
-    }
-
+    if (actionError) return actionError;
+    if (tournamentsQuery.error instanceof Error) return tournamentsQuery.error.message;
     return tournamentsQuery.error ? "Unable to load tournaments." : null;
   }, [actionError, tournamentsQuery.error]);
 
@@ -101,119 +104,236 @@ export default function TournamentsPage() {
   };
 
   return (
-    <AppShell
-      eyebrow="Tournaments"
-      title="Swiss events and standings"
-      description="Create or join a Swiss tournament, follow pairings round by round, and keep the whole competitive layer in one place."
-      actions={
-        <Button onClick={() => navigate("/lobby")}>
-          Play Casual Match
-        </Button>
-      }
-    >
-      <section className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
-        <Card className="space-y-4">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-300/80">Swiss Tournaments</div>
-            <h2 className="mt-2 text-3xl font-bold tracking-tight text-neutral-100">Compete across multiple rounds</h2>
-            <p className="mt-2 max-w-2xl text-sm text-neutral-400">
-              Tournament games reuse the existing live game flow, Elo updates, and time controls. Pairings avoid rematches when possible and standings update as results land.
-            </p>
-          </div>
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4 text-sm text-neutral-400">
-            Registration, standings, active round tracking, and replay links all live inside the tournament hub now.
-          </div>
-        </Card>
+    <LocalAppShell className={`dashboard-root ${!uiState.left ? 'l-collapsed' : ''} ${!uiState.right ? 'r-collapsed' : ''}`}>
+      <div className="dashboard-grid">
+        <aside className="side-panel left-panel">
+          <button className="collapse-btn" onClick={() => setUiState(s => ({...s, left: !s.left}))}>
+            {uiState.left ? <ChevronLeft size={16}/> : <ChevronRight size={16}/>}
+          </button>
+          
+          <div className="panel-inner">
+            <div className="brand-section">
+                <div className="logo-box">
+                  <img 
+                    src={logoImage} 
+                    alt="ChessView Logo" 
+                    className="logo-img"
+                  />
+                </div>
+              <div className="brand-text">
+                <span className="name">ChessView</span>
+                <span className="ver">v1.1.1</span>
+              </div>
+            </div>
 
-        <Card className="space-y-4">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.25em] text-neutral-500">
-            <Plus className="h-4 w-4" />
-            Create Tournament
-          </div>
-          <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Friday Blitz Arena" />
-          <select
-            value={timeControlName}
-            onChange={(event) => setTimeControlName(event.target.value as TimeControlKey)}
-            className="h-11 rounded-lg border border-neutral-700 bg-neutral-900 px-3 text-sm text-neutral-100 outline-hidden transition focus:border-emerald-500"
-          >
-            {TIME_CONTROL_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-          <Button onClick={handleCreate} disabled={createTournament.isPending}>
-            {createTournament.isPending ? "Creating..." : "Create Tournament"}
-          </Button>
-          {error ? <div className="text-sm text-red-300">{error}</div> : null}
-        </Card>
-      </section>
+            <nav className="main-nav">
+              <button className="nav-item" onClick={() => navigate("/")}>
+                <Swords size={20}/> <span>Dashboard</span>
+              </button>
+              <button className="nav-item" onClick={() => navigate("/clubs")}>
+                <Users size={20}/> <span>Clubs</span>
+              </button>
+              <button className="nav-item" onClick={() => navigate("/shop")}>
+                <ShoppingBag size={20}/> <span>Market</span>
+              </button>
+              <button className="nav-item" onClick={() => navigate("/settings")}>
+                <Settings size={20}/> <span>Settings</span>
+              </button>
+              <button className="nav-item" onClick={() => navigate("/analysis")}>
+                <BarChart3 size={20}/> <span>Study</span>
+              </button>
+              <button className="nav-item active" onClick={() => navigate("/tournaments")}>
+                <Trophy size={20}/> <span>Tournaments</span>
+              </button>
+              <button className="nav-item" onClick={() => navigate("/leaderboard")}>
+                <Medal size={20}/> <span>Leaderboard</span>
+              </button>
+            </nav>
 
-      <Card className="overflow-hidden p-0">
-        <div className="border-b border-neutral-800 px-6 py-5">
-          <div className="flex items-center gap-2.5">
-            <Trophy className="h-5 w-5 text-emerald-500" />
-            <h2 className="text-lg font-semibold text-neutral-100">Open Events</h2>
+            <div className="profile-anchor">
+              <div className="user-card-mini" onClick={() => navigate("/profile")}>
+                <div className="relative"> 
+                  <Avatar 
+                    username={profile?.username ?? "Guest"} 
+                    avatarUrl={profile?.avatar_url} 
+                    size="sm"
+                  />
+                  <div className="online-status" />
+                </div>
+                <div className="user-meta">
+                  <span className="username">{profile?.username ?? "Loading..."}</span>
+                  <span className="rank">Ranked Player</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <p className="mt-1.5 pl-[30px] text-sm text-neutral-500">Create a new event or join an existing tournament before it starts.</p>
-        </div>
+        </aside>
 
-        {tournamentsQuery.isLoading ? (
-          <div className="flex flex-col items-center justify-center gap-3 py-20 text-neutral-400">
-            <Spinner size="md" />
-            <p className="text-sm">Loading tournaments...</p>
-          </div>
-        ) : tournaments.length === 0 ? (
-          <div className="px-6 py-20 text-center text-sm text-neutral-400">No tournaments yet. Create the first Swiss event above.</div>
-        ) : (
-          <div className="divide-y divide-neutral-800/70">
-            {tournaments.map((tournament) => {
-              const isLeavingOwner = tournament.viewer_is_owner && tournament.viewer_is_member;
-              return (
-                <div key={tournament.id} className="grid gap-4 px-6 py-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-                  <div className="min-w-0">
-                    <button onClick={() => navigate(`/tournaments/${tournament.id}`)} className="text-left transition hover:opacity-90">
-                      <div className="truncate text-lg font-semibold text-neutral-100">{tournament.name}</div>
-                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-neutral-500">
-                        <span className="rounded-full border border-neutral-800 bg-neutral-900 px-2.5 py-1 capitalize text-neutral-300">
-                          {formatStatus(tournament.status)}
-                        </span>
-                        <span>{tournament.time_control_name}</span>
-                        <span className="h-1 w-1 rounded-full bg-neutral-700" />
-                        <span>{tournament.player_count} players</span>
-                        <span className="h-1 w-1 rounded-full bg-neutral-700" />
-                        <span>Owner {tournament.owner.username}</span>
-                        <span className="h-1 w-1 rounded-full bg-neutral-700" />
-                        <span>Round {tournament.current_round}/{Math.max(tournament.total_rounds, 0)}</span>
-                      </div>
-                      <div className="mt-2 text-xs text-neutral-600">
-                        Created {formatDateTime(tournament.created_at)}
-                        {tournament.started_at ? ` • Started ${formatDateTime(tournament.started_at)}` : ""}
-                      </div>
-                    </button>
+        <main className="main-viewport">
+          <header className="viewport-header">
+            <div className="header-info">
+              <h1>Tournaments</h1>
+              <div className="server-badge">
+                <span className="pulse-dot" /> Swiss Events
+              </div>
+            </div>
+            <div className="quick-stats">
+              <div className="stat-pill">
+                <span>Active</span> 
+                <b>{tournaments.filter(t => t.status !== "registration" && t.status !== "finished").length}</b>
+              </div>
+              <div className="stat-pill">
+                <span>Open</span> 
+                <b>{tournaments.filter(t => t.status === "registration").length}</b>
+              </div>
+            </div>
+          </header>
+
+          <section className="hero-action-section">
+            <Card className="play-card">
+              <div className="card-content">
+                <span className="tag">New Event</span>
+                <h2>Host a Tournament</h2>
+                <p>Create a Swiss event with custom time controls and invite players.</p>
+                
+                <div className="actions-row" style={{ marginTop: '1rem', gap: '0.75rem', flexDirection: 'column', alignItems: 'flex-start' }}>
+                  <div style={{ display: 'flex', gap: '0.75rem', width: '100%' }}>
+                    <Input 
+                      value={name} 
+                      onChange={(e) => setName(e.target.value)} 
+                      placeholder="Tournament Name" 
+                      style={{ flex: 1 }}
+                    />
+                    <select
+                      value={timeControlName}
+                      onChange={(e) => setTimeControlName(e.target.value as TimeControlKey)}
+                      className="h-11 rounded-lg border border-neutral-700 bg-neutral-900 px-3 text-sm text-neutral-100 outline-hidden transition focus:border-emerald-500"
+                    >
+                      {TIME_CONTROL_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
                   </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button variant="secondary" size="sm" onClick={() => navigate(`/tournaments/${tournament.id}`)}>
-                      View
+                  
+                  <div className="flex items-center gap-3">
+                    <Button className="btn-main" onClick={handleCreate} disabled={createTournament.isPending}>
+                      <Plus className="mr-2"/> {createTournament.isPending ? "Creating..." : "Create Now"}
                     </Button>
-                    {!tournament.viewer_is_member && tournament.status === "registration" ? (
-                      <Button size="sm" onClick={() => joinTournament.mutate(tournament.id)} disabled={joinTournament.isPending}>
-                        Join
-                      </Button>
-                    ) : null}
-                    {tournament.viewer_is_member && tournament.status === "registration" && !isLeavingOwner ? (
-                      <Button variant="ghost" size="sm" onClick={() => leaveTournament.mutate(tournament.id)} disabled={leaveTournament.isPending}>
-                        Leave
-                      </Button>
-                    ) : null}
+                    {error && <span className="text-sm text-red-400">{error}</span>}
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            </Card>
+
+            <div className="sub-grid">
+              <Card className="mini-action" onClick={() => navigate("/lobby")}>
+                <PlayCircle size={24} className="text-blue-400"/>
+                <div>
+                  <h3>Quick Play</h3>
+                  <p>Casual match</p>
+                </div>
+              </Card>
+              <Card className="mini-action" onClick={() => navigate("/leaderboard")}>
+                <Medal size={24} className="text-yellow-500"/>
+                <div>
+                  <h3>Standings</h3>
+                  <p>View top players</p>
+                </div>
+              </Card>
+            </div>
+          </section>
+
+          <section className="recent-section">
+            <div className="section-title">
+              <h3>Available Events</h3>
+              <Button variant="ghost" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ["tournaments"] })}>Refresh List</Button>
+            </div>
+            
+            <div className="games-stack">
+              {tournamentsQuery.isLoading ? (
+                <div className="flex justify-center p-8"><Spinner /></div>
+              ) : tournaments.length === 0 ? (
+                <div className="p-8 text-center text-neutral-500 text-sm">No active tournaments found.</div>
+              ) : (
+                tournaments.map((t) => {
+                  const isLeavingOwner = t.viewer_is_owner && t.viewer_is_member;
+                  return (
+                    <div key={t.id} className="game-row">
+                      <div className="res-indicator" data-result={t.status === "registration" ? "draw" : "win"}>
+                        {formatStatus(t.status)}
+                      </div>
+                      <div className="opp-info" onClick={() => navigate(`/tournaments/${t.id}`)} style={{ cursor: 'pointer' }}>
+                        <span className="name">{t.name}</span>
+                        <span className="meta">
+                          {t.time_control_name}   {t.player_count} Players   Round {t.current_round}/{Math.max(t.total_rounds, 0)}
+                        </span>
+                      </div>
+                      <div className="time">
+                        {t.owner.username}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {t.status === "registration" && (
+                          <>
+                            {!t.viewer_is_member && (
+                              <Button size="sm" onClick={() => joinTournament.mutate(t.id)} disabled={joinTournament.isPending}>
+                                Join
+                              </Button>
+                            )}
+                            {t.viewer_is_member && !isLeavingOwner && (
+                              <Button variant="ghost" size="sm" onClick={() => leaveTournament.mutate(t.id)} disabled={leaveTournament.isPending}>
+                                Leave
+                              </Button>
+                            )}
+                          </>
+                        )}
+                        <Button size="sm" variant="ghost" onClick={() => navigate(`/tournaments/${t.id}`)}>View</Button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </section>
+        </main>
+
+        <aside className="side-panel right-panel">
+          <button className="collapse-btn" onClick={() => setUiState(s => ({...s, right: !s.right}))}>
+            {uiState.right ? <ChevronRight size={16}/> : <ChevronLeft size={16}/>}
+          </button>
+
+          <div className="panel-inner">
+            <div className="aside-section">
+              <div className="section-head"><Info size={18}/> Tournament Rules</div>
+              <div className="help-grid">
+                <div className="help-item" style={{ cursor: 'default', opacity: 0.8 }}>Swiss System</div>
+                <div className="help-item" style={{ cursor: 'default', opacity: 0.8 }}>Elo Rated</div>
+              </div>
+              <p className="text-[11px] text-neutral-500 mt-3 px-1">
+                Standings update in real-time. Pairings avoid rematches when possible.
+              </p>
+            </div>
+
+            <div className="aside-section tournaments-radar">
+              <div className="section-head"><Trophy size={18}/> Live Status</div>
+              <div className="t-list">
+                <div className="p-4 text-center text-xs text-neutral-600 border border-dashed border-neutral-800 rounded-xl">
+                  Tournament pairing updates will appear here.
+                </div>
+              </div>
+            </div>
+
+            <div className="status-footer">
+              <div className="status-card">
+                <div className="sys-icon"><div className="dot"/></div>
+                <div className="sys-meta">
+                  <span className="l">Matchmaking</span>
+                  <span className="v">Stable   Online</span>
+                </div>
+              </div>
+            </div>
           </div>
-        )}
-      </Card>
-    </AppShell>
+        </aside>
+      </div>
+    </LocalAppShell>
   );
 }

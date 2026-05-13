@@ -1,7 +1,7 @@
 """
 Identity domain entities.
 
-Pure domain objects — no framework dependencies.
+Pure domain objects   no framework dependencies.
 """
 
 from dataclasses import dataclass, field
@@ -18,5 +18,6 @@ class User:
     email: str = ""
     password_hash: str = ""
     rating: int = 1200
+    bio: str | None = None
     avatar_path: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))

@@ -16,7 +16,6 @@ from app.config import settings
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
-    # TODO: Tune pool_size, max_overflow for production
 )
 
 async_session_factory = async_sessionmaker(

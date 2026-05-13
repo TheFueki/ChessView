@@ -1,5 +1,5 @@
 """
-Abstract game repository — port for game persistence.
+Abstract game repository   port for game persistence.
 """
 
 from abc import ABC, abstractmethod

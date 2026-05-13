@@ -3,7 +3,7 @@ import { clsx } from "clsx";
 type AvatarSize = "sm" | "md" | "lg" | "xl";
 
 interface AvatarProps {
-  username: string;
+  username?: string;
   avatarUrl?: string | null;
   size?: AvatarSize;
   className?: string;
@@ -16,18 +16,22 @@ const sizeStyles: Record<AvatarSize, string> = {
   xl: "h-20 w-20 text-3xl",
 };
 
-function getInitials(username: string) {
-  const trimmed = username.trim();
+function getInitials(username?: string) {
+  const trimmed = username?.trim();
+
   if (!trimmed) {
     return "?";
   }
 
   const parts = trimmed.split(/\s+/).filter(Boolean);
+  
   if (parts.length === 1) {
     return parts[0].slice(0, 2).toUpperCase();
   }
+  const firstInitial = parts[0]?.[0] ?? "";
+  const secondInitial = parts[1]?.[0] ?? "";
 
-  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+  return (firstInitial + secondInitial).toUpperCase();
 }
 
 export function Avatar({

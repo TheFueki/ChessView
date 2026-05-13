@@ -2,8 +2,8 @@
 Room-based WebSocket connection manager.
 
 Responsibilities:
-- Track active connections: user_id → WebSocket
-- Track game rooms: game_id → set of user_ids
+- Track active connections: user_id   WebSocket
+- Track game rooms: game_id   set of user_ids
 - Send to individual user, broadcast to room
 - Send typed error events
 """
@@ -25,7 +25,7 @@ class ConnectionManager:
     def __init__(self) -> None:
         self.active_connections: dict[str, WebSocket] = {}
         self.game_rooms: dict[str, set[str]] = {}
-        self.user_game: dict[str, str] = {}  # user_id → game_id for reconnect lookup
+        self.user_game: dict[str, str] = {}  # user_id   game_id for reconnect lookup
 
     async def connect(self, user_id: str, websocket: WebSocket) -> None:
         """Register a new WebSocket connection for a user."""

@@ -1,7 +1,3 @@
-/**
- * HTTP client with JWT auth header injection.
- */
-
 import { getPersistedAccessToken, useUserStore } from "@/entities/user";
 import { API_BASE_URL } from "@/shared/config";
 
@@ -18,11 +14,21 @@ export class HttpError extends Error {
 }
 
 function getAccessToken(): string | null {
-  return getPersistedAccessToken();
+  const state = useUserStore.getState();
+  return state.accessToken || getPersistedAccessToken();
 }
 
 function isFormDataBody(body: unknown): body is FormData {
   return typeof FormData !== "undefined" && body instanceof FormData;
+}
+
+/**
+ *                                            URL
+ */
+function buildUrl(base: string, endpoint: string): string {
+  const baseUrl = base.endsWith("/") ? base.slice(0, -1) : base;
+  const path = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  return `${baseUrl}${path}`;
 }
 
 async function request<T>(
@@ -31,6 +37,7 @@ async function request<T>(
 ): Promise<T> {
   const token = getAccessToken();
   const isFormData = isFormDataBody(options.body);
+  
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
   };
@@ -43,15 +50,17 @@ async function request<T>(
     headers.Authorization = `Bearer ${token}`;
   }
 
+  const fullUrl = buildUrl(API_BASE_URL, endpoint);
+
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    response = await fetch(fullUrl, {
       ...options,
       headers,
     });
   } catch (error) {
     throw new HttpError(
-      error instanceof Error ? error.message : "Unable to reach the backend right now.",
+      error instanceof Error ? error.message : "Network failure",
       0,
       "NETWORK_ERROR",
     );
@@ -64,10 +73,13 @@ async function request<T>(
 
     if (response.status === 401 && token) {
       useUserStore.getState().clearAuth();
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = "/login";
+      }
     }
 
     throw new HttpError(
-      errorBody.detail || `HTTP ${response.status}`,
+      errorBody.detail || errorBody.message || `Error ${response.status}`,
       response.status,
       errorBody.code ?? null,
     );
@@ -81,16 +93,27 @@ async function request<T>(
 }
 
 export const http = {
-  get: <T>(endpoint: string) => request<T>(endpoint),
+  get: <T>(endpoint: string) => 
+    request<T>(endpoint, { method: "GET" }),
+
   post: <T>(endpoint: string, body?: unknown) =>
     request<T>(endpoint, {
       method: "POST",
       body: isFormDataBody(body) ? body : body ? JSON.stringify(body) : undefined,
     }),
+
   put: <T>(endpoint: string, body?: unknown) =>
     request<T>(endpoint, {
       method: "PUT",
       body: isFormDataBody(body) ? body : body ? JSON.stringify(body) : undefined,
     }),
-  delete: <T>(endpoint: string) => request<T>(endpoint, { method: "DELETE" }),
+
+  patch: <T>(endpoint: string, body?: unknown) =>
+    request<T>(endpoint, {
+      method: "PATCH",
+      body: isFormDataBody(body) ? body : body ? JSON.stringify(body) : undefined,
+    }),
+
+  delete: <T>(endpoint: string) => 
+    request<T>(endpoint, { method: "DELETE" }),
 };

@@ -17,6 +17,7 @@ export interface User {
 export interface AuthenticatedUser extends User {
   email: string;
   created_at: string;
+  bio?: string | null;
 }
 
 interface UserState {

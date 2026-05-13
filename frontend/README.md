@@ -20,12 +20,22 @@ The committed lockfile is `yarn.lock`. Yarn is the supported workflow for this r
 ## Local Development
 
 ```powershell
-cd C:\Users\Anek\chessview\frontend
+cd C:\Users\Anek\ChessViewVentie\ChessView\frontend
 yarn install --frozen-lockfile
 yarn dev
 ```
 
 The app runs at [http://localhost:5173](http://localhost:5173) and proxies `/api` and `/ws` to the backend.
+
+The browser-facing backend URL is configured with `VITE_SERVER_URL` in the repo root `.env`.
+
+Example local env values:
+
+```powershell
+VITE_SERVER_URL=http://localhost:8000
+VITE_API_PROXY_TARGET=http://localhost:8000
+VITE_WS_PROXY_TARGET=ws://localhost:8000
+```
 
 ## Docker
 

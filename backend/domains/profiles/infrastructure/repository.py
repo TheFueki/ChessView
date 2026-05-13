@@ -1,8 +1,7 @@
 """SQLAlchemy profile read repository."""
 
 from uuid import UUID
-
-from sqlalchemy import func, or_, select
+from sqlalchemy import select, func, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from domains.game.domain.value_objects import GameResult, GameStatus
@@ -44,7 +43,6 @@ class SqlAlchemyProfileRepository(AbstractProfileRepository):
             user_ids.add(game.black_id)
 
         players = await self._build_player_lookup(user_ids)
-
         move_counts = await self._get_move_counts([game.id for game in recent_games])
 
         previews: list[ProfileGamePreview] = []
@@ -72,6 +70,8 @@ class SqlAlchemyProfileRepository(AbstractProfileRepository):
             )
 
         win_rate = round((wins / games_played) * 100, 1) if games_played else 0.0
+        #                                      
+        rank = await self.get_user_rank(user.rating)
 
         return ProfileSummary(
             id=str(user.id),
@@ -85,12 +85,72 @@ class SqlAlchemyProfileRepository(AbstractProfileRepository):
             draws=draws,
             win_rate=win_rate,
             recent_games=previews,
+            global_rank=rank
         )
+
+    async def get_top_profiles(self, limit: int) -> list[ProfileSummary]:
+        stmt = (
+            select(
+                UserModel,
+                func.count(GameModel.id).filter(
+                    and_(
+                        GameModel.status != GameStatus.ACTIVE,
+                        GameModel.status != GameStatus.ABORTED
+                    )
+                ).label("total_games"),
+                func.count(GameModel.id).filter(
+                    or_(
+                        and_(GameModel.white_id == UserModel.id, GameModel.result == GameResult.WHITE_WINS),
+                        and_(GameModel.black_id == UserModel.id, GameModel.result == GameResult.BLACK_WINS)
+                    )
+                ).label("wins"),
+                func.count(GameModel.id).filter(
+                    GameModel.result == GameResult.DRAW
+                ).label("draws")
+            )
+            .outerjoin(GameModel, or_(UserModel.id == GameModel.white_id, UserModel.id == GameModel.black_id))
+            .group_by(UserModel.id)
+            .order_by(UserModel.rating.desc())
+            .limit(limit)
+        )
+        
+        result = await self._session.execute(stmt)
+        rows = result.all()
+
+        top_profiles = []
+        for index, row in enumerate(rows):
+            user, total, wins, draws = row
+            losses = total - wins - draws
+            wr = round((wins / total * 100), 1) if total > 0 else 0.0
+
+            top_profiles.append(
+                ProfileSummary(
+                    id=str(user.id),
+                    username=user.username,
+                    rating=user.rating,
+                    avatar_url=user.avatar_path,
+                    created_at=user.created_at,
+                    games_played=total,
+                    wins=wins,
+                    losses=losses,
+                    draws=draws,
+                    win_rate=wr,
+                    recent_games=[],
+                    global_rank=index + 1
+                )
+            )
+
+        return top_profiles
+
+    async def get_user_rank(self, rating: int) -> int:
+        stmt = select(func.count(UserModel.id)).where(UserModel.rating > rating)
+        result = await self._session.execute(stmt)
+        count = result.scalar() or 0
+        return count + 1
 
     async def _get_move_counts(self, game_ids: list[UUID]) -> dict[UUID, int]:
         if not game_ids:
             return {}
-
         stmt = (
             select(MoveModel.game_id, func.count(MoveModel.id))
             .where(MoveModel.game_id.in_(game_ids))
@@ -114,10 +174,7 @@ class SqlAlchemyProfileRepository(AbstractProfileRepository):
 
     @staticmethod
     def _summarize_results(user_id: UUID, completed_games: list[GameModel]) -> tuple[int, int, int]:
-        wins = 0
-        losses = 0
-        draws = 0
-
+        wins, losses, draws = 0, 0, 0
         for game in completed_games:
             if game.result == GameResult.DRAW:
                 draws += 1
@@ -127,7 +184,6 @@ class SqlAlchemyProfileRepository(AbstractProfileRepository):
                 wins += 1
             elif game.result is not None:
                 losses += 1
-
         return wins, losses, draws
 
     @staticmethod

@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.events import EventType, WSEnvelope
 from shared.ws_manager import manager
-from domains.matchmaking.application.services import MatchmakingService, MatchPair
+from domains.matchmaking.application.services import MatchmakingService
 from domains.matchmaking.domain.exceptions import AlreadyInQueue, NotInQueue
 from domains.game.application.commands import CreateGameCommand, StartingRatings
 from domains.game.application.services import GameService

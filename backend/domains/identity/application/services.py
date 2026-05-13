@@ -1,13 +1,14 @@
-"""
-Identity application service.
+import secrets
+from uuid import UUID, uuid4
+from datetime import datetime
 
-Orchestrates domain logic for registration, login, token refresh, and profile queries.
-Depends only on domain layer (entities, repository interface, exceptions).
-Infrastructure details (JWT, hashing) are injected, not imported directly.
-"""
-
-from uuid import UUID
-
+from domains.identity.application.commands import (
+    LoginUserCommand,
+    RefreshTokenCommand,
+    RegisterUserCommand,
+    UpdateProfileCommand,
+    OAuthUserCommand,
+)
 from domains.identity.domain.entities import User
 from domains.identity.domain.exceptions import (
     DuplicateEmail,
@@ -16,24 +17,22 @@ from domains.identity.domain.exceptions import (
     UserNotFound,
 )
 from domains.identity.domain.repository import AbstractUserRepository
-from domains.identity.application.commands import (
-    LoginUserCommand,
-    RefreshTokenCommand,
-    RegisterUserCommand,
-)
 
 
 class IdentityService:
-    """Application service for the identity domain."""
+    """
+    Application service for the identity domain.
+    Orchestrates domain logic for registration, login, profile queries, and OAuth.
+    """
 
     def __init__(
         self,
         user_repo: AbstractUserRepository,
-        hash_password,   # callable(str) -> str
-        verify_password,  # callable(str, str) -> bool
-        create_access_token,  # callable(str) -> str
-        create_refresh_token,  # callable(str) -> str
-        decode_token,     # callable(str) -> dict
+        hash_password,  
+        verify_password, 
+        create_access_token,
+        create_refresh_token, 
+        decode_token,   
     ) -> None:
         self._repo = user_repo
         self._hash_password = hash_password
@@ -43,49 +42,52 @@ class IdentityService:
         self._decode_token = decode_token
 
     async def register(self, cmd: RegisterUserCommand) -> dict:
-        """
-        Register a new user.
-
-        Returns auth payload with tokens and current user data.
-        Raises DuplicateEmail/DuplicateUsername on conflict.
-        """
-        existing = await self._repo.get_by_email(cmd.email)
-        if existing is not None:
-            raise DuplicateEmail()
-        existing = await self._repo.get_by_username(cmd.username)
-        if existing is not None:
-            raise DuplicateUsername()
+        """Register a new user via email and password."""
+        await self._check_uniqueness(cmd.email, cmd.username)
 
         user = User(
+            id=uuid4(),
             username=cmd.username,
             email=cmd.email,
             password_hash=self._hash_password(cmd.password),
         )
         user = await self._repo.create(user)
-
         return self._build_auth_response(user)
 
     async def login(self, cmd: LoginUserCommand) -> dict:
-        """
-        Authenticate a user.
+        """Authenticate a user. Raises InvalidCredentials on failure."""
+        user = await self._repo.get_by_email(cmd.email)
+        if user is None or not self._verify_password(cmd.password, user.password_hash):
+            raise InvalidCredentials()
 
-        Returns auth payload with tokens and current user data.
-        Raises InvalidCredentials on failure.
+        return self._build_auth_response(user)
+
+    async def oauth_flow(self, cmd: OAuthUserCommand) -> dict:
+        """
+        Handle seamless OAuth authentication.
+        Creates a profile if it doesn't exist, otherwise logs in.
         """
         user = await self._repo.get_by_email(cmd.email)
+
         if user is None:
-            raise InvalidCredentials()
-        if not self._verify_password(cmd.password, user.password_hash):
-            raise InvalidCredentials()
+            final_username = cmd.username
+            if await self._repo.get_by_username(final_username):
+                final_username = f"{cmd.username}_{secrets.token_hex(2)}"
+
+            random_pwd = secrets.token_urlsafe(32)
+            
+            user = User(
+                id=uuid4(),
+                username=final_username,
+                email=cmd.email,
+                password_hash=self._hash_password(random_pwd),
+            )
+            user = await self._repo.create(user)
 
         return self._build_auth_response(user)
 
     async def refresh(self, cmd: RefreshTokenCommand) -> dict:
-        """
-        Rotate tokens using a valid refresh token.
-
-        Returns new token pair. Raises InvalidCredentials if token invalid.
-        """
+        """Rotate tokens using a valid refresh token."""
         try:
             payload = self._decode_token(cmd.refresh_token)
         except Exception:
@@ -98,14 +100,9 @@ class IdentityService:
         if user_id is None:
             raise InvalidCredentials()
 
-        return self._build_token_pair(user_id)
+        return self._build_token_pair(str(user_id))
 
     async def get_profile(self, user_id: UUID) -> User:
-        """
-        Retrieve a user by ID.
-
-        Raises UserNotFound if no match.
-        """
         user = await self._repo.get_by_id(user_id)
         if user is None:
             raise UserNotFound()
@@ -115,6 +112,25 @@ class IdentityService:
         user = await self.get_profile(user_id)
         user.avatar_path = avatar_path
         return await self._repo.update(user)
+    
+    async def update_profile(self, cmd: UpdateProfileCommand) -> User:
+        user = await self.get_profile(cmd.user_id)
+
+        if cmd.username and cmd.username != user.username:
+            if await self._repo.get_by_username(cmd.username):
+                raise DuplicateUsername()
+            user.username = cmd.username
+
+        if cmd.bio is not None:
+            user.bio = cmd.bio
+            
+        return await self._repo.update(user)
+
+    async def _check_uniqueness(self, email: str, username: str) -> None:
+        if await self._repo.get_by_email(email):
+            raise DuplicateEmail()
+        if await self._repo.get_by_username(username):
+            raise DuplicateUsername()
 
     def _build_token_pair(self, user_id: str) -> dict:
         return {
@@ -129,8 +145,10 @@ class IdentityService:
             "id": str(user.id),
             "username": user.username,
             "email": user.email,
-            "rating": user.rating,
+            "rating": getattr(user, "rating", 800),
+            "bio": getattr(user, "bio", None),  
             "avatar_url": user.avatar_path,
-            "created_at": user.created_at,
+            "created_at": getattr(user, "created_at", datetime.utcnow()),
+            "global_rank": 0  
         }
         return payload

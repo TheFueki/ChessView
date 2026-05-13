@@ -85,8 +85,8 @@ export function GameSidebar() {
                 className="grid grid-cols-[36px_minmax(0,1fr)_minmax(0,1fr)] items-center gap-2 rounded-lg border border-neutral-800/80 bg-neutral-950/60 px-3 py-2 text-sm text-neutral-200 transition-colors hover:border-neutral-700 hover:bg-neutral-900/60"
               >
                 <span className="text-xs font-medium tabular-nums text-neutral-500">{pair.turn}.</span>
-                <span className="truncate rounded-md bg-neutral-900/80 px-2 py-1 font-mono text-xs">{pair.white?.uci ?? "–"}</span>
-                <span className="truncate rounded-md bg-neutral-900/80 px-2 py-1 font-mono text-xs">{pair.black?.uci ?? "–"}</span>
+                <span className="truncate rounded-md bg-neutral-900/80 px-2 py-1 font-mono text-xs">{pair.white?.uci ?? " "}</span>
+                <span className="truncate rounded-md bg-neutral-900/80 px-2 py-1 font-mono text-xs">{pair.black?.uci ?? " "}</span>
               </div>
             ))}
           </div>

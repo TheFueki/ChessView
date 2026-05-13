@@ -4,7 +4,7 @@ RTC WebSocket event handlers.
 Handles: rtc_offer, rtc_answer, rtc_ice
 Forwards each signal to the opponent in the game room.
 
-Stateless relay — delegates to SignalingService. DB session accepted but unused.
+Stateless relay   delegates to SignalingService. DB session accepted but unused.
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession

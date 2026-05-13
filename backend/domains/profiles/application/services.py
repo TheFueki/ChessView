@@ -18,3 +18,6 @@ class ProfileService:
         if profile is None:
             raise UserNotFound()
         return profile
+
+    async def get_top_players(self, limit: int = 50) -> list[ProfileSummary]:
+        return await self._repo.get_top_profiles(limit=limit)

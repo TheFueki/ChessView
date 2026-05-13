@@ -56,12 +56,26 @@ More detail:
 
 ChessView supports two practical development workflows:
 
+Configuration lives in the root `.env` file. Docker Compose reads it directly; local backend commands run from `backend/` also load the root `.env`. The default `.env` is for local development:
+
+- `DATABASE_URL` points to the PostgreSQL port published on `localhost`
+- `DOCKER_DATABASE_URL` is used by the backend container to reach the `postgres` service
+- `STORAGE_DIR=storage` keeps local media under `backend/storage`
+- `DOCKER_STORAGE_DIR=/app/storage` maps the container to `./backend/storage`
+- `VITE_SERVER_URL` is the browser-facing backend URL
+
+To start from a clean checkout:
+
+```powershell
+Copy-Item .env.example .env
+```
+
 ### A. Docker Compose
 
 Use this when you want the full stack running together with the least setup friction.
 
 ```powershell
-cd C:\Users\Anek\chessview
+cd C:\Users\Anek\ChessViewVentie\ChessView
 docker compose up --build
 ```
 
@@ -84,14 +98,14 @@ Use this when you want the fastest inner-loop frontend/backend development.
 1. Start PostgreSQL:
 
 ```powershell
-cd C:\Users\Anek\chessview
+cd C:\Users\Anek\ChessViewVentie\ChessView
 docker compose up -d postgres
 ```
 
 2. Start the backend:
 
 ```powershell
-cd C:\Users\Anek\chessview\backend
+cd C:\Users\Anek\ChessViewVentie\ChessView\backend
 uv sync
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload --host localhost --port 8000
@@ -100,12 +114,19 @@ uv run uvicorn app.main:app --reload --host localhost --port 8000
 3. Start the frontend:
 
 ```powershell
-cd C:\Users\Anek\chessview\frontend
+cd C:\Users\Anek\ChessViewVentie\ChessView\frontend
 yarn install --frozen-lockfile
 yarn dev
 ```
 
 Open [http://localhost:5173](http://localhost:5173).
+
+Example API smoke check after the backend is running:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/health
+Invoke-RestMethod http://localhost:8000/api/v1/puzzles
+```
 
 ## Package Manager
 
@@ -114,7 +135,7 @@ The frontend now uses Yarn Classic as the supported package manager.
 Common commands:
 
 ```powershell
-cd C:\Users\Anek\chessview\frontend
+cd C:\Users\Anek\ChessViewVentie\ChessView\frontend
 yarn dev
 yarn lint
 yarn build
@@ -164,7 +185,7 @@ choco install just
 Backend:
 
 ```powershell
-cd C:\Users\Anek\chessview\backend
+cd C:\Users\Anek\ChessViewVentie\ChessView\backend
 uv run python -m compileall app domains infrastructure shared tests
 uv run alembic upgrade head
 uv run alembic check
@@ -179,7 +200,7 @@ Alembic is now the source of truth for backend schema changes.
 Apply migrations:
 
 ```powershell
-cd C:\Users\Anek\chessview\backend
+cd C:\Users\Anek\ChessViewVentie\ChessView\backend
 uv run alembic upgrade head
 ```
 
@@ -188,7 +209,7 @@ If your local database predates the new Alembic workflow, start the backend once
 Docker Compose equivalents for a running stack:
 
 ```powershell
-cd C:\Users\Anek\chessview
+cd C:\Users\Anek\ChessViewVentie\ChessView
 just docker-backend-db-current
 just docker-backend-db-upgrade
 just docker-backend-db-check
@@ -198,14 +219,14 @@ just docker-backend-db-revision MESSAGE="describe_change"
 Create a new migration after changing SQLAlchemy models:
 
 ```powershell
-cd C:\Users\Anek\chessview\backend
+cd C:\Users\Anek\ChessViewVentie\ChessView\backend
 uv run alembic revision --autogenerate -m "describe_change"
 ```
 
 Check that migrations and metadata still match:
 
 ```powershell
-cd C:\Users\Anek\chessview\backend
+cd C:\Users\Anek\ChessViewVentie\ChessView\backend
 uv run alembic check
 ```
 
@@ -214,7 +235,7 @@ For convenience, backend startup still applies tracked migrations automatically 
 Frontend:
 
 ```powershell
-cd C:\Users\Anek\chessview\frontend
+cd C:\Users\Anek\ChessViewVentie\ChessView\frontend
 yarn lint
 yarn build
 ```

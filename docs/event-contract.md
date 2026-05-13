@@ -1,4 +1,4 @@
-# ChessView — Event & API Contract
+# ChessView   Event & API Contract
 
 This document is the canonical reference for every message that crosses a network boundary: WebSocket events and REST endpoints.
 
@@ -33,7 +33,7 @@ The `type` field is the routing key. The server WS handler dispatches to the cor
 
 ## 2. Event Type Registry
 
-### 2.1 Client → Server
+### 2.1 Client   Server
 
 | type | Domain | payload schema | game_id required |
 |------|--------|---------------|-----------------|
@@ -49,7 +49,7 @@ The `type` field is the routing key. The server WS handler dispatches to the cor
 | `rtc_answer` | rtc | `{ sdp: RTCSessionDescriptionInit }` | Yes |
 | `rtc_ice` | rtc | `{ candidate: RTCIceCandidateInit }` | Yes |
 
-### 2.2 Server → Client
+### 2.2 Server   Client
 
 | type | Domain | payload schema | Sent to |
 |------|--------|---------------|---------|
@@ -220,6 +220,14 @@ Response `200`:
 }
 ```
 
+### PUT `/api/identity/profile`
+
+Headers: Authorization: Bearer <access_token>
+
+Response `200`:
+```json 
+
+
 #### GET `/api/identity/users/{id}`
 
 Response `200`:
@@ -319,12 +327,12 @@ Response `200`:
 // shared/api/ws.ts
 
 type EventType =
-  // Client → Server
+  // Client   Server
   | "queue_join" | "queue_leave"
   | "move" | "resign" | "draw_offer" | "draw_accept" | "draw_decline"
   | "chat_send"
   | "rtc_offer" | "rtc_answer" | "rtc_ice"
-  // Server → Client
+  // Server   Client
   | "queue_joined" | "match_found"
   | "game_state" | "game_over" | "draw_offered" | "draw_declined"
   | "chat_message"
@@ -350,7 +358,7 @@ function createEvent<T>(type: EventType, payload: T, gameId?: string): WSEnvelop
 from enum import StrEnum
 
 class EventType(StrEnum):
-    # Client → Server
+    # Client   Server
     QUEUE_JOIN = "queue_join"
     QUEUE_LEAVE = "queue_leave"
     MOVE = "move"
@@ -363,7 +371,7 @@ class EventType(StrEnum):
     RTC_ANSWER = "rtc_answer"
     RTC_ICE = "rtc_ice"
 
-    # Server → Client
+    # Server   Client
     QUEUE_JOINED = "queue_joined"
     MATCH_FOUND = "match_found"
     GAME_STATE = "game_state"

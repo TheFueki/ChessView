@@ -44,7 +44,7 @@ export default function RouteErrorPage() {
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
           <Button onClick={() => navigate(0)}>Retry</Button>
-          <Button variant="secondary" onClick={() => navigate("/lobby")}>
+          <Button variant="secondary" onClick={() => navigate("/")}>
             Back to Lobby
           </Button>
         </div>

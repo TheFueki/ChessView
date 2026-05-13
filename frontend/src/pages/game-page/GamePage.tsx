@@ -3,7 +3,7 @@ import { Chessboard } from "react-chessboard";
 import type { CustomSquareStyles, Square } from "react-chessboard/dist/chessboard/types";
 import { Link, useNavigate, useParams } from "react-router";
 import { useGameStore } from "@/entities/game";
-import { useUserStore } from "@/entities/user";
+import { useUserStore } from "@/entities/user"; 
 import { useGameRealtime, useMakeMove } from "@/features/make-move";
 import { wsClient } from "@/shared/api";
 import { useLiveClock } from "@/shared/hooks";
@@ -12,6 +12,7 @@ import { Button, Card } from "@/shared/ui";
 import { GameLayout } from "@/widgets/game-layout";
 import { GameSidebar } from "@/widgets/game-sidebar";
 import { VideoChatPanel } from "@/widgets/video-chat-panel";
+import "../../pages-style/game-page/gamepage.scss";
 
 function formatClock(timeMs: number) {
   const totalSeconds = Math.max(0, Math.ceil(timeMs / 1000));
@@ -153,12 +154,14 @@ function PlayerBar({
   rating,
   clockMs,
   active,
+  avatarUrl
 }: {
   label: string;
   username: string;
   rating: number | null;
   clockMs: number;
   active: boolean;
+  avatarUrl: string | null | undefined;
 }) {
   return (
     <div
@@ -167,9 +170,22 @@ function PlayerBar({
       }`}
     >
       <div className="flex items-center gap-3">
-        <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full transition-colors duration-300 ${
-          active ? "bg-emerald-500 shadow-sm shadow-emerald-500/50" : "bg-neutral-700"
-        }`} />
+        <div className="relative h-10 w-10 flex-shrink-0">
+          {avatarUrl ? (
+            <img 
+              src={avatarUrl} 
+              alt={username} 
+              className="h-full w-full rounded-full border border-neutral-700 object-cover"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center rounded-full border border-neutral-700 bg-neutral-800 text-xs font-bold text-neutral-400">
+              {username[0]?.toUpperCase()}
+            </div>
+          )}
+          <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-neutral-900 transition-colors duration-300 ${
+            active ? "bg-emerald-500 shadow-sm shadow-emerald-500/50" : "bg-neutral-700"
+          }`} />
+        </div>
         <div>
           <div className="text-[11px] font-medium uppercase tracking-[0.2em] text-neutral-500">{label}</div>
           <div className="mt-0.5 text-base font-semibold text-neutral-100">{username}</div>
@@ -214,7 +230,7 @@ export default function GamePage() {
   const resetGame = useGameStore((state) => state.reset);
   const { isMyTurn, isGameOver, selectedSquare, legalTargets, premove, isDraggablePiece, onPieceDrop, onPieceDragBegin, onSquareClick } = useMakeMove();
   const { whiteTimeMs, blackTimeMs, graceRemainingMs } = useLiveClock(clock);
-
+  
   const topPlayer = myColor === "black" ? white : black;
   const bottomPlayer = myColor === "black" ? black : white;
   const topLabel = myColor === "black" ? "White" : "Black";
@@ -245,7 +261,7 @@ export default function GamePage() {
       board={
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <button onClick={() => navigate("/lobby")} className="flex items-center gap-2 transition hover:opacity-80">
+            <button onClick={() => navigate("/")} className="flex items-center gap-2 transition hover:opacity-80">
               <Crown className="h-5 w-5 text-emerald-500" />
               <span className="font-bold tracking-tight text-neutral-100">ChessView</span>
             </button>
@@ -269,6 +285,7 @@ export default function GamePage() {
                 label={topLabel}
                 username={topPlayer?.username ?? "Waiting..."}
                 rating={topPlayer?.rating ?? null}
+                avatarUrl={topPlayer?.avatar_url} 
                 clockMs={myColor === "black" ? whiteTimeMs : blackTimeMs}
                 active={turn === topLabel.toLowerCase() && !clock?.is_paused}
               />
@@ -339,6 +356,7 @@ export default function GamePage() {
                 label={bottomLabel}
                 username={bottomPlayer?.username ?? "Waiting..."}
                 rating={bottomPlayer?.rating ?? null}
+                avatarUrl={bottomPlayer?.avatar_url}
                 clockMs={myColor === "black" ? blackTimeMs : whiteTimeMs}
                 active={turn === bottomLabel.toLowerCase() && !clock?.is_paused}
               />

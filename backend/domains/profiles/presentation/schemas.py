@@ -1,16 +1,11 @@
-"""Profile API schemas."""
-
 from datetime import datetime
-
 from pydantic import BaseModel
-
 
 class ProfilePlayerResponse(BaseModel):
     id: str
     username: str
     rating: int
     avatar_url: str | None = None
-
 
 class ProfileGameResponse(BaseModel):
     id: str
@@ -28,7 +23,6 @@ class ProfileGameResponse(BaseModel):
     rated: bool
     rating_delta: int | None
 
-
 class ProfileResponse(BaseModel):
     id: str
     username: str
@@ -40,4 +34,5 @@ class ProfileResponse(BaseModel):
     losses: int
     draws: int
     win_rate: float
-    recent_games: list[ProfileGameResponse]
+    global_rank: int = 0  
+    recent_games: list[ProfileGameResponse] = []
