@@ -12,6 +12,7 @@ from domains.game.presentation.ws_handler import _game_over_payload
 from domains.identity.infrastructure.repository import SqlAlchemyUserRepository
 from domains.ratings.application.services import RatingService
 from domains.ratings.infrastructure.repository import SqlAlchemyRatingRepository
+from domains.scheduled_matches.tournament import ensure_scheduled_matches_for_round
 from domains.tournaments.application.services import TournamentService
 from domains.tournaments.infrastructure.repository import SqlAlchemyTournamentRepository
 
@@ -36,7 +37,14 @@ async def run_game_monitor(stop_event: asyncio.Event, poll_interval_seconds: flo
                     )
                     for game in finished_games:
                         rating_update = await rating_service.apply_game_rating(game.id)
-                        await tournament_service.sync_game_result(game.id)
+                        tournament = await tournament_service.sync_game_result(game.id)
+                        if tournament is not None:
+                            await ensure_scheduled_matches_for_round(
+                                session,
+                                tournament_id=tournament.id,
+                                round_number=tournament.current_round,
+                                creator_user_id=tournament.owner_id,
+                            )
                         await manager.broadcast_to_room(
                             str(game.id),
                             EventType.GAME_OVER,

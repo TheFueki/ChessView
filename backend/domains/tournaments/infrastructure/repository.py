@@ -12,7 +12,7 @@ from domains.tournaments.domain.entities import (
     TournamentRound,
 )
 from domains.tournaments.domain.repository import AbstractTournamentRepository
-from domains.tournaments.domain.value_objects import PairingResult, TournamentStatus
+from domains.tournaments.domain.value_objects import PairingResult, TournamentPlayerStatus, TournamentStatus, TournamentType
 from domains.tournaments.infrastructure.models import (
     TournamentModel,
     TournamentPairingModel,
@@ -177,6 +177,8 @@ class SqlAlchemyTournamentRepository(AbstractTournamentRepository):
         model.initial_time_ms = tournament.initial_time_ms
         model.increment_ms = tournament.increment_ms
         model.status = tournament.status
+        model.tournament_type = tournament.tournament_type
+        model.entry_fee_cents = tournament.entry_fee_cents
         model.current_round = tournament.current_round
         model.total_rounds = tournament.total_rounds
         model.created_at = tournament.created_at
@@ -196,7 +198,9 @@ class SqlAlchemyTournamentRepository(AbstractTournamentRepository):
     def _apply_player_state(model: TournamentPlayerModel, player: TournamentPlayer) -> None:
         model.seed_rating = player.seed_rating
         model.score = player.score
+        model.status = player.status
         model.joined_at = player.joined_at
+        model.withdrawn_at = player.withdrawn_at
 
     @staticmethod
     def _new_round_model(tournament_round: TournamentRound) -> TournamentRoundModel:
@@ -228,6 +232,8 @@ class SqlAlchemyTournamentRepository(AbstractTournamentRepository):
             initial_time_ms=model.initial_time_ms,
             increment_ms=model.increment_ms,
             status=TournamentStatus(model.status),
+            tournament_type=TournamentType(model.tournament_type),
+            entry_fee_cents=model.entry_fee_cents,
             current_round=model.current_round,
             total_rounds=model.total_rounds,
             created_at=model.created_at,
@@ -242,7 +248,9 @@ class SqlAlchemyTournamentRepository(AbstractTournamentRepository):
             user_id=model.user_id,
             seed_rating=model.seed_rating,
             score=model.score,
+            status=TournamentPlayerStatus(model.status),
             joined_at=model.joined_at,
+            withdrawn_at=model.withdrawn_at,
         )
 
     @staticmethod

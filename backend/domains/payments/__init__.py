@@ -1,0 +1,1 @@
+"""Local payment emulator domain."""

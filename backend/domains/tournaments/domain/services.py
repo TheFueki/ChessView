@@ -12,6 +12,13 @@ from domains.tournaments.domain.value_objects import PairingResult
 class PairingAssignment:
     white_id: UUID
     black_id: UUID | None
+    reason: str = "paired"
+
+
+@dataclass(frozen=True)
+class SwissPairingPlan:
+    pairings: list[PairingAssignment]
+    warnings: list[str]
 
 
 def swiss_round_count(player_count: int) -> int:
@@ -72,6 +79,58 @@ def generate_swiss_pairings(
         assignments.append(PairingAssignment(white_id=white_id, black_id=black_id))
 
     return assignments
+
+
+def plan_swiss_pairings(
+    players: list[TournamentPlayer],
+    prior_pairings: list[TournamentPairing],
+    round_number: int,
+) -> SwissPairingPlan:
+    active_players = [player for player in players if getattr(player, "status", "active") == "active"]
+    pairings = generate_swiss_pairings(active_players, prior_pairings, round_number)
+    warnings: list[str] = []
+    prior_matches = {
+        frozenset({pairing.white_id, pairing.black_id})
+        for pairing in prior_pairings
+        if pairing.black_id is not None
+    }
+    for pairing in pairings:
+        if pairing.black_id is not None and frozenset({pairing.white_id, pairing.black_id}) in prior_matches:
+            warnings.append("rematch_unavoidable")
+    if any(pairing.black_id is None for pairing in pairings):
+        warnings.append("bye_assigned")
+    return SwissPairingPlan(pairings=pairings, warnings=warnings)
+
+
+def buchholz_scores(players: list[TournamentPlayer], pairings: list[TournamentPairing]) -> dict[UUID, float]:
+    scores = {player.user_id: player.score for player in players}
+    totals = {player.user_id: 0.0 for player in players}
+    for pairing in pairings:
+        if pairing.black_id is None:
+            continue
+        totals[pairing.white_id] = totals.get(pairing.white_id, 0.0) + scores.get(pairing.black_id, 0.0)
+        totals[pairing.black_id] = totals.get(pairing.black_id, 0.0) + scores.get(pairing.white_id, 0.0)
+    return totals
+
+
+def direct_encounter_score(user_id: UUID, opponent_id: UUID, pairings: list[TournamentPairing]) -> float:
+    score = 0.0
+    for pairing in pairings:
+        if pairing.black_id is None or {pairing.white_id, pairing.black_id} != {user_id, opponent_id}:
+            continue
+        result = score_for_result(pairing.result)
+        if result is None:
+            continue
+        white_score, black_score = result
+        score += white_score if pairing.white_id == user_id else black_score
+    return score
+
+
+def performance_scores(players: list[TournamentPlayer]) -> dict[UUID, float]:
+    return {
+        player.user_id: round(player.score / max(1, swiss_round_count(len(players))), 3)
+        for player in players
+    }
 
 
 def _choose_bye_player(

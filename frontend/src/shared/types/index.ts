@@ -179,6 +179,9 @@ export interface UserProfile {
   email: string;
   rating: number;
   avatar_url?: string | null;
+  bio?: string | null;
+  role?: "user" | "admin";
+  banned_at?: string | null;
   created_at: string;
 }
 
@@ -285,13 +288,25 @@ export interface ProfileResponse {
   recent_games: ProfileRecentGameResponse[];
 }
 
-export type TournamentStatus = "registration" | "active" | "finished";
+export type TournamentStatus =
+  | "draft"
+  | "published"
+  | "registration"
+  | "registration_open"
+  | "registration_closed"
+  | "active"
+  | "running"
+  | "finished"
+  | "cancelled"
+  | "archived";
 export type PuzzleAttemptResult = "solved" | "failed";
 
 export interface TournamentSummaryResponse {
   id: string;
   name: string;
   time_control_name: TimeControlKey | string;
+  tournament_type: "arena" | "swiss" | string;
+  entry_fee_cents: number;
   status: TournamentStatus;
   current_round: number;
   total_rounds: number;
@@ -352,3 +367,110 @@ export interface PuzzleDetailResponse extends PuzzleSummaryResponse {
 }
 
 export type PuzzleListResponse = PaginatedResponse<PuzzleSummaryResponse>;
+
+export interface HeadToHeadTournamentBreakdownResponse {
+  tournament_id: string;
+  tournament_name: string;
+  games: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  average_moves: number;
+}
+
+export interface HeadToHeadResponse {
+  user_id: string;
+  opponent_id: string;
+  total_games: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  white_games: number;
+  white_wins: number;
+  white_draws: number;
+  white_losses: number;
+  black_games: number;
+  black_wins: number;
+  black_draws: number;
+  black_losses: number;
+  average_moves: number;
+  tournament_breakdown: HeadToHeadTournamentBreakdownResponse[];
+  recent_games: ProfileRecentGameResponse[];
+}
+
+export interface ScheduledMatchResponse {
+  id: string;
+  tournament_id: string | null;
+  round_id: number | null;
+  pairing_id: number | null;
+  white_player_id: string | null;
+  black_player_id: string | null;
+  creator_user_id: string;
+  invited_user_id: string | null;
+  starts_at: string;
+  expires_at: string | null;
+  status: string;
+  game_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface PaymentIntentResponse {
+  id: string;
+  user_id: string;
+  tournament_id: string;
+  amount_cents: number;
+  currency: string;
+  status: string;
+  scenario: string | null;
+  reserved_until: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface AdminUserResponse {
+  id: string;
+  username: string;
+  email: string;
+  rating: number;
+  role: "user" | "admin";
+  banned_at: string | null;
+  created_at: string;
+}
+
+export interface AdminAuditLogResponse {
+  id: string;
+  actor_user_id: string;
+  action: string;
+  target_type: string;
+  target_id: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface FaceVerificationProfileResponse {
+  id: string;
+  user_id: string;
+  provider: string;
+  status: string;
+  device_label: string | null;
+  consented_at: string;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface FaceVerificationSessionResponse {
+  id: string;
+  user_id: string;
+  game_id: string | null;
+  tournament_id: string | null;
+  scheduled_match_id: string | null;
+  status: string;
+  confidence: number | null;
+  reason: string | null;
+  provider: string;
+  created_at: string;
+  completed_at: string | null;
+}

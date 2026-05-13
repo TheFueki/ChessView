@@ -26,6 +26,8 @@ class UserProfileResponse(BaseModel):
     username: str
     email: str
     rating: int
+    role: str = "user"
+    banned_at: datetime | None = None
     bio: str | None = None
     avatar_url: str | None = None
     created_at: datetime
@@ -43,4 +45,4 @@ class PublicProfileResponse(BaseModel):
     rating: int
     bio: str | None = None
     avatar_url: str | None = None
-    global_rank: int = 0  
+    global_rank: int = 0

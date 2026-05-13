@@ -7,9 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user_id, get_db
 from domains.identity.domain.exceptions import UserNotFound
+from domains.profiles.application.head_to_head import HeadToHeadService
 from domains.profiles.application.services import ProfileService
 from domains.profiles.infrastructure.repository import SqlAlchemyProfileRepository
-from domains.profiles.presentation.schemas import ProfileGameResponse, ProfilePlayerResponse, ProfileResponse
+from domains.profiles.presentation.schemas import HeadToHeadResponse, ProfileGameResponse, ProfilePlayerResponse, ProfileResponse
 
 router = APIRouter()
 
@@ -87,6 +88,15 @@ async def get_global_leaderboard(
     service = _build_service(session)
     leaders = await service.get_top_players(limit=limit)
     return [_serialize_profile(p) for p in leaders]
+
+@router.get("/{user_id}/head-to-head/{opponent_id}", response_model=HeadToHeadResponse)
+async def get_head_to_head(
+    user_id: UUID,
+    opponent_id: UUID,
+    session: AsyncSession = Depends(get_db),
+    _viewer_id: str = Depends(get_current_user_id),
+):
+    return await HeadToHeadService(session).get(user_id, opponent_id)
 
 @router.get("/{user_id}", response_model=ProfileResponse)
 async def get_profile(

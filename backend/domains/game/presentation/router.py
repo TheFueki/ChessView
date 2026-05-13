@@ -21,6 +21,13 @@ from domains.game.presentation.serializers import (
     to_game_list_item,
 )
 from domains.identity.infrastructure.repository import SqlAlchemyUserRepository
+from domains.identity.face_verification.schemas import (
+    FaceVerificationSessionResponse,
+    FaceVerificationStartRequest,
+    FaceVerificationSubmitRequest,
+)
+from domains.identity.face_verification.service import FaceVerificationService
+from domains.identity.face_verification.service import require_game_face_verification_access
 
 router = APIRouter()
 
@@ -86,3 +93,54 @@ async def get_game(
         players,
         current_clock_snapshot(game),
     )
+
+
+@router.post("/{game_id}/face-verification/start", response_model=FaceVerificationSessionResponse)
+async def start_game_face_verification(
+    game_id: UUID,
+    body: FaceVerificationStartRequest,
+    session: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    await require_game_face_verification_access(session, game_id, UUID(user_id))
+    service = FaceVerificationService(session)
+    verification = await service.start_session(
+        user_id=UUID(user_id),
+        game_id=game_id,
+        tournament_id=body.tournament_id,
+        scheduled_match_id=body.scheduled_match_id,
+    )
+    return service.session_response(verification)
+
+
+@router.post("/{game_id}/face-verification/submit", response_model=FaceVerificationSessionResponse)
+async def submit_game_face_verification(
+    game_id: UUID,
+    body: FaceVerificationSubmitRequest,
+    session: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    await require_game_face_verification_access(session, game_id, UUID(user_id))
+    service = FaceVerificationService(session)
+    verification = await service.start_session(user_id=UUID(user_id), game_id=game_id, tournament_id=None, scheduled_match_id=None)
+    verification = await service.submit(verification.id, body.scenario)
+    return service.session_response(verification)
+
+
+@router.get("/{game_id}/face-verification/status", response_model=list[FaceVerificationSessionResponse])
+async def game_face_verification_status(
+    game_id: UUID,
+    session: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    await require_game_face_verification_access(session, game_id, UUID(user_id))
+    from sqlalchemy import select
+    from domains.identity.face_verification.models import FaceVerificationSessionModel
+
+    result = await session.execute(
+        select(FaceVerificationSessionModel)
+        .where(FaceVerificationSessionModel.game_id == game_id)
+        .order_by(FaceVerificationSessionModel.created_at.desc())
+    )
+    service = FaceVerificationService(session)
+    return [service.session_response(item) for item in result.scalars().all()]

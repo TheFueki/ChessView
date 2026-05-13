@@ -24,6 +24,7 @@ from domains.ratings.application.services import RatingService
 from domains.ratings.infrastructure.repository import SqlAlchemyRatingRepository
 from domains.tournaments.application.services import TournamentService
 from domains.tournaments.infrastructure.repository import SqlAlchemyTournamentRepository
+from domains.scheduled_matches.tournament import ensure_scheduled_matches_for_round
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,14 @@ async def _sync_tournament_if_needed(game_id: UUID, session: AsyncSession) -> No
         game_repo=game_repo,
         game_service=GameService(game_repo),
     )
-    await service.sync_game_result(game_id)
+    tournament = await service.sync_game_result(game_id)
+    if tournament is not None:
+        await ensure_scheduled_matches_for_round(
+            session,
+            tournament_id=tournament.id,
+            round_number=tournament.current_round,
+            creator_user_id=tournament.owner_id,
+        )
 
 
 def _game_over_payload(game, rating_update, reason: str) -> dict:

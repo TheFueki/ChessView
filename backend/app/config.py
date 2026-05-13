@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     FRONTEND_URL: str
 
     CORS_ORIGINS: list[str]
+    FIRST_ADMIN_EMAIL: str | None = None
 
     @property
     def resolved_storage_dir(self) -> Path:

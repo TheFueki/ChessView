@@ -9,9 +9,19 @@ from app.dependencies import get_current_user_id, get_db
 from domains.game.application.services import GameService
 from domains.game.infrastructure.repository import SqlAlchemyGameRepository
 from domains.identity.infrastructure.repository import SqlAlchemyUserRepository
+from domains.payments.presentation.schemas import PaymentIntentResponse
+from domains.payments.service import PaymentService
 from domains.tournaments.application.services import TournamentService
+from domains.tournaments.domain.value_objects import TournamentStatus
+from domains.scheduled_matches.tournament import ensure_scheduled_matches_for_round
 from domains.tournaments.infrastructure.repository import SqlAlchemyTournamentRepository
-from domains.tournaments.presentation.schemas import TournamentCreateRequest, TournamentDetailResponse, TournamentSummaryResponse
+from domains.tournaments.presentation.schemas import (
+    TournamentCreateRequest,
+    TournamentDetailResponse,
+    TournamentPatchRequest,
+    TournamentSummaryResponse,
+    TournamentStandingResponse,
+)
 from domains.tournaments.presentation.serializers import (
     count_games_played,
     player_directory_from_users,
@@ -88,8 +98,130 @@ async def create_tournament(
 ):
     viewer_id = UUID(user_id)
     service = _build_service(session)
-    tournament = await service.create_tournament(viewer_id, request.name, request.time_control_name)
+    tournament = await service.create_tournament(
+        viewer_id,
+        request.name,
+        request.time_control_name,
+        request.tournament_type,
+        request.entry_fee_cents,
+        request.total_rounds,
+    )
     return await _serialize_summary(session, tournament, viewer_id, 1)
+
+
+@router.patch("/{tournament_id}", response_model=TournamentSummaryResponse)
+async def update_tournament(
+    tournament_id: UUID,
+    request: TournamentPatchRequest,
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_db),
+):
+    viewer_id = UUID(user_id)
+    tournament = await _build_service(session).update_tournament(
+        tournament_id,
+        viewer_id,
+        **request.model_dump(exclude_unset=True),
+    )
+    player_count = len(await SqlAlchemyTournamentRepository(session).list_players(tournament_id))
+    return await _serialize_summary(session, tournament, viewer_id, player_count)
+
+
+async def _set_tournament_status(session: AsyncSession, tournament_id: UUID, user_id: str, status_value: TournamentStatus):
+    viewer_id = UUID(user_id)
+    tournament = await _build_service(session).set_status(tournament_id, viewer_id, status_value)
+    player_count = len(await SqlAlchemyTournamentRepository(session).list_players(tournament_id))
+    return await _serialize_summary(session, tournament, viewer_id, player_count)
+
+
+@router.post("/{tournament_id}/publish", response_model=TournamentSummaryResponse)
+async def publish_tournament(tournament_id: UUID, user_id: str = Depends(get_current_user_id), session: AsyncSession = Depends(get_db)):
+    return await _set_tournament_status(session, tournament_id, user_id, TournamentStatus.PUBLISHED)
+
+
+@router.post("/{tournament_id}/open-registration", response_model=TournamentSummaryResponse)
+async def open_registration(tournament_id: UUID, user_id: str = Depends(get_current_user_id), session: AsyncSession = Depends(get_db)):
+    return await _set_tournament_status(session, tournament_id, user_id, TournamentStatus.REGISTRATION)
+
+
+@router.post("/{tournament_id}/close-registration", response_model=TournamentSummaryResponse)
+async def close_registration(tournament_id: UUID, user_id: str = Depends(get_current_user_id), session: AsyncSession = Depends(get_db)):
+    return await _set_tournament_status(session, tournament_id, user_id, TournamentStatus.REGISTRATION_CLOSED)
+
+
+@router.post("/{tournament_id}/finish", response_model=TournamentSummaryResponse)
+async def finish_tournament(tournament_id: UUID, user_id: str = Depends(get_current_user_id), session: AsyncSession = Depends(get_db)):
+    return await _set_tournament_status(session, tournament_id, user_id, TournamentStatus.FINISHED)
+
+
+@router.post("/{tournament_id}/cancel", response_model=TournamentSummaryResponse)
+async def cancel_tournament(tournament_id: UUID, user_id: str = Depends(get_current_user_id), session: AsyncSession = Depends(get_db)):
+    return await _set_tournament_status(session, tournament_id, user_id, TournamentStatus.CANCELLED)
+
+
+@router.post("/{tournament_id}/players/{player_user_id}/withdraw", response_model=TournamentSummaryResponse)
+async def withdraw_tournament_player(
+    tournament_id: UUID,
+    player_user_id: UUID,
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_db),
+):
+    viewer_id = UUID(user_id)
+    tournament = await _build_service(session).withdraw_player(tournament_id, viewer_id, player_user_id)
+    player_count = len(await SqlAlchemyTournamentRepository(session).list_players(tournament_id))
+    return await _serialize_summary(session, tournament, viewer_id, player_count)
+
+
+@router.post("/{tournament_id}/entry-payment", response_model=PaymentIntentResponse)
+async def create_entry_payment(
+    tournament_id: UUID,
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_db),
+):
+    payment = await PaymentService(session).create_entry_payment(tournament_id, UUID(user_id))
+    return PaymentService.to_response(payment)
+
+
+@router.post("/{tournament_id}/rounds/suggest-count")
+async def suggest_round_count(
+    tournament_id: UUID,
+    session: AsyncSession = Depends(get_db),
+    _user_id: str = Depends(get_current_user_id),
+):
+    from domains.tournaments.domain.services import swiss_round_count
+
+    players = await SqlAlchemyTournamentRepository(session).list_players(tournament_id)
+    active_count = len([player for player in players if player.status == "active"])
+    return {"suggested_rounds": swiss_round_count(active_count), "active_players": active_count}
+
+
+@router.post("/{tournament_id}/rounds/generate-swiss", response_model=TournamentSummaryResponse)
+async def generate_swiss_round(
+    tournament_id: UUID,
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_db),
+):
+    service = _build_service(session)
+    tournament = await service.advance_tournament(tournament_id, UUID(user_id))
+    await ensure_scheduled_matches_for_round(
+        session,
+        tournament_id=tournament.id,
+        round_number=tournament.current_round,
+        creator_user_id=tournament.owner_id,
+    )
+    player_count = len(await SqlAlchemyTournamentRepository(session).list_players(tournament_id))
+    return await _serialize_summary(session, tournament, UUID(user_id), player_count)
+
+
+@router.get("/{tournament_id}/standings", response_model=list[TournamentStandingResponse])
+async def get_standings(
+    tournament_id: UUID,
+    session: AsyncSession = Depends(get_db),
+    _user_id: str = Depends(get_current_user_id),
+):
+    service = _build_service(session)
+    tournament, players, _rounds, pairings = await service.get_tournament_detail(tournament_id)
+    player_lookup = await _resolve_players(session, {player.user_id for player in players} | {tournament.owner_id})
+    return to_tournament_standing_responses(service.standings(players), player_lookup, count_games_played(pairings))
 
 
 @router.post("/{tournament_id}/join", response_model=TournamentSummaryResponse)
@@ -127,6 +259,12 @@ async def start_tournament(
     viewer_id = UUID(user_id)
     service = _build_service(session)
     tournament = await service.start_tournament(tournament_id, viewer_id)
+    await ensure_scheduled_matches_for_round(
+        session,
+        tournament_id=tournament.id,
+        round_number=tournament.current_round,
+        creator_user_id=tournament.owner_id,
+    )
     player_count = len(await SqlAlchemyTournamentRepository(session).list_players(tournament_id))
     return await _serialize_summary(session, tournament, viewer_id, player_count)
 
@@ -140,6 +278,12 @@ async def advance_tournament(
     viewer_id = UUID(user_id)
     service = _build_service(session)
     tournament = await service.advance_tournament(tournament_id, viewer_id)
+    await ensure_scheduled_matches_for_round(
+        session,
+        tournament_id=tournament.id,
+        round_number=tournament.current_round,
+        creator_user_id=tournament.owner_id,
+    )
     player_count = len(await SqlAlchemyTournamentRepository(session).list_players(tournament_id))
     return await _serialize_summary(session, tournament, viewer_id, player_count)
 

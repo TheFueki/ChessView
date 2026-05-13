@@ -60,6 +60,8 @@ def to_tournament_summary_response(
         id=str(tournament.id),
         name=tournament.name,
         time_control_name=tournament.time_control_name,
+        tournament_type=tournament.tournament_type,
+        entry_fee_cents=tournament.entry_fee_cents,
         status=tournament.status,
         current_round=tournament.current_round,
         total_rounds=tournament.total_rounds,

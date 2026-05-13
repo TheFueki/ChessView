@@ -13,7 +13,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router";
 import { http } from "@/shared/api";
-import type { TournamentDetailResponse, TournamentPairingResponse } from "@/shared/types";
+import type { PaymentIntentResponse, TournamentDetailResponse, TournamentPairingResponse } from "@/shared/types";
 import { Button, Card, Spinner } from "@/shared/ui";
 
 import "../../pages-style/dashboard-page/dashboardpage.scss";
@@ -30,6 +30,14 @@ function formatDateTime(value: string | null) {
 
 function formatStatus(status: TournamentDetailResponse["status"]) {
   return status.replaceAll("_", " ");
+}
+
+function formatMoney(cents: number, currency = "USD") {
+  return new Intl.NumberFormat([], { style: "currency", currency }).format(cents / 100);
+}
+
+function isRegistrationOpen(status: TournamentDetailResponse["status"]) {
+  return status === "registration" || status === "registration_open";
 }
 
 function formatPairingResult(pairing: TournamentPairingResponse) {
@@ -50,6 +58,7 @@ export default function TournamentDetailPage() {
   const queryClient = useQueryClient();
   const { tournamentId } = useParams();
   const [actionError, setActionError] = useState<string | null>(null);
+  const [entryPayment, setEntryPayment] = useState<PaymentIntentResponse | null>(null);
 
   const tournamentQuery = useQuery({
     queryKey: ["tournament", tournamentId],
@@ -68,6 +77,29 @@ export default function TournamentDetailPage() {
       ]);
     },
     onError: (error) => setActionError(error instanceof Error ? error.message : "Unable to join."),
+  });
+
+  const createEntryPayment = useMutation({
+    mutationFn: () => http.post<PaymentIntentResponse>(`/tournaments/${tournamentId}/entry-payment`),
+    onSuccess: (payment) => {
+      setEntryPayment(payment);
+      setActionError(null);
+    },
+    onError: (error) => setActionError(error instanceof Error ? error.message : "Unable to create entry payment."),
+  });
+
+  const simulateEntryPayment = useMutation({
+    mutationFn: (scenario: "success" | "failed" | "pending" | "cancelled" | "expired" | "disputed") =>
+      http.post<PaymentIntentResponse>(`/payments/emulator/${entryPayment?.id}/simulate`, { scenario }),
+    onSuccess: async (payment) => {
+      setEntryPayment(payment);
+      setActionError(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["tournament", tournamentId] }),
+        queryClient.invalidateQueries({ queryKey: ["tournaments"] }),
+      ]);
+    },
+    onError: (error) => setActionError(error instanceof Error ? error.message : "Unable to simulate payment."),
   });
 
   const leaveTournament = useMutation({
@@ -184,7 +216,7 @@ export default function TournamentDetailPage() {
                 <div>
                   <h3 className="text-[10px] uppercase tracking-widest text-neutral-500">Scheduled</h3>
                   <p className="font-medium text-sm text-neutral-200">
-                    {tournament.started_at ? formatDateTime(tournament.started_at) : "Registration Open"}
+                    {tournament.started_at ? formatDateTime(tournament.started_at) : formatStatus(tournament.status)}
                   </p>
                 </div>
               </Card>
@@ -192,7 +224,7 @@ export default function TournamentDetailPage() {
 
             <Card className="flex flex-wrap items-center justify-between gap-4 p-4 mb-8 bg-white/[0.02] border-white/[0.05] backdrop-blur-sm">
               <div className="flex items-center gap-3">
-                {!tournament.viewer_is_member && tournament.status === "registration" && (
+                {!tournament.viewer_is_member && isRegistrationOpen(tournament.status) && tournament.entry_fee_cents <= 0 && (
                   <Button 
                     className="btn-main shadow-lg shadow-emerald-500/10" 
                     onClick={() => joinTournament.mutate()} 
@@ -201,7 +233,16 @@ export default function TournamentDetailPage() {
                     Register for Tournament
                   </Button>
                 )}
-                {tournament.viewer_is_member && tournament.status === "registration" && !tournament.viewer_is_owner && (
+                {!tournament.viewer_is_member && isRegistrationOpen(tournament.status) && tournament.entry_fee_cents > 0 && (
+                  <Button
+                    className="btn-main shadow-lg shadow-emerald-500/10"
+                    onClick={() => createEntryPayment.mutate()}
+                    disabled={createEntryPayment.isPending}
+                  >
+                    Reserve Entry {formatMoney(tournament.entry_fee_cents)}
+                  </Button>
+                )}
+                {tournament.viewer_is_member && isRegistrationOpen(tournament.status) && !tournament.viewer_is_owner && (
                   <Button 
                     variant="ghost" 
                     className="hover:bg-red-500/10 hover:text-red-400"
@@ -213,7 +254,7 @@ export default function TournamentDetailPage() {
                 )}
                 {tournament.viewer_is_owner && (
                   <div className="flex gap-2 p-1 bg-black/20 rounded-lg">
-                    {tournament.status === "registration" && (
+                    {isRegistrationOpen(tournament.status) && (
                       <Button 
                         size="sm"
                         className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold"
@@ -239,12 +280,36 @@ export default function TournamentDetailPage() {
               <div className="text-right">
                 <span className="text-[10px] font-mono text-neutral-600 block uppercase tracking-tighter">System Status</span>
                 <p className="text-xs text-neutral-400 italic">
-                  {tournament.status === "registration" 
-                    ? "Awaiting players to fill brackets..." 
+                  {isRegistrationOpen(tournament.status)
+                    ? "Awaiting players to fill brackets..."
                     : "Pairings managed by Swiss System algorithm."}
                 </p>
               </div>
             </Card>
+
+            {entryPayment && (
+              <Card className="flex flex-wrap items-center justify-between gap-4 p-4 mb-8 bg-white/[0.02] border-white/[0.05] backdrop-blur-sm">
+                <div>
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-300">Entry Payment Emulator</h3>
+                  <p className="text-xs text-neutral-400 mt-1">
+                    {formatMoney(entryPayment.amount_cents, entryPayment.currency)} entry is {entryPayment.status}.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(["success", "pending", "failed", "cancelled", "expired", "disputed"] as const).map((scenario) => (
+                    <Button
+                      key={scenario}
+                      size="sm"
+                      variant={scenario === "success" ? "primary" : "secondary"}
+                      onClick={() => simulateEntryPayment.mutate(scenario)}
+                      disabled={simulateEntryPayment.isPending}
+                    >
+                      {scenario}
+                    </Button>
+                  ))}
+                </div>
+              </Card>
+            )}
 
             <div className="grid gap-8 lg:grid-cols-[1fr_1.4fr]">
               <section className="space-y-4">

@@ -4,9 +4,26 @@ from enum import StrEnum
 
 
 class TournamentStatus(StrEnum):
+    DRAFT = "draft"
+    PUBLISHED = "published"
     REGISTRATION = "registration"
+    REGISTRATION_OPEN = "registration_open"
+    REGISTRATION_CLOSED = "registration_closed"
     ACTIVE = "active"
+    RUNNING = "running"
     FINISHED = "finished"
+    CANCELLED = "cancelled"
+    ARCHIVED = "archived"
+
+
+class TournamentType(StrEnum):
+    ARENA = "arena"
+    SWISS = "swiss"
+
+
+class TournamentPlayerStatus(StrEnum):
+    ACTIVE = "active"
+    WITHDRAWN = "withdrawn"
 
 
 class PairingResult(StrEnum):

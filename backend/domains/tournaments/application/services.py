@@ -37,6 +37,7 @@ from domains.tournaments.domain.services import (
     swiss_round_count,
 )
 from domains.tournaments.domain.value_objects import PairingResult, TournamentStatus
+from domains.tournaments.domain.value_objects import TournamentPlayerStatus, TournamentType
 from shared.time_controls import TimeControl, get_time_control_preset
 
 
@@ -70,7 +71,15 @@ class TournamentService:
         pairings = await self._tournaments.list_pairings(tournament_id)
         return tournament, players, rounds, pairings
 
-    async def create_tournament(self, owner_id: UUID, name: str, time_control_name: str) -> Tournament:
+    async def create_tournament(
+        self,
+        owner_id: UUID,
+        name: str,
+        time_control_name: str,
+        tournament_type: str = "swiss",
+        entry_fee_cents: int = 0,
+        total_rounds: int | None = None,
+    ) -> Tournament:
         normalized_name = name.strip()
         if not normalized_name:
             raise InvalidTournamentConfiguration()
@@ -89,6 +98,9 @@ class TournamentService:
             time_control_name=time_control_name,
             initial_time_ms=preset.initial_time_ms,
             increment_ms=preset.increment_ms,
+            tournament_type=TournamentType(tournament_type),
+            entry_fee_cents=entry_fee_cents,
+            total_rounds=total_rounds or 0,
         )
         tournament = await self._tournaments.create_tournament(tournament)
         await self._tournaments.add_player(
@@ -98,6 +110,47 @@ class TournamentService:
                 seed_rating=owner.rating,
             )
         )
+        return tournament
+
+    async def update_tournament(
+        self,
+        tournament_id: UUID,
+        user_id: UUID,
+        *,
+        name: str | None = None,
+        entry_fee_cents: int | None = None,
+        total_rounds: int | None = None,
+    ) -> Tournament:
+        tournament = await self._require_tournament(tournament_id)
+        self._ensure_owner(tournament, user_id)
+        if name is not None:
+            tournament.name = name.strip()
+        if entry_fee_cents is not None:
+            tournament.entry_fee_cents = entry_fee_cents
+        if total_rounds is not None:
+            tournament.total_rounds = total_rounds
+        return await self._tournaments.update_tournament(tournament)
+
+    async def set_status(self, tournament_id: UUID, user_id: UUID, status_value: TournamentStatus) -> Tournament:
+        tournament = await self._require_tournament(tournament_id)
+        self._ensure_owner(tournament, user_id)
+        tournament.status = status_value
+        if status_value in {TournamentStatus.ACTIVE, TournamentStatus.RUNNING} and tournament.started_at is None:
+            tournament.started_at = utc_now()
+        if status_value == TournamentStatus.FINISHED:
+            tournament.finished_at = utc_now()
+        return await self._tournaments.update_tournament(tournament)
+
+    async def withdraw_player(self, tournament_id: UUID, actor_user_id: UUID, player_user_id: UUID) -> Tournament:
+        tournament = await self._require_tournament(tournament_id)
+        if actor_user_id != player_user_id and tournament.owner_id != actor_user_id:
+            raise TournamentForbidden()
+        player = await self._tournaments.get_player(tournament_id, player_user_id)
+        if player is None:
+            raise TournamentPlayerNotFound()
+        player.status = TournamentPlayerStatus.WITHDRAWN
+        player.withdrawn_at = utc_now()
+        await self._tournaments.update_players([player])
         return tournament
 
     async def join_tournament(self, tournament_id: UUID, user_id: UUID) -> Tournament:
@@ -136,10 +189,11 @@ class TournamentService:
     async def start_tournament(self, tournament_id: UUID, user_id: UUID) -> Tournament:
         tournament = await self._require_tournament(tournament_id)
         self._ensure_owner(tournament, user_id)
-        self._ensure_registration_open(tournament)
+        self._ensure_ready_to_start(tournament)
 
         players = await self._tournaments.list_players(tournament_id)
-        total_rounds = swiss_round_count(len(players))
+        active_players = [player for player in players if player.status == TournamentPlayerStatus.ACTIVE]
+        total_rounds = tournament.total_rounds or swiss_round_count(len(active_players))
         if total_rounds == 0:
             raise TournamentStartRequirementsNotMet()
 
@@ -149,7 +203,7 @@ class TournamentService:
         tournament.started_at = utc_now()
         tournament = await self._tournaments.update_tournament(tournament)
         await self._tournaments.create_round(TournamentRound(tournament_id=tournament_id, round_number=1))
-        await self._create_round_pairings(tournament, players, 1)
+        await self._create_round_pairings(tournament, active_players, 1)
         return tournament
 
     async def advance_tournament(self, tournament_id: UUID, user_id: UUID) -> Tournament:
@@ -196,7 +250,11 @@ class TournamentService:
             tournament.finished_at = utc_now()
             return await self._tournaments.update_tournament(tournament)
 
-        players = await self._tournaments.list_players(tournament.id)
+        players = [
+            player
+            for player in await self._tournaments.list_players(tournament.id)
+            if player.status == TournamentPlayerStatus.ACTIVE
+        ]
         prior_pairings = await self._tournaments.list_pairings(tournament.id)
         next_round = tournament.current_round + 1
         tournament.current_round = next_round
@@ -240,21 +298,12 @@ class TournamentService:
                 )
                 continue
 
-            game = await self._game_service.create_game(
-                self._build_game_command(
-                    tournament=tournament,
-                    assignment=assignment,
-                    users=users,
-                    players_by_id=players_by_id,
-                )
-            )
             await self._tournaments.add_pairing(
                 TournamentPairing(
                     tournament_id=tournament.id,
                     round_number=round_number,
                     white_id=assignment.white_id,
                     black_id=assignment.black_id,
-                    game_id=game.id,
                 )
             )
 
@@ -294,6 +343,11 @@ class TournamentService:
     @staticmethod
     def _ensure_registration_open(tournament: Tournament) -> None:
         if tournament.status != TournamentStatus.REGISTRATION:
+            raise TournamentRegistrationClosed()
+
+    @staticmethod
+    def _ensure_ready_to_start(tournament: Tournament) -> None:
+        if tournament.status not in {TournamentStatus.REGISTRATION, TournamentStatus.REGISTRATION_CLOSED}:
             raise TournamentRegistrationClosed()
 
     @staticmethod

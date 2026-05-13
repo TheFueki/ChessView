@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useUserStore } from "@/entities/user";
 import { http } from "@/shared/api";
+import type { FaceVerificationProfileResponse } from "@/shared/types";
 import { 
   User, Shield, Camera, Save, 
   Trash2, Bell, Swords, Play, 
@@ -13,6 +15,7 @@ import "../../pages-style/settings-page/SettingsPage.scss";
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("account");
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user, setUser } = useUserStore();
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
@@ -31,6 +34,25 @@ export default function SettingsPage() {
       });
     }
   }, [user]);
+
+  const faceProfilesQuery = useQuery({
+    queryKey: ["face-verification-profiles"],
+    queryFn: () => http.get<FaceVerificationProfileResponse[]>("/identity/face-verification/me"),
+    enabled: Boolean(user),
+  });
+
+  const enrollFaceVerification = useMutation({
+    mutationFn: () =>
+      http.post<FaceVerificationProfileResponse>("/identity/face-verification/enroll", {
+        device_label: "Primary browser",
+        consent: true,
+      }),
+    onSuccess: async () => {
+      setMessage({ type: 'success', text: "Face verification enrollment created" });
+      await queryClient.invalidateQueries({ queryKey: ["face-verification-profiles"] });
+    },
+    onError: () => setMessage({ type: 'error', text: "Unable to enroll face verification" }),
+  });
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -180,6 +202,55 @@ export default function SettingsPage() {
           <Button variant="secondary" className="mt-4" onClick={() => alert("Stub: Reset email sent")}>
             Request Password Reset
           </Button>
+        </Card>
+
+        <Card className="settings-card mt-6">
+          <div className="avatar-upload-group" style={{ marginBottom: 24 }}>
+            <div className="avatar-preview-wrapper">
+              <div className="settings-avatar-preview flex items-center justify-center bg-black">
+                <Camera size={30} className="text-indigo-400" />
+              </div>
+            </div>
+            <div className="avatar-info">
+              <h3>Face Verification</h3>
+              <p>Local consent and stub verification profile for game checks.</p>
+            </div>
+          </div>
+
+          <div className="stub-list">
+            {faceProfilesQuery.isLoading ? (
+              <div className="stub-row">
+                <span>Loading verification status...</span>
+              </div>
+            ) : faceProfilesQuery.error ? (
+              <div className="stub-row">
+                <span>Unable to load verification status</span>
+                <span className="text-xs text-red-400 uppercase">error</span>
+              </div>
+            ) : (faceProfilesQuery.data ?? []).length > 0 ? (
+              (faceProfilesQuery.data ?? []).map((profile) => (
+                <div key={profile.id} className="stub-row">
+                  <span>{profile.device_label ?? profile.provider}</span>
+                  <span className="text-xs text-neutral-400 uppercase">{profile.status}</span>
+                </div>
+              ))
+            ) : (
+              <div className="stub-row">
+                <span>No face verification profile enrolled</span>
+                <span className="text-xs text-neutral-400 uppercase">local stub</span>
+              </div>
+            )}
+          </div>
+
+          <div className="form-actions">
+            <Button
+              variant="secondary"
+              onClick={() => enrollFaceVerification.mutate()}
+              disabled={enrollFaceVerification.isPending}
+            >
+              <Camera size={18} /> Enroll Local Stub
+            </Button>
+          </div>
         </Card>
       </section>
     </div>

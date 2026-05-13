@@ -8,12 +8,22 @@ from pydantic import BaseModel, Field
 class TournamentCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     time_control_name: str
+    tournament_type: str = "swiss"
+    entry_fee_cents: int = Field(default=0, ge=0)
+    total_rounds: int | None = Field(default=None, ge=1)
+
+
+class TournamentPatchRequest(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=120)
+    entry_fee_cents: int | None = Field(None, ge=0)
+    total_rounds: int | None = Field(None, ge=1)
 
 
 class TournamentPlayerResponse(BaseModel):
     id: str
     username: str
     rating: int
+    status: str = "active"
 
 
 class TournamentStandingResponse(BaseModel):
@@ -42,6 +52,8 @@ class TournamentSummaryResponse(BaseModel):
     id: str
     name: str
     time_control_name: str
+    tournament_type: str = "swiss"
+    entry_fee_cents: int = 0
     status: str
     current_round: int
     total_rounds: int

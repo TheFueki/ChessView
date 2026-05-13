@@ -18,6 +18,8 @@ export interface AuthenticatedUser extends User {
   email: string;
   created_at: string;
   bio?: string | null;
+  role?: "user" | "admin";
+  banned_at?: string | null;
 }
 
 interface UserState {

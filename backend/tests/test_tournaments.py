@@ -5,6 +5,7 @@ import pytest
 from domains.game.domain.entities import Game
 from domains.game.domain.value_objects import GameResult, GameStatus
 from domains.tournaments.application.services import TournamentService
+from domains.tournaments.domain.value_objects import TournamentStatus
 
 
 class InMemoryTournamentRepository:
@@ -177,7 +178,28 @@ async def test_start_tournament_creates_round_one_pairings_and_bye():
     assert started.current_round == 1
     assert len(round_one_pairings) == 2
     assert sum(1 for pairing in round_one_pairings if pairing.black_id is None) == 1
+    assert all(pairing.game_id is None for pairing in round_one_pairings if pairing.black_id is not None)
     assert any(player.score == 1.0 for player in players)
+
+
+@pytest.mark.asyncio
+async def test_start_tournament_allows_closed_registration_state():
+    owner = StubUser(uuid4(), "owner", 1500)
+    guest = StubUser(uuid4(), "guest", 1480)
+    tournament_repo = InMemoryTournamentRepository()
+    user_repo = InMemoryUserRepository([owner, guest])
+    game_repo = InMemoryGameRepository()
+    game_service = StubGameService(game_repo)
+    service = TournamentService(tournament_repo, user_repo, game_repo, game_service)
+
+    tournament = await service.create_tournament(owner.id, "Closed Swiss", "5+0")
+    await service.join_tournament(tournament.id, guest.id)
+    tournament.status = TournamentStatus.REGISTRATION_CLOSED
+    await tournament_repo.update_tournament(tournament)
+
+    started = await service.start_tournament(tournament.id, owner.id)
+
+    assert started.status == TournamentStatus.ACTIVE
 
 
 @pytest.mark.asyncio
@@ -203,7 +225,20 @@ async def test_sync_game_result_advances_round_without_immediate_rematch():
     round_one_pairings = await tournament_repo.list_pairings(tournament.id, 1)
 
     for index, pairing in enumerate(round_one_pairings):
-        game = await game_repo.get_by_id(pairing.game_id)
+        if pairing.black_id is None:
+            continue
+        game = Game(
+            white_id=pairing.white_id,
+            black_id=pairing.black_id,
+            time_control_name="3+2",
+            initial_time_ms=180_000,
+            increment_ms=2_000,
+            white_rating_before=1500,
+            black_rating_before=1500,
+        )
+        await game_repo.create(game)
+        pairing.game_id = game.id
+        await tournament_repo.update_pairing(pairing)
         game.status = GameStatus.CHECKMATE
         game.result = GameResult.WHITE_WINS if index == 0 else GameResult.BLACK_WINS
         await game_repo.update(game)

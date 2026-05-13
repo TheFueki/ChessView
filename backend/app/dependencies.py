@@ -8,6 +8,7 @@ Responsibilities:
 """
 
 from typing import AsyncGenerator
+from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -15,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from infrastructure.database import async_session_factory
 from infrastructure.security import decode_token
+from domains.identity.infrastructure.models import UserModel
 
 bearer_scheme = HTTPBearer()
 
@@ -49,5 +51,19 @@ async def get_current_user_id(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token: missing subject",
+        )
+    return user_id
+
+
+async def require_admin(
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_db),
+) -> str:
+    """Require the current user to be an unbanned admin."""
+    user = await session.get(UserModel, UUID(user_id))
+    if user is None or user.role != "admin" or user.banned_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required",
         )
     return user_id

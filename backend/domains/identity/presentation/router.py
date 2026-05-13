@@ -26,6 +26,8 @@ from domains.identity.domain.exceptions import (
     UserNotFound,
 )
 from domains.identity.infrastructure.repository import SqlAlchemyUserRepository
+from domains.identity.face_verification.schemas import FaceVerificationEnrollRequest, FaceVerificationProfileResponse
+from domains.identity.face_verification.service import FaceVerificationService
 from domains.identity.presentation.schemas import (
     LoginRequest,
     PublicProfileResponse,
@@ -72,6 +74,8 @@ def _serialize_user_profile(user) -> UserProfileResponse:
         username=user.username,
         email=user.email,
         rating=user.rating,
+        role=user.role,
+        banned_at=user.banned_at,
         bio=user.bio,
         avatar_url=avatar_url, 
         created_at=user.created_at,
@@ -287,3 +291,23 @@ async def upload_avatar(
     await _delete_avatar_file(current_user.avatar_path)
     user = await service.update_avatar(UUID(user_id), f"{avatar_filename}")
     return _serialize_user_profile(user)
+
+
+@router.post("/face-verification/enroll", response_model=FaceVerificationProfileResponse)
+async def enroll_face_verification(
+    body: FaceVerificationEnrollRequest,
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_db),
+):
+    service = FaceVerificationService(session)
+    profile = await service.enroll(UUID(user_id), body.device_label, body.consent)
+    return service.profile_response(profile)
+
+
+@router.get("/face-verification/me", response_model=list[FaceVerificationProfileResponse])
+async def get_face_verification_profiles(
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_db),
+):
+    service = FaceVerificationService(session)
+    return [service.profile_response(profile) for profile in await service.list_profiles(UUID(user_id))]

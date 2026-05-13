@@ -36,3 +36,33 @@ class ProfileResponse(BaseModel):
     win_rate: float
     global_rank: int = 0  
     recent_games: list[ProfileGameResponse] = []
+
+
+class HeadToHeadTournamentBreakdownResponse(BaseModel):
+    tournament_id: str
+    tournament_name: str
+    games: int
+    wins: int
+    draws: int
+    losses: int
+    average_moves: float
+
+
+class HeadToHeadResponse(BaseModel):
+    user_id: str
+    opponent_id: str
+    total_games: int
+    wins: int
+    draws: int
+    losses: int
+    white_games: int
+    white_wins: int
+    white_draws: int
+    white_losses: int
+    black_games: int
+    black_wins: int
+    black_draws: int
+    black_losses: int
+    average_moves: float
+    tournament_breakdown: list[HeadToHeadTournamentBreakdownResponse]
+    recent_games: list[ProfileGameResponse]

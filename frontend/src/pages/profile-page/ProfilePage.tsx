@@ -8,7 +8,7 @@ import {
 import { useNavigate, useParams } from "react-router";
 import { useUserStore } from "@/entities/user";
 import { http } from "@/shared/api";
-import type { GameHistoryItemResponse, ProfileResponse, UserProfile } from "@/shared/types";
+import type { GameHistoryItemResponse, HeadToHeadResponse, ProfileResponse, UserProfile } from "@/shared/types";
 import { Avatar, Button, Card, Spinner } from "@/shared/ui";
 import { SERVER_URL } from "@/shared/config";
 import { HistoryTable } from "@/widgets/history-table";
@@ -38,6 +38,12 @@ export default function ProfilePage() {
   const { data: profile, isLoading } = useQuery({
     queryKey: ["profile", isOwnProfile ? "me" : userId],
     queryFn: () => http.get<ProfileResponse>(isOwnProfile ? "/profiles/me" : `/profiles/${userId}`),
+  });
+
+  const headToHeadQuery = useQuery({
+    queryKey: ["head-to-head", currentUser?.id, userId],
+    queryFn: () => http.get<HeadToHeadResponse>(`/profiles/${currentUser?.id}/head-to-head/${userId}`),
+    enabled: Boolean(currentUser?.id && userId && userId !== currentUser.id),
   });
  
   const getRankTitle = (rank: number | null | undefined) => {
@@ -239,6 +245,21 @@ export default function ProfilePage() {
           </section>
 
           <div className="profile-details-grid">
+            {headToHeadQuery.data && (
+              <Card className="detail-card border-emerald-500/20 bg-emerald-600/5">
+                <div className="card-header">
+                  <Swords className="text-emerald-500" />
+                  <h2>Head to Head</h2>
+                </div>
+                <div className="stats-list">
+                  <div className="list-item">Games: <strong>{headToHeadQuery.data.total_games}</strong></div>
+                  <div className="list-item">Wins: <strong>{headToHeadQuery.data.wins}</strong></div>
+                  <div className="list-item">Draws: <strong>{headToHeadQuery.data.draws}</strong></div>
+                  <div className="list-item">Losses: <strong>{headToHeadQuery.data.losses}</strong></div>
+                  <div className="list-item">Avg moves: <strong>{headToHeadQuery.data.average_moves}</strong></div>
+                </div>
+              </Card>
+            )}
             <Card className="detail-card main-stats-card bg-blue-600/5 border-blue-500/20">
               <div className="card-header">
                 <Trophy className="text-blue-500" />

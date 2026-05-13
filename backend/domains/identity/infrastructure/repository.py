@@ -90,7 +90,10 @@ class SqlAlchemyUserRepository(AbstractUserRepository):
             email=model.email,
             password_hash=model.password,
             rating=model.rating,
+            bio=model.bio,
             avatar_path=model.avatar_path,
+            role=model.role,
+            banned_at=model.banned_at,
             created_at=model.created_at,
         )
 
@@ -106,7 +109,10 @@ class SqlAlchemyUserRepository(AbstractUserRepository):
         model.email = user.email
         model.password = user.password_hash
         model.rating = user.rating
+        model.bio = user.bio
         model.avatar_path = user.avatar_path
+        model.role = user.role
+        model.banned_at = user.banned_at
 
     async def _get_user_model(self, user_id: UUID) -> UserModel | None:
         result = await self._session.execute(select(UserModel).where(UserModel.id == user_id))

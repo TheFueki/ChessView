@@ -30,6 +30,8 @@ class TournamentModel(Base):
     initial_time_ms: Mapped[int] = mapped_column(Integer, nullable=False)
     increment_ms: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(TOURNAMENT_STATUS_LENGTH), nullable=False)
+    tournament_type: Mapped[str] = mapped_column(String(20), nullable=False, default="swiss")
+    entry_fee_cents: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     current_round: Mapped[int] = mapped_column(Integer, nullable=False)
     total_rounds: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = created_at_column()
@@ -60,7 +62,9 @@ class TournamentPlayerModel(Base):
     user_id: Mapped[uuid.UUID] = uuid_reference("users.id", primary_key=True)
     seed_rating: Mapped[int] = mapped_column(Integer, nullable=False)
     score: Mapped[float] = mapped_column(Float, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
     joined_at: Mapped[datetime] = created_at_column()
+    withdrawn_at: Mapped[datetime | None] = utc_timestamp_column(nullable=True)
 
     tournament: Mapped[TournamentModel] = relationship("TournamentModel", back_populates="players")
 

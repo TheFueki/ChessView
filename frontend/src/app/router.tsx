@@ -29,6 +29,8 @@ const TournamentsPage = lazy(() => import("@/pages/tournaments-page/TournamentsP
 const TournamentDetailPage = lazy(() => import("@/pages/tournament-detail-page/TournamentDetailPage"));
 const ShopPage = lazy(() => import("@/pages/shop-page/ShopPage"));
 const ClubsPage = lazy(() => import("@/pages/clubs-page/ClubsPage"));
+const ScheduledMatchesPage = lazy(() => import("@/pages/scheduled-matches-page/ScheduledMatchesPage"));
+const AdminPage = lazy(() => import("@/pages/admin-page/AdminPage"));
 const routeErrorElement = <RouteErrorPage />;
 
 function SuspenseWrapper({ children }: { children: ReactNode }) {
@@ -273,6 +275,28 @@ const router = createBrowserRouter([
       <SuspenseWrapper>
         <RequireAuth>
           <ProfilePage />
+        </RequireAuth>
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: "/scheduled-matches",
+    errorElement: routeErrorElement,
+    element: (
+      <SuspenseWrapper>
+        <RequireAuth>
+          <ScheduledMatchesPage />
+        </RequireAuth>
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: "/admin",
+    errorElement: routeErrorElement,
+    element: (
+      <SuspenseWrapper>
+        <RequireAuth>
+          <AdminPage />
         </RequireAuth>
       </SuspenseWrapper>
     ),

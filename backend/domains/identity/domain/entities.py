@@ -20,4 +20,6 @@ class User:
     rating: int = 1200
     bio: str | None = None
     avatar_path: str | None = None
+    role: str = "user"
+    banned_at: datetime | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
