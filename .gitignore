@@ -13,6 +13,9 @@ Thumbs.db
 backend/.env
 frontend/.env.local
 frontend/.env.*.local
+.env.*
+.env
+
 
 # Python
 __pycache__/
@@ -44,6 +47,4 @@ pnpm-debug.log*
 
 # Project-local generated files
 backend/.git-backup/
-.env
-.env.*
 .aider*
