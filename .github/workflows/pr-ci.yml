@@ -34,7 +34,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: ${{ secrets.CI_DATABASE_URL }}
+      DATABASE_URL: postgresql+asyncpg://${{ vars.CI_POSTGRES_USER }}:${{ secrets.CI_POSTGRES_PASSWORD }}@localhost:5432/${{ vars.CI_POSTGRES_DB }}
       STORAGE_DIR: ${{ vars.CI_STORAGE_DIR }}
       JWT_SECRET: ${{ secrets.CI_JWT_SECRET }}
       JWT_ALGORITHM: ${{ vars.CI_JWT_ALGORITHM }}
@@ -44,10 +44,10 @@ jobs:
       FRONTEND_URL: ${{ vars.CI_FRONTEND_URL }}
       CORS_ORIGINS: ${{ vars.CI_CORS_ORIGINS }}
       OAUTHLIB_INSECURE_TRANSPORT: ${{ vars.CI_OAUTHLIB_INSECURE_TRANSPORT }}
-      GOOGLE_CLIENT_ID: ${{ secrets.CI_GOOGLE_CLIENT_ID }}
-      GOOGLE_CLIENT_SECRET: ${{ secrets.CI_GOOGLE_CLIENT_SECRET }}
-      GITHUB_CLIENT_ID: ${{ secrets.CI_GITHUB_CLIENT_ID }}
-      GITHUB_CLIENT_SECRET: ${{ secrets.CI_GITHUB_CLIENT_SECRET }}
+      GOOGLE_CLIENT_ID: ""
+      GOOGLE_CLIENT_SECRET: ""
+      GITHUB_CLIENT_ID: ""
+      GITHUB_CLIENT_SECRET: ""
     defaults:
       run:
         working-directory: backend
