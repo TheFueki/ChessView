@@ -3,7 +3,7 @@
 from datetime import datetime
 import uuid
 
-from sqlalchemy import JSON, Integer, String
+from sqlalchemy import JSON, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from infrastructure.database import Base
@@ -12,6 +12,12 @@ from infrastructure.orm import created_at_column, utc_timestamp_column, uuid_pri
 
 class PaymentIntentModel(Base):
     __tablename__ = "payment_intents"
+    __table_args__ = (
+        Index("ix_payment_intents_user_id", "user_id"),
+        Index("ix_payment_intents_tournament_id", "tournament_id"),
+        Index("ix_payment_intents_scheduled_match_id", "scheduled_match_id"),
+        Index("ix_payment_intents_status", "status"),
+    )
 
     id: Mapped[uuid.UUID] = uuid_primary_key()
     user_id: Mapped[uuid.UUID] = uuid_reference("users.id")
@@ -35,6 +41,7 @@ class PaymentIntentModel(Base):
 
 class PaymentEventModel(Base):
     __tablename__ = "payment_events"
+    __table_args__ = (Index("ix_payment_events_payment_intent_id", "payment_intent_id"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     payment_intent_id: Mapped[uuid.UUID] = uuid_reference("payment_intents.id")

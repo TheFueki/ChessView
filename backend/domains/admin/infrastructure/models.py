@@ -3,7 +3,7 @@
 from datetime import datetime
 import uuid
 
-from sqlalchemy import JSON, String
+from sqlalchemy import JSON, Index, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from infrastructure.database import Base
@@ -12,6 +12,10 @@ from infrastructure.orm import created_at_column, uuid_primary_key, uuid_referen
 
 class AdminAuditLogModel(Base):
     __tablename__ = "admin_audit_logs"
+    __table_args__ = (
+        Index("ix_admin_audit_logs_actor_user_id", "actor_user_id"),
+        Index("ix_admin_audit_logs_created_at", "created_at"),
+    )
 
     id: Mapped[uuid.UUID] = uuid_primary_key()
     actor_user_id: Mapped[uuid.UUID] = uuid_reference("users.id")

@@ -16,18 +16,7 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "ignoreDeprecations": "6.0",
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["../frontend/src/*"],
-      "@admin/*": ["src/*"]
-    }
+    "baseUrl": "."
   },
-  "include": [
-    "src",
-    "../frontend/src/env.d.ts",
-    "../frontend/src/shared",
-    "../frontend/src/entities",
-    "../frontend/src/app/providers.tsx",
-    "../frontend/src/app/AppErrorBoundary.tsx"
-  ]
+  "include": ["src"]
 }

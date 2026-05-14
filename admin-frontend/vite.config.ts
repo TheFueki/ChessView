@@ -1,4 +1,3 @@
-import path from "node:path";
 import { defineConfig, loadEnv, type ConfigEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -10,12 +9,6 @@ export default defineConfig(({ mode }: ConfigEnv) => {
 
   return {
     plugins: [react(), tailwindcss()],
-    resolve: {
-      alias: {
-        "@": path.resolve(__dirname, "../frontend/src"),
-        "@admin": path.resolve(__dirname, "./src"),
-      },
-    },
     server: {
       port: 5174,
       proxy: {

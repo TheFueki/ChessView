@@ -1,20 +1,46 @@
 import { type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban, LogOut, RotateCcw, Shield, Undo2 } from "lucide-react";
-import { useUserStore } from "@/entities/user";
-import { http } from "@/shared/api";
-import type {
-  AdminAuditLogResponse,
-  AdminUserResponse,
-  FaceVerificationSessionResponse,
-  PaymentIntentResponse,
-} from "@/shared/types";
-import { Button, Card, Spinner } from "@/shared/ui";
+import {
+  type AdminSession,
+  AdminButton,
+  AdminCard,
+  AdminSpinner,
+  adminGet,
+  adminPost,
+} from "./AdminApp";
 
-function AdminShell({ children }: { children: ReactNode }) {
-  const user = useUserStore((state) => state.user);
-  const logout = useUserStore((state) => state.logout);
+interface AdminUserResponse {
+  id: string;
+  username: string;
+  email: string;
+  rating: number;
+  role: string;
+  banned_at?: string | null;
+}
 
+interface PaymentIntentResponse {
+  id: string;
+  amount_cents: number;
+  status: string;
+  subject_type: string;
+}
+
+interface FaceVerificationSessionResponse {
+  id: string;
+  user_id: string;
+  game_id?: string | null;
+  status: string;
+}
+
+interface AdminAuditLogResponse {
+  id: string;
+  action: string;
+  target_type: string;
+  target_id: string;
+}
+
+function AdminShell({ children, session, onLogout }: { children: ReactNode; session: AdminSession; onLogout: () => void }) {
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
       <header className="border-b border-neutral-800 bg-neutral-950/95">
@@ -29,11 +55,11 @@ function AdminShell({ children }: { children: ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {user ? <div className="text-sm text-neutral-400">{user.username}</div> : null}
-            <Button variant="secondary" size="sm" onClick={logout}>
+            <div className="text-sm text-neutral-400">{session.user.username}</div>
+            <AdminButton variant="secondary" onClick={onLogout}>
               <LogOut className="h-4 w-4" />
               Logout
-            </Button>
+            </AdminButton>
           </div>
         </div>
       </header>
@@ -53,19 +79,30 @@ function AdminShell({ children }: { children: ReactNode }) {
   );
 }
 
-export default function AdminPage() {
+export default function AdminPage({ session, onLogout }: { session: AdminSession; onLogout: () => void }) {
   const queryClient = useQueryClient();
-  const usersQuery = useQuery({ queryKey: ["admin-users"], queryFn: () => http.get<AdminUserResponse[]>("/admin/users") });
-  const logsQuery = useQuery({ queryKey: ["admin-logs"], queryFn: () => http.get<AdminAuditLogResponse[]>("/admin/logs") });
-  const paymentsQuery = useQuery({ queryKey: ["admin-payments"], queryFn: () => http.get<PaymentIntentResponse[]>("/admin/payments") });
+  const token = session.accessToken;
+  const usersQuery = useQuery({
+    queryKey: ["admin-users"],
+    queryFn: () => adminGet<AdminUserResponse[]>("/admin/users", token),
+  });
+  const logsQuery = useQuery({
+    queryKey: ["admin-logs"],
+    queryFn: () => adminGet<AdminAuditLogResponse[]>("/admin/logs", token),
+  });
+  const paymentsQuery = useQuery({
+    queryKey: ["admin-payments"],
+    queryFn: () => adminGet<PaymentIntentResponse[]>("/admin/payments", token),
+  });
   const verificationQuery = useQuery({
     queryKey: ["admin-face-verification-issues"],
-    queryFn: () => http.get<FaceVerificationSessionResponse[]>("/admin/face-verification/sessions"),
+    queryFn: () => adminGet<FaceVerificationSessionResponse[]>("/admin/face-verification/sessions", token),
   });
   const adminError = usersQuery.error ?? logsQuery.error ?? paymentsQuery.error ?? verificationQuery.error;
 
   const userAction = useMutation({
-    mutationFn: ({ id, verb }: { id: string; verb: "ban" | "unban" }) => http.post<AdminUserResponse>(`/admin/users/${id}/${verb}`),
+    mutationFn: ({ id, verb }: { id: string; verb: "ban" | "unban" }) =>
+      adminPost<AdminUserResponse>(`/admin/users/${id}/${verb}`, token),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       await queryClient.invalidateQueries({ queryKey: ["admin-logs"] });
@@ -73,7 +110,7 @@ export default function AdminPage() {
   });
 
   const refund = useMutation({
-    mutationFn: (id: string) => http.post<PaymentIntentResponse>(`/admin/payments/${id}/refund`),
+    mutationFn: (id: string) => adminPost<PaymentIntentResponse>(`/admin/payments/${id}/refund`, token),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["admin-payments"] });
       await queryClient.invalidateQueries({ queryKey: ["admin-logs"] });
@@ -81,17 +118,17 @@ export default function AdminPage() {
   });
 
   return (
-    <AdminShell>
+    <AdminShell session={session} onLogout={onLogout}>
       <section className="grid gap-6 lg:grid-cols-2">
         {adminError ? (
-          <Card className="border-red-500/20 bg-red-950/10 text-sm text-red-300 lg:col-span-2">
+          <AdminCard className="border-red-500/20 bg-red-950/10 text-sm text-red-300 lg:col-span-2">
             Admin access unavailable: {adminError instanceof Error ? adminError.message : "request failed"}
-          </Card>
+          </AdminCard>
         ) : null}
 
-        <Card>
+        <AdminCard>
           <h2 className="mb-4 text-xl font-semibold">Users</h2>
-          {usersQuery.isLoading ? <Spinner /> : (
+          {usersQuery.isLoading ? <AdminSpinner /> : (
             <div className="space-y-3">
               {(usersQuery.data ?? []).map((user) => (
                 <div key={user.id} className="flex items-center justify-between gap-3 rounded-lg border border-neutral-800 p-3">
@@ -99,19 +136,19 @@ export default function AdminPage() {
                     <div className="font-medium">{user.username}</div>
                     <div className="text-xs text-neutral-400">{user.email} / {user.role}</div>
                   </div>
-                  <Button size="sm" variant={user.banned_at ? "secondary" : "danger"} onClick={() => userAction.mutate({ id: user.id, verb: user.banned_at ? "unban" : "ban" })}>
+                  <AdminButton variant={user.banned_at ? "secondary" : "danger"} onClick={() => userAction.mutate({ id: user.id, verb: user.banned_at ? "unban" : "ban" })}>
                     {user.banned_at ? <RotateCcw size={14} /> : <Ban size={14} />}
                     {user.banned_at ? "Unban" : "Ban"}
-                  </Button>
+                  </AdminButton>
                 </div>
               ))}
             </div>
           )}
-        </Card>
+        </AdminCard>
 
-        <Card>
+        <AdminCard>
           <h2 className="mb-4 text-xl font-semibold">Payments</h2>
-          {paymentsQuery.isLoading ? <Spinner /> : (
+          {paymentsQuery.isLoading ? <AdminSpinner /> : (
             <div className="space-y-3">
               {(paymentsQuery.data ?? []).map((payment) => (
                 <div key={payment.id} className="flex items-center justify-between gap-3 rounded-lg border border-neutral-800 p-3">
@@ -121,36 +158,36 @@ export default function AdminPage() {
                       {payment.amount_cents.toLocaleString()} coins / {payment.subject_type}
                     </div>
                   </div>
-                  <Button size="sm" variant="secondary" onClick={() => refund.mutate(payment.id)}>
+                  <AdminButton variant="secondary" onClick={() => refund.mutate(payment.id)}>
                     <Undo2 size={14} /> Refund
-                  </Button>
+                  </AdminButton>
                 </div>
               ))}
             </div>
           )}
-        </Card>
+        </AdminCard>
       </section>
 
-      <Card>
+      <AdminCard>
         <h2 className="mb-4 text-xl font-semibold">Verification Issues</h2>
-        {verificationQuery.isLoading ? <Spinner /> : (
+        {verificationQuery.isLoading ? <AdminSpinner /> : (
           <div className="space-y-2">
             {(verificationQuery.data ?? []).length === 0 ? (
               <p className="text-sm text-neutral-400">No verification sessions.</p>
             ) : (
-              (verificationQuery.data ?? []).map((session) => (
-                <div key={session.id} className="rounded-lg border border-neutral-800 p-3 text-sm">
-                  <span className="font-medium">{session.status}</span>
-                  <span className="text-neutral-400"> / user {session.user_id}</span>
-                  {session.game_id ? <span className="text-neutral-400"> / game {session.game_id}</span> : null}
+              (verificationQuery.data ?? []).map((item) => (
+                <div key={item.id} className="rounded-lg border border-neutral-800 p-3 text-sm">
+                  <span className="font-medium">{item.status}</span>
+                  <span className="text-neutral-400"> / user {item.user_id}</span>
+                  {item.game_id ? <span className="text-neutral-400"> / game {item.game_id}</span> : null}
                 </div>
               ))
             )}
           </div>
         )}
-      </Card>
+      </AdminCard>
 
-      <Card>
+      <AdminCard>
         <h2 className="mb-4 text-xl font-semibold">Audit Logs</h2>
         <div className="space-y-2">
           {(logsQuery.data ?? []).map((log) => (
@@ -160,7 +197,7 @@ export default function AdminPage() {
             </div>
           ))}
         </div>
-      </Card>
+      </AdminCard>
     </AdminShell>
   );
 }

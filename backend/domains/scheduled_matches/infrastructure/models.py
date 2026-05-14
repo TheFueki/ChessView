@@ -3,7 +3,7 @@
 from datetime import datetime
 import uuid
 
-from sqlalchemy import JSON, Integer, String
+from sqlalchemy import JSON, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from infrastructure.database import Base
@@ -12,6 +12,12 @@ from infrastructure.orm import created_at_column, utc_timestamp_column, uuid_pri
 
 class ScheduledMatchModel(Base):
     __tablename__ = "scheduled_matches"
+    __table_args__ = (
+        Index("ix_scheduled_matches_creator_user_id", "creator_user_id"),
+        Index("ix_scheduled_matches_invited_user_id", "invited_user_id"),
+        Index("ix_scheduled_matches_game_id", "game_id"),
+        Index("ix_scheduled_matches_status_starts_at", "status", "starts_at"),
+    )
 
     id: Mapped[uuid.UUID] = uuid_primary_key()
     tournament_id: Mapped[uuid.UUID | None] = uuid_reference("tournaments.id", nullable=True)

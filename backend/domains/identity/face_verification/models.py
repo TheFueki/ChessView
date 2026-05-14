@@ -3,7 +3,7 @@
 from datetime import datetime
 import uuid
 
-from sqlalchemy import Float, JSON, String
+from sqlalchemy import Float, Index, JSON, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from infrastructure.database import Base
@@ -12,6 +12,7 @@ from infrastructure.orm import created_at_column, utc_timestamp_column, uuid_pri
 
 class FaceVerificationProfileModel(Base):
     __tablename__ = "face_verification_profiles"
+    __table_args__ = (Index("ix_face_verification_profiles_user_id", "user_id"),)
 
     id: Mapped[uuid.UUID] = uuid_primary_key()
     user_id: Mapped[uuid.UUID] = uuid_reference("users.id")
@@ -28,6 +29,11 @@ class FaceVerificationProfileModel(Base):
 
 class FaceVerificationSessionModel(Base):
     __tablename__ = "face_verification_sessions"
+    __table_args__ = (
+        Index("ix_face_verification_sessions_user_id", "user_id"),
+        Index("ix_face_verification_sessions_game_id", "game_id"),
+        Index("ix_face_verification_sessions_scheduled_match_id", "scheduled_match_id"),
+    )
 
     id: Mapped[uuid.UUID] = uuid_primary_key()
     user_id: Mapped[uuid.UUID] = uuid_reference("users.id")
@@ -50,6 +56,7 @@ class FaceVerificationSessionModel(Base):
 
 class FaceVerificationEventModel(Base):
     __tablename__ = "face_verification_events"
+    __table_args__ = (Index("ix_face_verification_events_session_id", "session_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     session_id: Mapped[uuid.UUID] = uuid_reference("face_verification_sessions.id")

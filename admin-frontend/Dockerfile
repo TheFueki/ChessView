@@ -8,8 +8,6 @@ COPY admin-frontend/package.json ./
 RUN yarn install --non-interactive
 
 COPY admin-frontend ./
-COPY frontend /frontend
-RUN ln -s /app/node_modules /frontend/node_modules
 
 EXPOSE 5174
 

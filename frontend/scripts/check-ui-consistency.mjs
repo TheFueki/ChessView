@@ -177,7 +177,7 @@ for (const file of ["admin.html", "src/admin/main.tsx", "src/admin/AdminApp.tsx"
 const separatedAdminAppPath = join(root, "../admin-frontend/src/AdminApp.tsx");
 if (existsSync(separatedAdminAppPath)) {
   const adminAppText = readFileSync(separatedAdminAppPath, "utf8");
-  for (const token of ["/identity/login", "AdminLoginForm", "setAuth"]) {
+  for (const token of ["/identity/login", "AdminLoginForm", "chessview-admin-auth"]) {
     if (!adminAppText.includes(token)) {
       failures.push(`admin-frontend/src/AdminApp.tsx must support login inside the separated admin service: "${token}"`);
     }
