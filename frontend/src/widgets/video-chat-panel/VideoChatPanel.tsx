@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useRef } from "react";
-import { MessageSquare, VideoOff } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { MessageSquare, ShieldCheck, VideoOff } from "lucide-react";
 import { useMessageStore } from "@/entities/message";
 import { useRtcPeerStore } from "@/entities/rtc-peer";
 import { useUserStore } from "@/entities/user";
 import { useConnectRtc } from "@/features/connect-rtc";
 import { ChatInput, useGameChat } from "@/features/send-chat-message";
 import { ToggleCameraButton, ToggleMicButton } from "@/features/toggle-media-devices";
+import { http } from "@/shared/api";
+import type { FaceVerificationSessionResponse } from "@/shared/types";
 import { Spinner } from "@/shared/ui";
 
 function formatTime(value: string) {
@@ -52,13 +54,28 @@ function remoteFallback(status: string, error: string | null, hasLocalStream: bo
   return "Waiting for your opponent to join video.";
 }
 
-export function VideoChatPanel() {
+function captureFaceSample(video: HTMLVideoElement): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = video.videoWidth || 320;
+  canvas.height = video.videoHeight || 240;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Unable to read camera frame");
+  }
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", 0.72);
+}
+
+export function VideoChatPanel({ gameId }: { gameId?: string }) {
   useGameChat();
   useConnectRtc();
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [faceSession, setFaceSession] = useState<FaceVerificationSessionResponse | null>(null);
+  const [faceError, setFaceError] = useState<string | null>(null);
+  const [isVerifyingFace, setIsVerifyingFace] = useState(false);
 
   const messages = useMessageStore((state) => state.messages);
   const isLoading = useMessageStore((state) => state.isLoading);
@@ -99,13 +116,13 @@ export function VideoChatPanel() {
             <div
               className={`max-w-[85%] rounded-2xl px-3 py-2 ${
                 isMine
-                  ? "bg-emerald-600 text-white"
+                  ? "bg-violet-600 text-white"
                   : "border border-neutral-800 bg-neutral-900 text-neutral-100"
               }`}
             >
               <div
                 className={`text-[10px] uppercase tracking-[0.2em] ${
-                  isMine ? "text-emerald-100/80" : "text-neutral-500"
+                  isMine ? "text-violet-100/80" : "text-neutral-500"
                 }`}
               >
                 {isMine ? "You" : message.username}
@@ -113,7 +130,7 @@ export function VideoChatPanel() {
               <div className="mt-1 break-words text-sm leading-5">{message.content}</div>
               <div
                 className={`mt-1 text-[11px] ${
-                  isMine ? "text-emerald-100/80" : "text-neutral-500"
+                  isMine ? "text-violet-100/80" : "text-neutral-500"
                 }`}
               >
                 {formatTime(message.created_at)}
@@ -127,6 +144,29 @@ export function VideoChatPanel() {
 
   const hasRemoteVideo = Boolean(remoteStream && remoteStream.getTracks().length > 0);
   const hasLocalVideo = Boolean(localStream && localStream.getTracks().length > 0);
+
+  const verifyFaceFromVideo = async () => {
+    const video = localVideoRef.current;
+    if (!video || !hasLocalVideo) {
+      setFaceError("Turn on camera before verifying identity.");
+      return;
+    }
+
+    setIsVerifyingFace(true);
+    setFaceError(null);
+    try {
+      const faceSample = captureFaceSample(video);
+      const session = await http.post<FaceVerificationSessionResponse>("/identity/face-verification/faces/verify", {
+        game_id: gameId ?? null,
+        face_sample: faceSample,
+      });
+      setFaceSession(session);
+    } catch (error) {
+      setFaceError(error instanceof Error ? error.message : "Face verification failed");
+    } finally {
+      setIsVerifyingFace(false);
+    }
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -179,7 +219,22 @@ export function VideoChatPanel() {
       <div className="flex items-center justify-center gap-3 border-b border-neutral-800 px-3 py-2.5">
         <ToggleCameraButton />
         <ToggleMicButton />
+        <button
+          type="button"
+          onClick={verifyFaceFromVideo}
+          disabled={!hasLocalVideo || isVerifyingFace}
+          className="inline-flex items-center gap-1.5 rounded-md border border-neutral-700 bg-neutral-900 px-2.5 py-1.5 text-xs font-medium text-neutral-300 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isVerifyingFace ? <Spinner size="sm" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+          {faceSession?.status === "verified" ? "Identity verified" : "Verify identity"}
+        </button>
       </div>
+
+      {faceError || faceSession ? (
+        <div className="border-b border-neutral-800 px-3 py-2 text-xs text-neutral-400">
+          {faceError ? faceError : `Live face check: ${faceSession?.status}`}
+        </div>
+      ) : null}
 
       <div className="flex flex-1 flex-col overflow-hidden">
         <div className="flex items-center gap-2 border-b border-neutral-800/50 px-3 py-2">

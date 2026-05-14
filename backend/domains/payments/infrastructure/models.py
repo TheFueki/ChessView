@@ -15,7 +15,8 @@ class PaymentIntentModel(Base):
 
     id: Mapped[uuid.UUID] = uuid_primary_key()
     user_id: Mapped[uuid.UUID] = uuid_reference("users.id")
-    tournament_id: Mapped[uuid.UUID] = uuid_reference("tournaments.id")
+    tournament_id: Mapped[uuid.UUID | None] = uuid_reference("tournaments.id", nullable=True)
+    scheduled_match_id: Mapped[uuid.UUID | None] = uuid_reference("scheduled_matches.id", nullable=True)
     amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False)

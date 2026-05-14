@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from infrastructure.database import close_db, init_db
 from shared.middleware import register_middleware
-from domains.identity.domain.exceptions import IdentityException
+from domains.identity.domain.exceptions import IdentityException, UserNotFound
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ def create_app() -> FastAPI:
 
     application.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS,
+        allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -101,6 +101,11 @@ def _register_routers(application: FastAPI) -> None:
 def _register_exception_handlers(application: FastAPI) -> None:
     @application.exception_handler(IdentityException)
     async def identity_exception_handler(request: Request, exc: IdentityException):
+        if isinstance(exc, UserNotFound):
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={"detail": "Requested resource was not found", "code": "NOT_FOUND"},
+            )
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"detail": str(exc)},

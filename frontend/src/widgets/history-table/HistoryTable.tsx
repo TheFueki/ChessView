@@ -40,7 +40,7 @@ function formatResult(result: GameHistoryItemResponse["result"], myColor: GameHi
   if ((result === "1-0" && myColor === "white") || (result === "0-1" && myColor === "black")) {
     return {
       label: "Win",
-      className: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
+      className: "border-violet-500/20 bg-violet-500/10 text-violet-300",
     };
   }
 
@@ -109,7 +109,7 @@ export function HistoryTable({
     <Card className="w-full overflow-hidden p-0">
       <div className="border-b border-neutral-800 px-6 py-5">
         <div className="flex items-center gap-2.5">
-          <Trophy className="h-5 w-5 text-emerald-500" />
+          <Trophy className="h-5 w-5 text-violet-500" />
           <h3 className="text-lg font-semibold text-neutral-100">{title}</h3>
         </div>
         <p className="mt-1.5 pl-[30px] text-sm text-neutral-500">{description}</p>
@@ -158,7 +158,7 @@ export function HistoryTable({
                         className="flex min-w-0 items-center gap-3"
                       >
                         <Avatar username={game.opponent.username} avatarUrl={game.opponent.avatar_url} size="md" />
-                        <span className="truncate text-lg font-semibold text-neutral-100 transition hover:text-emerald-300">
+                        <span className="truncate text-lg font-semibold text-neutral-100 transition hover:text-violet-300">
                           {game.opponent.username}
                         </span>
                       </Link>
@@ -202,7 +202,7 @@ export function HistoryTable({
                       <div
                         className={`mt-2 text-sm font-semibold ${
                           (game.rating_delta ?? 0) > 0
-                            ? "text-emerald-300"
+                            ? "text-violet-300"
                             : (game.rating_delta ?? 0) < 0
                               ? "text-red-300"
                               : "text-neutral-300"

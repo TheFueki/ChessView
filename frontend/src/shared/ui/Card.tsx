@@ -1,7 +1,7 @@
 /**
  * Shared Card component.
  *
- * Elevated dark surface with subtle border and optional glow.
+ * Elevated dark surface with subtle border and optional lift.
  *
  * FSD layer: shared/ui
  */
@@ -20,7 +20,7 @@ export function Card({ children, glow, className, ...props }: CardProps) {
       className={clsx(
         "rounded-xl border border-neutral-800 bg-neutral-900/80 backdrop-blur-sm p-6",
         "transition-all duration-300",
-        glow && "shadow-lg shadow-emerald-500/5 hover:shadow-emerald-500/10 hover:border-neutral-700",
+        glow && "shadow-lg shadow-neutral-950/20 hover:shadow-neutral-950/30 hover:border-neutral-700",
         className,
       )}
       {...props}

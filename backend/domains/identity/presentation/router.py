@@ -1,7 +1,9 @@
 import httpx
 import logging
 import aiofiles
+import re
 from pathlib import Path
+from urllib.parse import urlencode, urlparse
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
@@ -26,7 +28,19 @@ from domains.identity.domain.exceptions import (
     UserNotFound,
 )
 from domains.identity.infrastructure.repository import SqlAlchemyUserRepository
-from domains.identity.face_verification.schemas import FaceVerificationEnrollRequest, FaceVerificationProfileResponse
+from domains.identity.face_verification.schemas import (
+    FaceVerificationEnrollRequest,
+    FaceVerificationProfileResponse,
+    FaceVerificationSessionResponse,
+    FaceVerificationStartRequest,
+    FaceVerificationSubmitRequest,
+    FaceTemplateEnrollRequest,
+    FaceTemplateVerifyRequest,
+    PasskeyChallengeResponse,
+    PasskeyEnrollmentChallengeRequest,
+    PasskeyEnrollmentCompleteRequest,
+    PasskeyVerificationCompleteRequest,
+)
 from domains.identity.face_verification.service import FaceVerificationService
 from domains.identity.presentation.schemas import (
     LoginRequest,
@@ -55,6 +69,25 @@ ALLOWED_AVATAR_TYPES = {
     "image/png": ".png",
     "image/webp": ".webp",
 }
+
+
+def _safe_redirect_target(value: str | None) -> str:
+    fallback = f"{settings.FRONTEND_URL.rstrip('/')}/login"
+    if not value:
+        return fallback
+    parsed = urlparse(value)
+    allowed = urlparse(settings.FRONTEND_URL)
+    if parsed.scheme in {"http", "https"} and parsed.netloc == allowed.netloc:
+        return value
+    if value.startswith("/"):
+        return f"{settings.FRONTEND_URL.rstrip('/')}{value}"
+    return fallback
+
+
+def _sanitize_oauth_username(value: str | None, email: str) -> str:
+    base = value or email.split("@")[0]
+    base = re.sub(r"[^a-zA-Z0-9_-]+", "-", base).strip("-_").lower()
+    return (base or "player")[:28]
 
 def _build_service(session: AsyncSession) -> IdentityService:
     return IdentityService(
@@ -171,90 +204,69 @@ async def get_user(user_id: UUID, session: AsyncSession = Depends(get_db)):
 
 @router.get("/auth/{provider}")
 async def oauth_login(provider: str, redirectTo: str = f"{settings.FRONTEND_URL}/login"):
-    callback_uri = f"{settings.BACKEND_URL}/api/v1/identity/auth/{provider}/callback"
-    
-    if provider == "google":
-        url = (
-            f"https://accounts.google.com/o/oauth2/v2/auth?client_id={settings.GOOGLE_CLIENT_ID}"
-            f"&redirect_uri={callback_uri}&response_type=code&scope=openid email profile&state={redirectTo}"
-        )
-    elif provider == "github":
-        url = (
-            f"https://github.com/login/oauth/authorize?client_id={settings.GITHUB_CLIENT_ID}"
-            f"&scope=user:email&state={redirectTo}"
-        )
-    else:
+    if provider != "google":
         raise HTTPException(status_code=400, detail="Provider not supported")
+    if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
+        raise HTTPException(status_code=503, detail="Google OAuth is not configured")
+
+    callback_uri = f"{settings.BACKEND_URL}/api/v1/identity/auth/{provider}/callback"
+    params = urlencode({
+        "client_id": settings.GOOGLE_CLIENT_ID,
+        "redirect_uri": callback_uri,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "state": _safe_redirect_target(redirectTo),
+        "access_type": "offline",
+        "prompt": "select_account",
+    })
+    url = f"https://accounts.google.com/o/oauth2/v2/auth?{params}"
     
     return RedirectResponse(url)
 
 @router.get("/auth/{provider}/callback")
 async def oauth_callback(provider: str, code: str, state: str, session: AsyncSession = Depends(get_db)):
+    if provider != "google":
+        raise HTTPException(status_code=400, detail="Provider not supported")
+    redirect_target = _safe_redirect_target(state)
     service = _build_service(session)
     email, username = None, None
     callback_uri = f"{settings.BACKEND_URL}/api/v1/identity/auth/{provider}/callback"
     
     async with httpx.AsyncClient() as client:
         try:
-            if provider == "google":
-                token_res = await client.post(
-                    "https://oauth2.googleapis.com/token",
-                    data={
-                        "client_id": settings.GOOGLE_CLIENT_ID,
-                        "client_secret": settings.GOOGLE_CLIENT_SECRET,
-                        "code": code,
-                        "grant_type": "authorization_code",
-                        "redirect_uri": callback_uri,
-                    },
-                )
-                token_res.raise_for_status()
-                token_data = token_res.json()
-                
-                user_info_res = await client.get(
-                    "https://www.googleapis.com/oauth2/v3/userinfo",
-                    headers={"Authorization": f"Bearer {token_data['access_token']}"},
-                )
-                user_info_res.raise_for_status()
-                user_data = user_info_res.json()
-                email = user_data["email"]
-                username = user_data.get("name", email.split("@")[0])
+            token_res = await client.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "client_id": settings.GOOGLE_CLIENT_ID,
+                    "client_secret": settings.GOOGLE_CLIENT_SECRET,
+                    "code": code,
+                    "grant_type": "authorization_code",
+                    "redirect_uri": callback_uri,
+                },
+            )
+            token_res.raise_for_status()
+            token_data = token_res.json()
 
-            elif provider == "github":
-                token_res = await client.post(
-                    "https://github.com/login/oauth/access_token",
-                    headers={"Accept": "application/json"},
-                    data={
-                        "client_id": settings.GITHUB_CLIENT_ID,
-                        "client_secret": settings.GITHUB_CLIENT_SECRET,
-                        "code": code,
-                    },
-                )
-                token_res.raise_for_status()
-                access_token = token_res.json().get("access_token")
-                
-                user_res = await client.get(
-                    "https://api.github.com/user",
-                    headers={"Authorization": f"token {access_token}"},
-                )
-                user_res.raise_for_status()
-                user_data = user_res.json()
-                username = user_data["login"]
-                email = user_data.get("email")
-                
-                if not email: 
-                    emails_res = await client.get(
-                        "https://api.github.com/user/emails", 
-                        headers={"Authorization": f"token {access_token}"}
-                    )
-                    email = next(e["email"] for e in emails_res.json() if e["primary"])
+            user_info_res = await client.get(
+                "https://www.googleapis.com/oauth2/v3/userinfo",
+                headers={"Authorization": f"Bearer {token_data['access_token']}"},
+            )
+            user_info_res.raise_for_status()
+            user_data = user_info_res.json()
+            email = user_data["email"]
+            username = _sanitize_oauth_username(user_data.get("name"), email)
 
             result = await service.oauth_flow(OAuthUserCommand(email=email, username=username))
+            params = urlencode({
+                "access_token": result["access_token"],
+                "refresh_token": result["refresh_token"],
+            })
             return RedirectResponse(
-                f"{state}?access_token={result['access_token']}&refresh_token={result['refresh_token']}"
+                f"{redirect_target}?{params}"
             )
         except Exception as e:
             logger.error(f"OAuth error for {provider}: {e}", exc_info=True)
-            return RedirectResponse(f"{state}?error=oauth_failed")
+            return RedirectResponse(f"{redirect_target}?error=oauth_failed")
 
 @router.post("/me/avatar", response_model=UserProfileResponse)
 async def upload_avatar(
@@ -311,3 +323,125 @@ async def get_face_verification_profiles(
 ):
     service = FaceVerificationService(session)
     return [service.profile_response(profile) for profile in await service.list_profiles(UUID(user_id))]
+
+
+@router.post("/face-verification/sessions", response_model=FaceVerificationSessionResponse)
+async def start_face_verification_session(
+    body: FaceVerificationStartRequest,
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_db),
+):
+    service = FaceVerificationService(session)
+    verification = await service.start_session(
+        user_id=UUID(user_id),
+        game_id=body.game_id,
+        tournament_id=body.tournament_id,
+        scheduled_match_id=body.scheduled_match_id,
+    )
+    return service.session_response(verification)
+
+
+@router.post("/face-verification/sessions/{session_id}/submit", response_model=FaceVerificationSessionResponse)
+async def submit_face_verification_session(
+    session_id: UUID,
+    body: FaceVerificationSubmitRequest,
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_db),
+):
+    service = FaceVerificationService(session)
+    verification = await service.submit(session_id, UUID(user_id), body.scenario)
+    return service.session_response(verification)
+
+
+@router.post("/face-verification/faces/enroll", response_model=FaceVerificationProfileResponse)
+async def enroll_face_template(
+    body: FaceTemplateEnrollRequest,
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_db),
+):
+    service = FaceVerificationService(session)
+    profile = await service.enroll_face_template(
+        user_id=UUID(user_id),
+        device_label=body.device_label,
+        consent=body.consent,
+        face_sample=body.face_sample,
+    )
+    return service.profile_response(profile)
+
+
+@router.post("/face-verification/faces/verify", response_model=FaceVerificationSessionResponse)
+async def verify_face_template(
+    body: FaceTemplateVerifyRequest,
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_db),
+):
+    service = FaceVerificationService(session)
+    verification = await service.verify_live_face_sample(
+        user_id=UUID(user_id),
+        face_sample=body.face_sample,
+        game_id=body.game_id,
+        tournament_id=body.tournament_id,
+        scheduled_match_id=body.scheduled_match_id,
+    )
+    return service.session_response(verification)
+
+
+@router.post("/face-verification/passkeys/enrollment/challenge", response_model=PasskeyChallengeResponse)
+async def start_passkey_enrollment(
+    body: PasskeyEnrollmentChallengeRequest,
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_db),
+):
+    service = FaceVerificationService(session)
+    challenge = await service.start_passkey_enrollment(
+        user_id=UUID(user_id),
+        authenticator_attachment=body.authenticator_attachment,
+        device_label=body.device_label,
+    )
+    return PasskeyChallengeResponse(challenge_id=challenge.id, public_key=challenge.payload["public_key"])
+
+
+@router.post("/face-verification/passkeys/enrollment/complete", response_model=FaceVerificationProfileResponse)
+async def complete_passkey_enrollment(
+    body: PasskeyEnrollmentCompleteRequest,
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_db),
+):
+    service = FaceVerificationService(session)
+    profile = await service.complete_passkey_enrollment(
+        user_id=UUID(user_id),
+        challenge_id=body.challenge_id,
+        credential=body.credential,
+    )
+    return service.profile_response(profile)
+
+
+@router.post("/face-verification/passkeys/verification/challenge", response_model=PasskeyChallengeResponse)
+async def start_passkey_verification(
+    body: FaceVerificationStartRequest,
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_db),
+):
+    service = FaceVerificationService(session)
+    challenge, _verification = await service.start_passkey_verification(
+        user_id=UUID(user_id),
+        game_id=body.game_id,
+        tournament_id=body.tournament_id,
+        scheduled_match_id=body.scheduled_match_id,
+    )
+    return PasskeyChallengeResponse(challenge_id=challenge.id, public_key=challenge.payload["public_key"])
+
+
+@router.post("/face-verification/passkeys/verification/complete", response_model=FaceVerificationSessionResponse)
+async def complete_passkey_verification(
+    body: PasskeyVerificationCompleteRequest,
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_db),
+):
+    service = FaceVerificationService(session)
+    verification = await service.complete_passkey_verification(
+        user_id=UUID(user_id),
+        challenge_id=body.challenge_id,
+        credential=body.credential,
+    )
+    return service.session_response(verification)

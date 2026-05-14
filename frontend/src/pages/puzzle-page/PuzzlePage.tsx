@@ -81,7 +81,7 @@ function buildPuzzleHighlights({
 
   if (selectedSquare) {
     mergeSquareStyle(styles, selectedSquare, {
-      boxShadow: "inset 0 0 0 3px rgba(59, 130, 246, 0.9), inset 0 0 0 9999px rgba(59, 130, 246, 0.15)",
+      boxShadow: "inset 0 0 0 3px rgba(139, 92, 246, 0.9), inset 0 0 0 9999px rgba(139, 92, 246, 0.15)",
     });
   }
 
@@ -91,8 +91,8 @@ function buildPuzzleHighlights({
       styles,
       square,
       occupied
-        ? { boxShadow: "inset 0 0 0 3px rgba(16, 185, 129, 0.7)" }
-        : { backgroundImage: "radial-gradient(circle, rgba(16, 185, 129, 0.35) 20%, transparent 25%)" },
+        ? { boxShadow: "inset 0 0 0 3px rgba(139, 92, 246, 0.7)" }
+        : { boxShadow: "inset 0 0 0 9999px rgba(139, 92, 246, 0.14)" },
     );
   }
 
@@ -107,7 +107,7 @@ function buildPuzzleHighlights({
 
 function resultTone(result: SessionState) {
   if (result === "solved") {
-    return "border-emerald-500/30 bg-emerald-500/10 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.1)]";
+    return "border-violet-500/30 bg-violet-500/10 text-violet-300 shadow-[0_0_20px_rgba(139,92,246,0.1)]";
   }
   if (result === "failed") {
     return "border-red-500/30 bg-red-500/10 text-red-400 shadow-[0_0_20px_rgba(239,68,68,0.1)]";
@@ -149,7 +149,7 @@ function PuzzleWorkspace({
   const [legalTargets, setLegalTargets] = useState<string[]>([]);
   const [lastMoveUci, setLastMoveUci] = useState<string | null>(null);
   const [sessionState, setSessionState] = useState<SessionState>("ready");
-  const [statusMessage, setStatusMessage] = useState("Analyze the position and find the winning line.");
+  const [statusMessage, setStatusMessage] = useState("Find the best move and continue the forcing line.");
   const [attemptState, setAttemptState] = useState<PuzzleAttemptStateResponse | null>(puzzle.attempt);
   const [reportedFailure, setReportedFailure] = useState(false);
   const [isAutoReplying, setIsAutoReplying] = useState(false);
@@ -307,13 +307,13 @@ function PuzzleWorkspace({
   return (
     <AppShell
       eyebrow="Tactics"
-      title="Fueki Puzzles"
-      description="Refine your pattern recognition with our curated tactical suite."
+      title="Puzzle Trainer"
+      description="Solve tactical positions, track attempts, and jump into analysis when a line needs review."
       actions={
         <div className="flex gap-2">
-          <Button onClick={onLoadRandomPuzzle} className="bg-emerald-600/90 hover:bg-emerald-500 shadow-lg shadow-emerald-900/20">
+          <Button onClick={onLoadRandomPuzzle} className="bg-violet-600/90 hover:bg-violet-500 shadow-lg shadow-violet-900/20">
             <Shuffle className="h-4 w-4" />
-            Next Task
+            Next puzzle
           </Button>
           <Button variant="secondary" onClick={resetPuzzle} className="border-neutral-800 bg-neutral-900/40 backdrop-blur-sm">
             <RefreshCcw className="h-4 w-4" />
@@ -322,13 +322,13 @@ function PuzzleWorkspace({
       }
       maxWidthClassName="max-w-[1440px]"
     >
-      <div className="grid gap-6 xl:grid-cols-[1fr_400px]">
+      <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(280px,400px)]">
         <div className="space-y-6">
           <Card className="overflow-hidden border-neutral-800/50 bg-neutral-950/20 p-0 backdrop-blur-xl">
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-neutral-800/50 bg-linear-to-r from-emerald-500/10 via-transparent to-blue-500/5 px-8 py-6">
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-neutral-800/50 bg-neutral-950/70 px-8 py-6">
               <div className="space-y-1">
-                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.4em] text-emerald-500/80">
-                  <Target size={12}/> Puzzle Identity
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.4em] text-violet-300/80">
+                  <Target size={12}/> Puzzle details
                 </div>
                 <h2 className="text-xl font-bold tracking-tight text-neutral-100">
                   {puzzle.themes.slice(0, 4).join("   ")}
@@ -344,8 +344,8 @@ function PuzzleWorkspace({
               </div>
             </div>
 
-            <div className="grid gap-8 p-8 lg:grid-cols-[minmax(0,1fr)_320px]">
-              <div className="relative aspect-square w-full max-w-[600px] overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/40 shadow-2xl">
+            <div className="grid min-w-0 gap-8 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)] lg:p-8">
+              <div className="relative aspect-square w-full max-w-[min(100%,calc(100vh-12rem),600px)] overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/40 shadow-2xl">
                 <Chessboard
                   id="fueki-puzzle-board"
                   position={currentFen}
@@ -364,7 +364,7 @@ function PuzzleWorkspace({
                   <div className="absolute inset-0 z-10 bg-black/5 flex items-center justify-center backdrop-blur-[1px]">
                      <div className="rounded-full bg-neutral-950/80 px-4 py-2 border border-neutral-800 flex items-center gap-2">
                         <Spinner size="sm" />
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Opponent Thinking</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Playing reply</span>
                      </div>
                   </div>
                 )}
@@ -383,7 +383,7 @@ function PuzzleWorkspace({
                 <div className={`rounded-2xl border p-5 transition-all duration-500 ${resultTone(sessionState)}`}>
                   <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest mb-3">
                     {sessionState === "solved" ? <CircleCheck size={14} /> : sessionState === "failed" ? <CircleX size={14} /> : <Brain size={14} />}
-                    {sessionState === "solved" ? "Success" : sessionState === "failed" ? "Failed Attempt" : "Active Task"}
+                    {sessionState === "solved" ? "Solved" : sessionState === "failed" ? "Try again" : "Current puzzle"}
                   </div>
                   <p className="text-sm leading-relaxed opacity-90">{statusMessage}</p>
                 </div>
@@ -391,16 +391,16 @@ function PuzzleWorkspace({
                 <div className="mt-auto space-y-4">
                   <div className="rounded-2xl border border-neutral-800/50 bg-neutral-950/30 p-5">
                     <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-4">
-                      <History size={12}/> Session Info
+                      <History size={12}/> Attempt history
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-medium text-neutral-400">Total Attempts</span>
                       <span className="font-mono text-sm font-bold text-neutral-200">{attemptState?.attempts_count ?? 0}</span>
                     </div>
                     <div className="mt-3 flex items-center justify-between">
-                      <span className="text-[11px] font-medium text-neutral-400">Global State</span>
+                      <span className="text-[11px] font-medium text-neutral-400">Status</span>
                       <span className={`rounded-md px-2 py-0.5 text-[9px] font-black uppercase tracking-tighter border ${
-                        attemptState?.solved ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-500' : 'border-neutral-800 bg-neutral-900 text-neutral-500'
+                        attemptState?.solved ? 'border-violet-500/20 bg-violet-500/10 text-violet-300' : 'border-neutral-800 bg-neutral-900 text-neutral-500'
                       }`}>
                         {attemptLabel(attemptState)}
                       </span>
@@ -416,8 +416,8 @@ function PuzzleWorkspace({
           <Card className="flex-1 flex flex-col border-neutral-800/50 bg-neutral-950/20 p-0 backdrop-blur-xl overflow-hidden">
             <div className="border-b border-neutral-800/50 bg-neutral-900/20 px-6 py-5">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-neutral-500">Starter Queue</h3>
-                <Sparkles size={14} className="text-emerald-500/40" />
+                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-neutral-500">Puzzle list</h3>
+                <Sparkles size={14} className="text-violet-500/40" />
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
@@ -427,7 +427,7 @@ function PuzzleWorkspace({
                   onClick={() => onSelectPuzzle(item.id)}
                   className={`group relative w-full overflow-hidden rounded-xl border p-4 text-left transition-all duration-300 ${
                     puzzle.id === item.id
-                      ? "border-emerald-500/50 bg-emerald-500/10 shadow-[inset_0_0_20px_rgba(16,185,129,0.05)]"
+                      ? "border-violet-500/50 bg-violet-500/10 shadow-[inset_0_0_20px_rgba(139,92,246,0.05)]"
                       : "border-neutral-800/40 bg-neutral-900/10 hover:border-neutral-700 hover:bg-neutral-800/30"
                   }`}
                 >
@@ -438,13 +438,13 @@ function PuzzleWorkspace({
                     <div className="font-mono text-[10px] font-bold text-neutral-500">{item.rating}</div>
                   </div>
                   <div className="mt-3 flex items-center justify-between">
-                    <div className={`text-[9px] font-black uppercase tracking-widest ${item.attempt?.solved ? 'text-emerald-500' : 'text-neutral-600'}`}>
+                    <div className={`text-[9px] font-black uppercase tracking-widest ${item.attempt?.solved ? 'text-violet-300' : 'text-neutral-600'}`}>
                       {item.attempt?.solved ? 'Mastered' : 'Unsolved'}
                     </div>
-                    <ChevronRight size={14} className="text-neutral-700 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all"/>
+                    <ChevronRight size={14} className="text-neutral-700 group-hover:text-violet-400 group-hover:translate-x-1 transition-all"/>
                   </div>
                   {puzzle.id === item.id && (
-                    <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-emerald-500" />
+                    <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-violet-500" />
                   )}
                 </button>
               ))}
@@ -454,7 +454,7 @@ function PuzzleWorkspace({
           <Button 
             variant="secondary" 
             onClick={onOpenAnalysis} 
-            className="w-full h-16 border-neutral-800 bg-neutral-900/20 backdrop-blur-md text-neutral-400 hover:text-emerald-400 hover:border-emerald-500/30 group transition-all"
+            className="w-full h-16 border-neutral-800 bg-neutral-900/20 backdrop-blur-md text-neutral-400 hover:text-violet-300 hover:border-violet-500/30 group transition-all"
           >
             <BarChart3 className="mr-3 h-5 w-5 opacity-50 group-hover:opacity-100 transition-opacity" />
             <div className="text-left">
@@ -519,14 +519,14 @@ export default function PuzzlePage() {
 
   if (puzzleQuery.isLoading || !puzzleQuery.data) {
     return (
-      <AppShell eyebrow="Fueki Puzzles" title="Initialising" description="">
+      <AppShell eyebrow="Puzzles" title="Loading puzzle" description="">
         <div className="flex h-[500px] w-full flex-col items-center justify-center rounded-3xl border border-neutral-800/50 bg-neutral-950/20 backdrop-blur-xl shadow-2xl">
           <div className="relative flex items-center justify-center">
-            <div className="absolute h-16 w-16 animate-ping rounded-full bg-emerald-500/10" />
-            <Spinner size="lg" className="text-emerald-500" />
+            <div className="absolute h-16 w-16 animate-ping rounded-full bg-violet-500/10" />
+            <Spinner size="lg" className="text-violet-500" />
           </div>
           <div className="mt-6 text-[10px] font-black uppercase tracking-[0.4em] text-neutral-500">
-            Syncing Neural Patterns
+            Loading puzzle
           </div>
         </div>
       </AppShell>

@@ -65,7 +65,7 @@ function ReplayContent({
   const principalVariation = useMemo(() => formatPrincipalVariation(currentFen, analysis.pv), [analysis.pv, currentFen]);
   const bestMoveSquares = useMemo(() => getMoveSquares(analysis.bestMove), [analysis.bestMove]);
   const bestMoveArrows = useMemo<[Square, Square, string?][]>(
-    () => (bestMoveSquares ? [[bestMoveSquares[0] as Square, bestMoveSquares[1] as Square, "rgba(16, 185, 129, 0.85)"]] : []),
+    () => (bestMoveSquares ? [[bestMoveSquares[0] as Square, bestMoveSquares[1] as Square, "rgba(139, 92, 246, 0.85)"]] : []),
     [bestMoveSquares],
   );
 
@@ -78,10 +78,10 @@ function ReplayContent({
     <section className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]">
       <div className="space-y-6">
         <Card className="overflow-hidden p-0">
-          <div className="border-b border-neutral-800 bg-linear-to-r from-emerald-500/12 via-transparent to-cyan-500/12 px-6 py-6">
+          <div className="border-b border-neutral-800 bg-linear-to-r from-violet-500/12 via-transparent to-violet-500/12 px-6 py-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-300/80">Replay Board</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.25em] text-violet-300/80">Replay Board</div>
                 <h2 className="mt-2 text-3xl font-bold tracking-tight text-neutral-100">
                   {game.white.username} vs {game.black.username}
                 </h2>
@@ -133,7 +133,7 @@ function ReplayContent({
           <div className="px-6 pb-6">
             <div className="grid gap-4 md:grid-cols-[40px_minmax(0,1fr)]">
               <EvalBar score={normalizedScore} />
-              <div className="overflow-hidden rounded-3xl border border-neutral-800 bg-neutral-950/60 p-4">
+              <div className="mx-auto aspect-square w-full max-w-[min(100%,calc(100vh-16rem),680px)] overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950/60 p-4">
                 <Chessboard
                   id={`review-${game.id}`}
                   position={currentFen}
@@ -271,7 +271,7 @@ function ReplayContent({
                     onClick={() => goToMoveIndex(index + 1)}
                     className={`grid w-full grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border px-4 py-3 text-left transition ${
                       moveIndex === index + 1
-                        ? "border-emerald-500/40 bg-emerald-500/10"
+                        ? "border-violet-500/40 bg-violet-500/10"
                         : "border-neutral-800 bg-neutral-950/60 hover:border-neutral-700 hover:bg-neutral-900/70"
                     }`}
                   >

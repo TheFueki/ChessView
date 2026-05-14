@@ -1,7 +1,7 @@
 $bg-dark: #050507;
 $bg-card: rgba(13, 13, 18, 0.6);
 $accent: #10b981; 
-$accent-glow: rgba(16, 185, 129, 0.15);
+$accent-glow: rgba(139, 92, 246, 0.15);
 $gold: #f59e0b;
 $silver: #94a3b8;
 $bronze: #d97706;
@@ -12,10 +12,7 @@ $text-muted: #71717a;
   all: unset;
   display: block;
   min-height: 100vh;
-  background: 
-    radial-gradient(circle at 50% -20%, rgba($accent, 0.15) 0%, transparent 40%),
-    radial-gradient(circle at 0% 0%, rgba(59, 130, 246, 0.05) 0%, transparent 30%),
-    $bg-dark;
+  background: $bg-dark;
   color: #fff;
   font-family: 'Inter', system-ui, sans-serif;
   padding: 60px 20px;
@@ -56,9 +53,7 @@ $text-muted: #71717a;
         font-size: 32px; 
         font-weight: 900; 
         letter-spacing: -0.02em;
-        background: linear-gradient(to bottom, #fff, #a1a1aa);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        color: #fff;
       }
       p { font-size: 14px; color: $text-muted; font-weight: 500; }
     }
@@ -126,7 +121,7 @@ $text-muted: #71717a;
         position: relative;
         border-radius: 50%;
         padding: 4px;
-        background: conic-gradient(from 0deg, transparent, rgba(255,255,255,0.1), transparent);
+        background: rgba(255,255,255,0.08);
 
         img, .avatar-initial {
           width: 100%;

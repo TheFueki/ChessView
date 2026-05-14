@@ -17,7 +17,7 @@ export function Spinner({ size = "md", className }: SpinnerProps) {
   return (
     <div
       className={clsx(
-        "animate-spin rounded-full border-2 border-emerald-500 border-t-transparent",
+        "animate-spin rounded-full border-2 border-neutral-500 border-t-transparent",
         sizeMap[size],
         className,
       )}

@@ -30,7 +30,7 @@ $text-s: #64748b;
       left: -10%;
       width: 50%;
       height: 50%;
-      background: radial-gradient(circle, rgba($accent-indigo, 0.1) 0%, transparent 70%);
+      background: rgba($accent-indigo, 0.06);
       filter: blur(140px);
       animation: drift 20s infinite alternate ease-in-out;
     }
@@ -41,7 +41,7 @@ $text-s: #64748b;
       right: -10%;
       width: 50%;
       height: 50%;
-      background: radial-gradient(circle, rgba($accent-success, 0.06) 0%, transparent 70%);
+      background: rgba($accent-success, 0.04);
       filter: blur(140px);
       animation: drift 25s infinite alternate-reverse ease-in-out;
     }
@@ -50,7 +50,7 @@ $text-s: #64748b;
       content: "";
       position: absolute;
       inset: 0;
-      background-image: url("https://grainy-gradients.vercel.app/noise.svg");
+      background: transparent;
       opacity: 0.15;
       mix-blend-mode: overlay;
     }
@@ -125,12 +125,9 @@ $text-s: #64748b;
       font-weight: 900;
       line-height: 0.9;
       letter-spacing: -0.06em;
-      background: linear-gradient(to bottom, #fff 40%, rgba(255, 255, 255, 0.4));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      color: #fff;
 
       span { 
-        -webkit-text-fill-color: initial;
         color: $accent-indigo; 
       }
     }
@@ -207,7 +204,7 @@ $text-s: #64748b;
         position: absolute;
         top: 0; left: 50%; transform: translateX(-50%);
         width: 40%; height: 1px;
-        background: linear-gradient(90deg, transparent, $accent-indigo, transparent);
+        background: $accent-indigo;
       }
 
       .card-header {
@@ -219,7 +216,7 @@ $text-s: #64748b;
 
       .oauth-group {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr;
         gap: 1rem;
         margin-bottom: 2rem;
 
@@ -231,7 +228,10 @@ $text-s: #64748b;
           display: flex;
           align-items: center;
           justify-content: center;
+          gap: 0.75rem;
           cursor: pointer;
+          color: #f8fafc;
+          font-weight: 700;
           transition: all 0.2s;
           
           &:hover {

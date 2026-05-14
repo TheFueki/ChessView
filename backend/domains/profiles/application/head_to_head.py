@@ -1,7 +1,7 @@
 """Head-to-head profile statistics."""
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select
@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from domains.game.domain.value_objects import GameResult, GameStatus
 from domains.game.infrastructure.models import GameModel, MoveModel
+from domains.identity.domain.exceptions import UserNotFound
 from domains.identity.infrastructure.models import UserModel
 from domains.profiles.infrastructure.repository import SqlAlchemyProfileRepository
 from domains.profiles.presentation.schemas import (
@@ -36,6 +37,7 @@ class HeadToHeadService:
         self._session = session
 
     async def get(self, user_id: UUID, opponent_id: UUID) -> HeadToHeadResponse:
+        await self._require_players(user_id, opponent_id)
         games = await self._load_games(user_id, opponent_id)
         move_counts = await self._move_counts([game.id for game in games])
         tournament_lookup = await self._tournament_lookup([game.id for game in games])
@@ -63,7 +65,7 @@ class HeadToHeadService:
         recent_games = []
         if recent is not None:
             h2h_ids = {str(game.id) for game in games}
-            recent_games = [game for game in recent.recent_games if game.id in h2h_ids][:10]
+            recent_games = [asdict(game) for game in recent.recent_games if game.id in h2h_ids][:10]
 
         return HeadToHeadResponse(
             user_id=str(user_id),
@@ -95,6 +97,12 @@ class HeadToHeadService:
             ],
             recent_games=recent_games,
         )
+
+    async def _require_players(self, user_id: UUID, opponent_id: UUID) -> None:
+        user = await self._session.get(UserModel, user_id)
+        opponent = await self._session.get(UserModel, opponent_id)
+        if user is None or opponent is None:
+            raise UserNotFound()
 
     async def _load_games(self, user_id: UUID, opponent_id: UUID) -> list[GameModel]:
         result = await self._session.execute(

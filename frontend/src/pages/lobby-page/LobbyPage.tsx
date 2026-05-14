@@ -1,130 +1,47 @@
-import { motion, AnimatePresence } from "framer-motion";
-import { Home, LogOut, X, Trophy, Swords, Activity } from "lucide-react";
-import { Link, useNavigate } from "react-router";
-import { useMatchmakingStore } from "@/entities/matchmaking";
-import { useUserStore } from "@/entities/user";
+import { Activity, Swords, Trophy } from "lucide-react";
 import { useLobbyMatchmakingRealtime } from "@/features/join-matchmaking";
-import { wsClient } from "@/shared/api";
-import { Button } from "@/shared/ui";
+import { Card } from "@/shared/ui";
+import { AppShell } from "@/widgets/app-shell";
 import { MatchmakingPanel } from "@/widgets/matchmaking-panel";
-import "../../pages-style/lobby-page/lobbypage.scss";
-import logoImage from "../../assets/logo.jpeg";
 
-export default function LobbyPage({ isOpen = true, onClose = () => {} }) {
+export default function LobbyPage() {
   useLobbyMatchmakingRealtime();
 
-  const navigate = useNavigate();
-  const user = useUserStore((state) => state.user);
-  const logout = useUserStore((state) => state.logout);
-  const resetMatchmaking = useMatchmakingStore((state) => state.reset);
-
-  const handleLogout = () => {
-    wsClient.disconnect();
-    resetMatchmaking();
-    logout();
-    onClose(); 
-    navigate("/", { replace: true });
-  };
-
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <div className="lobby-modal-overlay">
-          <motion.div
-            className="modal-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-          />
+    <AppShell
+      eyebrow="Play"
+      title="Lobby"
+      description="Choose a time control and enter matchmaking. Live games open on the board as soon as a match is found."
+    >
+      <section className="grid gap-4 md:grid-cols-2">
+        <Card className="flex items-center gap-4">
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-violet-500/25 bg-violet-500/10 text-violet-200">
+            <Trophy className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Mode</div>
+            <div className="text-lg font-semibold text-neutral-100">Rated Match</div>
+          </div>
+        </Card>
+        <Card className="flex items-center gap-4">
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-violet-500/25 bg-violet-500/10 text-violet-200">
+            <Swords className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Queue</div>
+            <div className="text-lg font-semibold text-neutral-100">Fast Pairing</div>
+          </div>
+        </Card>
+      </section>
 
-          <motion.div
-            className="lobby-modal-card"
-            initial={{ opacity: 0, scale: 0.9, y: 40, rotateX: 15 }}
-            animate={{ opacity: 1, scale: 1, y: 0, rotateX: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 40 }}
-            transition={{ type: "spring", damping: 20, stiffness: 300 }}
-          >
-            <div className="card-ambient-glow" />
-            
-            <header className="modal-header">
-              <div className="brand-group">
-                  <div className="logo-box">
-                    <img 
-                      src={logoImage} 
-                      alt="ChessView Logo" 
-                      className="logo-img"
-                    />
-                  </div>
-                <div className="title-stack">
-                  <span className="main-title">ChessView Lobby</span>
-                  <div className="status-badge">
-                    <span className="pulse-dot" />
-                    Live System
-                  </div>
-                </div>
-              </div>
+      <Card className="p-0">
+        <MatchmakingPanel />
+      </Card>
 
-              <div className="header-actions">
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => { onClose(); navigate("/"); }}
-                  className="home-nav-btn"
-                >
-                  <Home size={16} />
-                </Button>
-
-                {user && (
-                  <Link to="/profile" className="user-mini-pill" onClick={onClose}>
-                    <span className="name">{user.username}</span>
-                    <span className="rank-val">{user.rating}</span>
-                  </Link>
-                )}
-                
-                <button className="close-trigger" onClick={onClose}>
-                  <X size={20} />
-                </button>
-              </div>
-            </header>
-
-            <main className="modal-body">
-              <div className="lobby-info-grid">
-                <div className="info-item">
-                  <Trophy size={14} />
-                  <div className="info-text">
-                    <span className="label">Mode</span>
-                    <span className="value">Ranked Match</span>
-                  </div>
-                </div>
-                <div className="info-item">
-                  <Swords size={14} />
-                  <div className="info-text">
-                    <span className="label">Time Control</span>
-                    <span className="value">Classic 10m</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="matchmaking-panel-wrapper">
-                <MatchmakingPanel />
-              </div>
-            </main>
-
-            <footer className="modal-footer">
-              <div className="sys-status">
-                <Activity size={12} />
-                <span>Global Matchmaking Online</span>
-              </div>
-              
-              <button className="logout-link" onClick={handleLogout}>
-                <LogOut size={14} />
-                <span>Logout Session</span>
-              </button>
-            </footer>
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
+      <div className="inline-flex items-center gap-2 text-sm text-neutral-500">
+        <Activity className="h-4 w-4 text-violet-400" />
+        Matchmaking is connected through the live ChessView game service.
+      </div>
+    </AppShell>
   );
 }

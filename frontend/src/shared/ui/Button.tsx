@@ -1,7 +1,7 @@
 /**
  * Shared Button component.
  *
- * Dark premium aesthetic: emerald accent, glow on hover, smooth transitions.
+ * Dark chess-platform aesthetic: neutral accent, quiet hover states.
  *
  * FSD layer: shared/ui
  */
@@ -19,7 +19,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30",
+    "bg-neutral-200 hover:bg-white text-neutral-950 border border-neutral-400",
   secondary:
     "bg-neutral-800 hover:bg-neutral-700 text-neutral-100 border border-neutral-700 hover:border-neutral-600",
   danger:
@@ -45,8 +45,8 @@ export function Button({
   return (
     <button
       className={clsx(
-        "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-200 cursor-pointer",
-        "focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:ring-offset-2 focus:ring-offset-neutral-950",
+        "inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors duration-150 cursor-pointer",
+        "focus:outline-none focus:ring-2 focus:ring-neutral-500/50 focus:ring-offset-2 focus:ring-offset-neutral-950",
         "disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none",
         variantStyles[variant],
         sizeStyles[size],

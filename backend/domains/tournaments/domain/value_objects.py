@@ -19,6 +19,7 @@ class TournamentStatus(StrEnum):
 class TournamentType(StrEnum):
     ARENA = "arena"
     SWISS = "swiss"
+    OTB = "otb"
 
 
 class TournamentPlayerStatus(StrEnum):

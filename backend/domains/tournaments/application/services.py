@@ -38,7 +38,7 @@ from domains.tournaments.domain.services import (
 )
 from domains.tournaments.domain.value_objects import PairingResult, TournamentStatus
 from domains.tournaments.domain.value_objects import TournamentPlayerStatus, TournamentType
-from shared.time_controls import TimeControl, get_time_control_preset
+from shared.time_controls import TimeControl, get_time_control_preset, make_time_control
 
 
 def utc_now() -> datetime:
@@ -79,13 +79,16 @@ class TournamentService:
         tournament_type: str = "swiss",
         entry_fee_cents: int = 0,
         total_rounds: int | None = None,
+        *,
+        initial_time_ms: int | None = None,
+        increment_ms: int | None = None,
     ) -> Tournament:
         normalized_name = name.strip()
         if not normalized_name:
             raise InvalidTournamentConfiguration()
 
-        preset = get_time_control_preset(time_control_name)
-        if preset is None:
+        time_control = self._time_control_for_create(time_control_name, initial_time_ms, increment_ms)
+        if time_control is None:
             raise InvalidTournamentConfiguration()
 
         owner = await self._users.get_by_id(owner_id)
@@ -96,8 +99,8 @@ class TournamentService:
             owner_id=owner_id,
             name=normalized_name,
             time_control_name=time_control_name,
-            initial_time_ms=preset.initial_time_ms,
-            increment_ms=preset.increment_ms,
+            initial_time_ms=time_control.initial_time_ms,
+            increment_ms=time_control.increment_ms,
             tournament_type=TournamentType(tournament_type),
             entry_fee_cents=entry_fee_cents,
             total_rounds=total_rounds or 0,
@@ -342,12 +345,16 @@ class TournamentService:
 
     @staticmethod
     def _ensure_registration_open(tournament: Tournament) -> None:
-        if tournament.status != TournamentStatus.REGISTRATION:
+        if tournament.status not in {TournamentStatus.REGISTRATION, TournamentStatus.REGISTRATION_OPEN}:
             raise TournamentRegistrationClosed()
 
     @staticmethod
     def _ensure_ready_to_start(tournament: Tournament) -> None:
-        if tournament.status not in {TournamentStatus.REGISTRATION, TournamentStatus.REGISTRATION_CLOSED}:
+        if tournament.status not in {
+            TournamentStatus.REGISTRATION,
+            TournamentStatus.REGISTRATION_OPEN,
+            TournamentStatus.REGISTRATION_CLOSED,
+        }:
             raise TournamentRegistrationClosed()
 
     @staticmethod
@@ -396,6 +403,25 @@ class TournamentService:
     @staticmethod
     def _resolve_time_control(tournament: Tournament) -> TimeControl:
         time_control = get_time_control_preset(tournament.time_control_name)
-        if time_control is None:
-            raise InvalidTournamentConfiguration()
-        return time_control
+        if time_control is not None:
+            return time_control
+        try:
+            return make_time_control(tournament.time_control_name, tournament.initial_time_ms, tournament.increment_ms)
+        except ValueError as exc:
+            raise InvalidTournamentConfiguration() from exc
+
+    @staticmethod
+    def _time_control_for_create(
+        time_control_name: str,
+        initial_time_ms: int | None,
+        increment_ms: int | None,
+    ) -> TimeControl | None:
+        preset = get_time_control_preset(time_control_name)
+        if preset is not None and initial_time_ms is None and increment_ms is None:
+            return preset
+        if initial_time_ms is None or increment_ms is None:
+            return preset
+        try:
+            return make_time_control(time_control_name, initial_time_ms, increment_ms)
+        except ValueError:
+            return None

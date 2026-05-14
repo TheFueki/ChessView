@@ -1,0 +1,32 @@
+{
+  "name": "chessview-admin-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "packageManager": "yarn@1.22.22",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5174",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.80.6",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.513.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-router": "^7.6.1",
+    "zustand": "^5.0.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.8",
+    "@types/node": "^24.12.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "tailwindcss": "^4.1.8",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.4"
+  }
+}

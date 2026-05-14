@@ -1,14 +1,4 @@
-const requireEnv = (key: string): string => {
-  const value = import.meta.env[key] as string | undefined;
-
-  if (!value) {
-    throw new Error(`${key} must be set`);
-  }
-
-  return value;
-};
-
-export const SERVER_URL = requireEnv("VITE_SERVER_URL");
+export const SERVER_URL = (import.meta.env.VITE_SERVER_URL as string | undefined) ?? "http://localhost:8000";
 
 export const API_BASE_URL = `${SERVER_URL}/api/v1`;
 

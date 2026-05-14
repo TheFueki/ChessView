@@ -6,21 +6,33 @@ import pytest
 from fastapi import HTTPException
 
 from app.dependencies import require_admin
-from domains.game.domain.value_objects import GameResult
+from domains.identity.application.services import IdentityService
+from domains.game.domain.value_objects import GameResult, GameStatus
 from domains.identity.face_verification.provider import LocalStubFaceVerificationProvider
-from domains.identity.face_verification.service import is_game_participant
+from domains.identity.face_verification.service import (
+    FaceVerificationService,
+    has_completed_face_verification,
+    is_game_participant,
+)
+from domains.identity.domain.exceptions import UserNotFound
 from domains.identity.infrastructure.models import UserModel
 from domains.payments.service import (
     SUCCESS_SCENARIOS,
     TERMINAL_RELEASE_STATUSES,
     apply_refund_to_registration,
+    apply_wallet_charge,
+    apply_wallet_refund,
+    payment_subject,
     occupies_tournament_slot,
 )
+from domains.ratings.infrastructure.repository import SqlAlchemyRatingRepository
 from domains.profiles.application.head_to_head import HeadToHeadService
 from domains.profiles.application.head_to_head import _Stats
+from domains.profiles.infrastructure.repository import SqlAlchemyProfileRepository
 from domains.scheduled_matches.service import validate_scheduled_match_start, validate_scheduled_match_transition
 from domains.scheduled_matches.service import ScheduledMatchService
 from domains.scheduled_matches.infrastructure.models import ScheduledMatchModel
+from domains.tournaments.application.services import TournamentService
 from domains.tournaments.infrastructure.models import TournamentModel, TournamentPairingModel
 from domains.tournaments.infrastructure.models import TournamentPlayerModel
 from domains.tournaments.domain.entities import TournamentPairing, TournamentPlayer
@@ -31,6 +43,8 @@ from domains.tournaments.domain.services import (
     plan_swiss_pairings,
 )
 from domains.tournaments.domain.value_objects import PairingResult, TournamentPlayerStatus
+from domains.tournaments.domain.value_objects import TournamentType
+from shared.time_controls import RatingSpeed, TimeControl, rating_speed_for_clock, rating_speed_for_time_control_name
 
 
 def _player(score: float = 0.0, *, status=TournamentPlayerStatus.ACTIVE) -> TournamentPlayer:
@@ -60,6 +74,10 @@ def test_swiss_plan_assigns_bye_and_excludes_withdrawn_players():
     assert players[-1].user_id not in paired_ids
     assert sum(1 for pairing in plan.pairings if pairing.black_id is None) == 1
     assert "bye_assigned" in plan.warnings
+
+
+def test_otb_tournament_type_is_first_class():
+    assert TournamentType.OTB == "otb"
 
 
 def test_swiss_plan_warns_when_rematch_is_unavoidable():
@@ -115,6 +133,34 @@ def test_face_verification_stub_statuses_are_explicit():
     assert provider.verify("uncertain").status == "uncertain"
 
 
+def test_identity_auth_response_includes_role_for_separate_admin_service():
+    service = IdentityService(
+        user_repo=SimpleNamespace(),
+        hash_password=lambda value: value,
+        verify_password=lambda _plain, _hashed: True,
+        create_access_token=lambda user_id: f"access-{user_id}",
+        create_refresh_token=lambda user_id: f"refresh-{user_id}",
+        decode_token=lambda token: {"sub": token, "type": "refresh"},
+    )
+    user_id = uuid4()
+    response = service._build_auth_response(
+        SimpleNamespace(
+            id=user_id,
+            username="Admin",
+            email="admin@example.com",
+            rating=1500,
+            role="admin",
+            banned_at=None,
+            bio=None,
+            avatar_path=None,
+            created_at=datetime.now(timezone.utc),
+        )
+    )
+
+    assert response["user"]["role"] == "admin"
+    assert response["user"]["banned_at"] is None
+
+
 def test_payment_emulator_status_mapping_covers_required_scenarios():
     assert SUCCESS_SCENARIOS == {
         "success": "succeeded",
@@ -140,6 +186,54 @@ def test_payment_slot_occupancy_tracks_pending_expiration_and_success():
     assert occupies_tournament_slot("expired", now + timedelta(minutes=5), now) is False
     assert occupies_tournament_slot("refunded", now + timedelta(minutes=5), now) is False
     assert occupies_tournament_slot("disputed", None, now) is True
+
+
+def test_payment_subject_supports_tournament_and_scheduled_match_contexts():
+    tournament_id = uuid4()
+    scheduled_match_id = uuid4()
+
+    assert payment_subject(SimpleNamespace(tournament_id=tournament_id, scheduled_match_id=None)) == (
+        "tournament",
+        tournament_id,
+    )
+    assert payment_subject(SimpleNamespace(tournament_id=None, scheduled_match_id=scheduled_match_id)) == (
+        "scheduled_match",
+        scheduled_match_id,
+    )
+
+    with pytest.raises(ValueError):
+        payment_subject(SimpleNamespace(tournament_id=tournament_id, scheduled_match_id=scheduled_match_id))
+
+    with pytest.raises(ValueError):
+        payment_subject(SimpleNamespace(tournament_id=None, scheduled_match_id=None))
+
+
+def test_wallet_charge_and_refund_use_chessview_coins_once():
+    user = SimpleNamespace(coins=750)
+    payment = SimpleNamespace(amount_cents=250, metadata_json={})
+
+    apply_wallet_charge(user, payment)
+    apply_wallet_charge(user, payment)
+
+    assert user.coins == 500
+    assert payment.metadata_json["wallet_debited"] is True
+    assert payment.metadata_json["wallet_amount"] == 250
+
+    apply_wallet_refund(user, payment)
+    apply_wallet_refund(user, payment)
+
+    assert user.coins == 750
+    assert payment.metadata_json["wallet_refunded"] is True
+
+
+def test_wallet_charge_rejects_insufficient_balance():
+    user = SimpleNamespace(coins=100)
+    payment = SimpleNamespace(amount_cents=250, metadata_json={})
+
+    with pytest.raises(HTTPException):
+        apply_wallet_charge(user, payment)
+
+    assert user.coins == 100
 
 
 def test_refund_marks_existing_registration_withdrawn_without_deleting_it():
@@ -317,6 +411,187 @@ async def test_scheduled_tournament_match_start_creates_game_and_links_pairing()
     assert pairing.game_id == started.game_id
 
 
+def test_custom_tournament_time_control_falls_back_to_stored_clock_values():
+    tournament = SimpleNamespace(
+        time_control_name="25+10",
+        initial_time_ms=1_500_000,
+        increment_ms=10_000,
+    )
+
+    resolved = ScheduledMatchService._resolve_match_time_control(tournament)
+
+    assert resolved == TimeControl(name="25+10", initial_time_ms=1_500_000, increment_ms=10_000)
+
+
+def test_custom_tournament_time_control_is_validated_for_create():
+    resolved = TournamentService._time_control_for_create("25+10", 1_500_000, 10_000)
+
+    assert resolved == TimeControl(name="25+10", initial_time_ms=1_500_000, increment_ms=10_000)
+    assert TournamentService._time_control_for_create("custom", None, 10_000) is None
+    assert TournamentService._time_control_for_create("custom", 0, 10_000) is None
+
+
+def test_online_rating_speed_uses_lichess_estimated_duration_buckets():
+    assert rating_speed_for_clock(60_000, 0) == RatingSpeed.BULLET
+    assert rating_speed_for_clock(180_000, 0) == RatingSpeed.BLITZ
+    assert rating_speed_for_clock(180_000, 2_000) == RatingSpeed.BLITZ
+    assert rating_speed_for_clock(300_000, 3_000) == RatingSpeed.BLITZ
+    assert rating_speed_for_clock(600_000, 0) == RatingSpeed.RAPID
+    assert rating_speed_for_clock(1_500_000, 10_000) == RatingSpeed.CLASSICAL
+
+
+def test_named_time_controls_map_to_rating_speed_categories():
+    assert rating_speed_for_time_control_name("1+0") == RatingSpeed.BULLET
+    assert rating_speed_for_time_control_name("3+0") == RatingSpeed.BLITZ
+    assert rating_speed_for_time_control_name("3+2") == RatingSpeed.BLITZ
+    assert rating_speed_for_time_control_name("5+3") == RatingSpeed.BLITZ
+    assert rating_speed_for_time_control_name("10+0") == RatingSpeed.RAPID
+    assert rating_speed_for_time_control_name("25+10") == RatingSpeed.CLASSICAL
+
+
+def test_profile_ratings_are_grouped_by_speed_not_exact_time_control():
+    user_id = uuid4()
+    older_blitz = SimpleNamespace(
+        white_id=user_id,
+        black_id=uuid4(),
+        rated=True,
+        time_control_name="3+0",
+        white_rating_after=1410,
+        white_rating_before=1400,
+        black_rating_after=1390,
+        black_rating_before=1400,
+        started_at=datetime(2026, 5, 13, 10, 0, tzinfo=timezone.utc),
+        ended_at=datetime(2026, 5, 13, 10, 5, tzinfo=timezone.utc),
+    )
+    latest_blitz = SimpleNamespace(
+        white_id=uuid4(),
+        black_id=user_id,
+        rated=True,
+        time_control_name="5+3",
+        white_rating_after=1510,
+        white_rating_before=1500,
+        black_rating_after=1490,
+        black_rating_before=1500,
+        started_at=datetime(2026, 5, 13, 11, 0, tzinfo=timezone.utc),
+        ended_at=datetime(2026, 5, 13, 11, 8, tzinfo=timezone.utc),
+    )
+    rapid = SimpleNamespace(
+        white_id=user_id,
+        black_id=uuid4(),
+        rated=True,
+        time_control_name="10+0",
+        white_rating_after=1605,
+        white_rating_before=1600,
+        black_rating_after=1595,
+        black_rating_before=1600,
+        started_at=datetime(2026, 5, 13, 12, 0, tzinfo=timezone.utc),
+        ended_at=datetime(2026, 5, 13, 12, 20, tzinfo=timezone.utc),
+    )
+
+    ratings = SqlAlchemyProfileRepository._ratings_by_speed(
+        user_id,
+        {
+            RatingSpeed.BULLET: 1200,
+            RatingSpeed.BLITZ: 1500,
+            RatingSpeed.RAPID: 1600,
+            RatingSpeed.CLASSICAL: 1700,
+        },
+        [older_blitz, latest_blitz, rapid],
+    )
+
+    assert ratings == {
+        "bullet": 1200,
+        "blitz": 1490,
+        "rapid": 1605,
+        "classical": 1700,
+    }
+
+
+@pytest.mark.asyncio
+async def test_rating_repository_updates_only_the_matching_speed_rating():
+    game_id = uuid4()
+    white_id = uuid4()
+    black_id = uuid4()
+    game = SimpleNamespace(
+        id=game_id,
+        white_id=white_id,
+        black_id=black_id,
+        rated=True,
+        result=GameResult.WHITE_WINS,
+        status=GameStatus.CHECKMATE,
+        time_control_name="3+2",
+        initial_time_ms=180_000,
+        increment_ms=2_000,
+        white_rating_before=0,
+        black_rating_before=0,
+        white_rating_after=None,
+        black_rating_after=None,
+        rating_applied_at=None,
+    )
+    white = SimpleNamespace(
+        id=white_id,
+        rating=1300,
+        bullet_rating=1111,
+        blitz_rating=1500,
+        rapid_rating=1600,
+        classical_rating=1700,
+    )
+    black = SimpleNamespace(
+        id=black_id,
+        rating=1300,
+        bullet_rating=1099,
+        blitz_rating=1500,
+        rapid_rating=1600,
+        classical_rating=1700,
+    )
+
+    class ScalarResult:
+        def __init__(self, values):
+            self._values = values
+
+        def scalar_one_or_none(self):
+            return self._values[0] if self._values else None
+
+        def scalars(self):
+            return self
+
+        def all(self):
+            return self._values
+
+    class FakeSession:
+        def __init__(self):
+            self.calls = 0
+            self.committed = False
+
+        async def execute(self, _stmt):
+            self.calls += 1
+            if self.calls == 1:
+                return ScalarResult([game])
+            return ScalarResult([white, black])
+
+        async def commit(self):
+            self.committed = True
+
+        async def refresh(self, _item):
+            return None
+
+    session = FakeSession()
+    update = await SqlAlchemyRatingRepository(session).apply_game_rating(game_id)
+
+    assert update is not None
+    assert update.white.before == 1500
+    assert update.black.before == 1500
+    assert white.blitz_rating == update.white.after
+    assert black.blitz_rating == update.black.after
+    assert white.rating == 1300
+    assert black.rating == 1300
+    assert white.bullet_rating == 1111
+    assert black.rapid_rating == 1600
+    assert game.white_rating_before == 1500
+    assert game.black_rating_before == 1500
+    assert session.committed is True
+
+
 def test_face_verification_game_participation_is_strict():
     white_id = uuid4()
     black_id = uuid4()
@@ -325,6 +600,67 @@ def test_face_verification_game_participation_is_strict():
     assert is_game_participant(game, white_id) is True
     assert is_game_participant(game, black_id) is True
     assert is_game_participant(game, uuid4()) is False
+
+
+def test_completed_face_verification_accepts_only_verified_sessions():
+    assert has_completed_face_verification(SimpleNamespace(status="verified")) is True
+    assert has_completed_face_verification(SimpleNamespace(status="failed")) is False
+    assert has_completed_face_verification(SimpleNamespace(status="pending")) is False
+    assert has_completed_face_verification(None) is False
+
+
+def test_face_verification_passkey_payload_requires_matching_challenge_and_credential():
+    challenge = FaceVerificationService.build_passkey_challenge(str(uuid4()))
+    credential_id = "local-device-credential"
+
+    verified = FaceVerificationService.verify_passkey_assertion(
+        challenge=challenge,
+        assertion={
+            "credential_id": credential_id,
+            "challenge": challenge["challenge"],
+            "client_data_json": "dev-client-data",
+            "authenticator_data": "dev-authenticator-data",
+            "signature": "dev-signature",
+        },
+        enrolled_credential_id=credential_id,
+    )
+    assert verified.status == "verified"
+    assert verified.confidence == 1.0
+
+    failed = FaceVerificationService.verify_passkey_assertion(
+        challenge=challenge,
+        assertion={
+            "credential_id": credential_id,
+            "challenge": "wrong-challenge",
+            "client_data_json": "dev-client-data",
+            "authenticator_data": "dev-authenticator-data",
+            "signature": "dev-signature",
+        },
+        enrolled_credential_id=credential_id,
+    )
+    assert failed.status == "failed"
+
+
+def test_face_template_enrollment_and_live_video_sample_matching_are_deterministic():
+    face_sample = "camera-frame:alice:front-facing"
+    template = FaceVerificationService.build_face_template(face_sample)
+
+    assert template["algorithm"] == "local_face_template_v1"
+    assert "template_hash" in template
+    assert "camera-frame" not in template["template_hash"]
+
+    verified = FaceVerificationService.verify_face_sample(
+        stored_template=template,
+        live_sample=face_sample,
+    )
+    assert verified.status == "verified"
+    assert verified.confidence == 0.98
+
+    failed = FaceVerificationService.verify_face_sample(
+        stored_template=template,
+        live_sample="camera-frame:bob:front-facing",
+    )
+    assert failed.status == "failed"
 
 
 def test_head_to_head_perspective_results_cover_colors_and_draws():
@@ -363,6 +699,45 @@ def test_head_to_head_average_move_count_uses_recorded_move_counts():
     assert stats.wins == 1
     assert stats.draws == 1
     assert stats.average_moves == 16.0
+
+
+@pytest.mark.asyncio
+async def test_head_to_head_rejects_missing_players():
+    class FakeSession:
+        async def get(self, _model, _key):
+            return None
+
+    with pytest.raises(UserNotFound):
+        await HeadToHeadService(FakeSession()).get(uuid4(), uuid4())
+
+
+def test_profile_avatar_paths_are_exposed_as_media_urls():
+    assert SqlAlchemyProfileRepository._avatar_url(None) is None
+    assert SqlAlchemyProfileRepository._avatar_url("/media/avatars/player.png") == "/media/avatars/player.png"
+    assert SqlAlchemyProfileRepository._avatar_url("player.png") == "/media/avatars/player.png"
+
+
+def test_profile_serializer_exposes_wallet_balance():
+    from domains.profiles.presentation.router import _serialize_profile
+
+    profile = SimpleNamespace(
+        id=str(uuid4()),
+        username="WalletTester",
+        rating=1500,
+        avatar_url=None,
+        created_at=datetime.now(timezone.utc),
+        games_played=0,
+        wins=0,
+        losses=0,
+        draws=0,
+        win_rate=0,
+        ratings={},
+        global_rank=1,
+        coins=4321,
+        recent_games=[],
+    )
+
+    assert _serialize_profile(profile).coins == 4321
 
 
 @pytest.mark.asyncio

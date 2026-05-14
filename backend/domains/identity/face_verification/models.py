@@ -18,6 +18,9 @@ class FaceVerificationProfileModel(Base):
     provider: Mapped[str] = mapped_column(String(40), nullable=False)
     status: Mapped[str] = mapped_column(String(30), nullable=False)
     device_label: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    credential_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    credential_public_key: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    face_template: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     consented_at: Mapped[datetime] = utc_timestamp_column()
     created_at: Mapped[datetime] = created_at_column()
     updated_at: Mapped[datetime | None] = utc_timestamp_column(nullable=True)
@@ -58,3 +61,16 @@ class FaceVerificationEventModel(Base):
         "FaceVerificationSessionModel",
         back_populates="events",
     )
+
+
+class FaceVerificationChallengeModel(Base):
+    __tablename__ = "face_verification_challenges"
+
+    id: Mapped[uuid.UUID] = uuid_primary_key()
+    user_id: Mapped[uuid.UUID] = uuid_reference("users.id")
+    session_id: Mapped[uuid.UUID | None] = uuid_reference("face_verification_sessions.id", nullable=True)
+    purpose: Mapped[str] = mapped_column(String(40), nullable=False)
+    challenge: Mapped[str] = mapped_column(String(255), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    consumed_at: Mapped[datetime | None] = utc_timestamp_column(nullable=True)
+    created_at: Mapped[datetime] = created_at_column()

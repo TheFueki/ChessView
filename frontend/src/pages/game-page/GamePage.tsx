@@ -85,7 +85,7 @@ function buildBoardHighlights({
 
   if (selectedSquare) {
     mergeSquareStyle(styles, selectedSquare, {
-      boxShadow: "inset 0 0 0 3px rgba(16, 185, 129, 0.95), inset 0 0 0 9999px rgba(16, 185, 129, 0.18)",
+      boxShadow: "inset 0 0 0 3px rgba(139, 92, 246, 0.95), inset 0 0 0 9999px rgba(139, 92, 246, 0.18)",
       transition: "all 120ms ease-out",
     });
   }
@@ -94,11 +94,11 @@ function buildBoardHighlights({
     const occupied = Boolean(getSquareColor(fen, square));
     mergeSquareStyle(styles, square, occupied
       ? {
-          boxShadow: "inset 0 0 0 3px rgba(16, 185, 129, 0.82)",
+          boxShadow: "inset 0 0 0 3px rgba(139, 92, 246, 0.82)",
           transition: "all 120ms ease-out",
         }
       : {
-          backgroundImage: "radial-gradient(circle, rgba(16, 185, 129, 0.42) 0%, rgba(16, 185, 129, 0.42) 22%, transparent 24%)",
+          boxShadow: "inset 0 0 0 9999px rgba(139, 92, 246, 0.18)",
           transition: "all 120ms ease-out",
         });
   }
@@ -166,7 +166,7 @@ function PlayerBar({
   return (
     <div
       className={`flex items-center justify-between rounded-xl border px-4 py-3 transition-all duration-300 ${
-        active ? "border-emerald-500/40 bg-emerald-500/10 shadow-sm shadow-emerald-500/5" : "border-neutral-800 bg-neutral-900/80"
+        active ? "border-violet-500/40 bg-violet-500/10 shadow-sm shadow-violet-500/5" : "border-neutral-800 bg-neutral-900/80"
       }`}
     >
       <div className="flex items-center gap-3">
@@ -183,7 +183,7 @@ function PlayerBar({
             </div>
           )}
           <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-neutral-900 transition-colors duration-300 ${
-            active ? "bg-emerald-500 shadow-sm shadow-emerald-500/50" : "bg-neutral-700"
+            active ? "bg-violet-500 shadow-sm shadow-violet-500/50" : "bg-neutral-700"
           }`} />
         </div>
         <div>
@@ -193,7 +193,7 @@ function PlayerBar({
       </div>
       <div className="flex items-center gap-2">
         <div className={`rounded-lg border px-3 py-1.5 text-sm font-semibold tabular-nums ${
-          active ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100" : "border-neutral-700/80 bg-neutral-950/80 text-neutral-200"
+          active ? "border-violet-500/30 bg-violet-500/10 text-violet-100" : "border-neutral-700/80 bg-neutral-950/80 text-neutral-200"
         }`}>
           {formatClock(clockMs)}
         </div>
@@ -262,7 +262,7 @@ export default function GamePage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <button onClick={() => navigate("/")} className="flex items-center gap-2 transition hover:opacity-80">
-              <Crown className="h-5 w-5 text-emerald-500" />
+          <Crown className="h-5 w-5 text-violet-500" />
               <span className="font-bold tracking-tight text-neutral-100">ChessView</span>
             </button>
             <div className="flex items-center gap-3">
@@ -392,7 +392,7 @@ export default function GamePage() {
         </div>
       }
       sidebar={<GameSidebar />}
-      videoChat={<VideoChatPanel />}
+      videoChat={<VideoChatPanel gameId={gameId} />}
     />
   );
 }

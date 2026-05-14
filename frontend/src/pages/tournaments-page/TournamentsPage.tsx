@@ -1,45 +1,43 @@
-import React, { useMemo, useState } from "react";
-import { 
-  BarChart3, PlayCircle, Swords, Trophy, 
-  Settings, ChevronLeft, ChevronRight, ShoppingBag, Users,
-  Medal, Plus, Info
-} from "lucide-react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Medal, PlayCircle, Plus, Trophy } from "lucide-react";
 import { useNavigate } from "react-router";
 import { http } from "@/shared/api";
-import { Avatar, Button, Card, Spinner, Input } from "@/shared/ui"; 
-import type { ProfileResponse, TournamentSummaryResponse, TimeControlKey } from "@/shared/types";
-import "../../pages-style/dashboard-page/dashboardpage.scss";
-import logoImage from "../../assets/logo.jpeg";
+import { Button, Card, Input, Spinner } from "@/shared/ui";
+import type { TimeControlKey, TournamentSummaryResponse } from "@/shared/types";
+import { AppShell } from "@/widgets/app-shell";
 
-const TIME_CONTROL_OPTIONS: TimeControlKey[] = ["1+0", "1+1", "1+2", "2+1", "3+0", "3+1", "3+2", "5+0", "5+3", "10+0", "15+0", "15+10"];
-
-const LocalAppShell = ({ children, className }: { children: React.ReactNode; className?: string }) => {
-  return (
-    <div className={`app-shell-container ${className || ''}`}>
-      {children}
-    </div>
-  );
-};
-
+const TIME_CONTROL_OPTIONS: TimeControlKey[] = [
+  "1+0",
+  "1+1",
+  "1+2",
+  "2+1",
+  "3+0",
+  "3+1",
+  "3+2",
+  "5+0",
+  "5+3",
+  "10+0",
+  "15+0",
+  "15+10",
+];
 
 function formatStatus(status: TournamentSummaryResponse["status"]) {
   return status.replaceAll("_", " ");
 }
 
+function statusTone(status: TournamentSummaryResponse["status"]) {
+  if (status === "registration") return "border-violet-500/35 bg-violet-500/10 text-violet-200";
+  if (status === "finished") return "border-neutral-700 bg-neutral-900 text-neutral-400";
+  return "border-amber-500/30 bg-amber-500/10 text-amber-200";
+}
+
 export default function TournamentsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [uiState, setUiState] = useState({ left: true, right: true });
-  
   const [name, setName] = useState("");
   const [timeControlName, setTimeControlName] = useState<TimeControlKey>("5+0");
   const [actionError, setActionError] = useState<string | null>(null);
-
-  const profileQuery = useQuery({
-    queryKey: ["dashboard-profile"],
-    queryFn: () => http.get<ProfileResponse>("/profiles/me"),
-  });
 
   const tournamentsQuery = useQuery({
     queryKey: ["tournaments"],
@@ -85,8 +83,11 @@ export default function TournamentsPage() {
     },
   });
 
-  const profile = profileQuery.data ?? null;
   const tournaments = tournamentsQuery.data ?? [];
+  const openCount = tournaments.filter((tournament) => tournament.status === "registration").length;
+  const activeCount = tournaments.filter(
+    (tournament) => tournament.status !== "registration" && tournament.status !== "finished",
+  ).length;
 
   const error = useMemo(() => {
     if (actionError) return actionError;
@@ -104,236 +105,143 @@ export default function TournamentsPage() {
   };
 
   return (
-    <LocalAppShell className={`dashboard-root ${!uiState.left ? 'l-collapsed' : ''} ${!uiState.right ? 'r-collapsed' : ''}`}>
-      <div className="dashboard-grid">
-        <aside className="side-panel left-panel">
-          <button className="collapse-btn" onClick={() => setUiState(s => ({...s, left: !s.left}))}>
-            {uiState.left ? <ChevronLeft size={16}/> : <ChevronRight size={16}/>}
-          </button>
-          
-          <div className="panel-inner">
-            <div className="brand-section">
-                <div className="logo-box">
-                  <img 
-                    src={logoImage} 
-                    alt="ChessView Logo" 
-                    className="logo-img"
-                  />
-                </div>
-              <div className="brand-text">
-                <span className="name">ChessView</span>
-                <span className="ver">v1.1.1</span>
-              </div>
-            </div>
-
-            <nav className="main-nav">
-              <button className="nav-item" onClick={() => navigate("/")}>
-                <Swords size={20}/> <span>Dashboard</span>
-              </button>
-              <button className="nav-item" onClick={() => navigate("/clubs")}>
-                <Users size={20}/> <span>Clubs</span>
-              </button>
-              <button className="nav-item" onClick={() => navigate("/shop")}>
-                <ShoppingBag size={20}/> <span>Market</span>
-              </button>
-              <button className="nav-item" onClick={() => navigate("/settings")}>
-                <Settings size={20}/> <span>Settings</span>
-              </button>
-              <button className="nav-item" onClick={() => navigate("/analysis")}>
-                <BarChart3 size={20}/> <span>Study</span>
-              </button>
-              <button className="nav-item active" onClick={() => navigate("/tournaments")}>
-                <Trophy size={20}/> <span>Tournaments</span>
-              </button>
-              <button className="nav-item" onClick={() => navigate("/leaderboard")}>
-                <Medal size={20}/> <span>Leaderboard</span>
-              </button>
-            </nav>
-
-            <div className="profile-anchor">
-              <div className="user-card-mini" onClick={() => navigate("/profile")}>
-                <div className="relative"> 
-                  <Avatar 
-                    username={profile?.username ?? "Guest"} 
-                    avatarUrl={profile?.avatar_url} 
-                    size="sm"
-                  />
-                  <div className="online-status" />
-                </div>
-                <div className="user-meta">
-                  <span className="username">{profile?.username ?? "Loading..."}</span>
-                  <span className="rank">Ranked Player</span>
-                </div>
-              </div>
-            </div>
+    <AppShell
+      eyebrow="Tournament hall"
+      title="Tournaments"
+      description="Create Swiss events, join open brackets, and follow rounds without leaving the main ChessView layout."
+      actions={
+        <>
+          <div className="rounded-full border border-neutral-800 bg-neutral-900 px-4 py-2 text-sm text-neutral-300">
+            <span className="text-neutral-500">Active</span> <strong className="ml-2 text-neutral-100">{activeCount}</strong>
           </div>
-        </aside>
-
-        <main className="main-viewport">
-          <header className="viewport-header">
-            <div className="header-info">
-              <h1>Tournaments</h1>
-              <div className="server-badge">
-                <span className="pulse-dot" /> Swiss Events
-              </div>
-            </div>
-            <div className="quick-stats">
-              <div className="stat-pill">
-                <span>Active</span> 
-                <b>{tournaments.filter(t => t.status !== "registration" && t.status !== "finished").length}</b>
-              </div>
-              <div className="stat-pill">
-                <span>Open</span> 
-                <b>{tournaments.filter(t => t.status === "registration").length}</b>
-              </div>
-            </div>
-          </header>
-
-          <section className="hero-action-section">
-            <Card className="play-card">
-              <div className="card-content">
-                <span className="tag">New Event</span>
-                <h2>Host a Tournament</h2>
-                <p>Create a Swiss event with custom time controls and invite players.</p>
-                
-                <div className="actions-row" style={{ marginTop: '1rem', gap: '0.75rem', flexDirection: 'column', alignItems: 'flex-start' }}>
-                  <div style={{ display: 'flex', gap: '0.75rem', width: '100%' }}>
-                    <Input 
-                      value={name} 
-                      onChange={(e) => setName(e.target.value)} 
-                      placeholder="Tournament Name" 
-                      style={{ flex: 1 }}
-                    />
-                    <select
-                      value={timeControlName}
-                      onChange={(e) => setTimeControlName(e.target.value as TimeControlKey)}
-                      className="h-11 rounded-lg border border-neutral-700 bg-neutral-900 px-3 text-sm text-neutral-100 outline-hidden transition focus:border-emerald-500"
-                    >
-                      {TIME_CONTROL_OPTIONS.map((opt) => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div className="flex items-center gap-3">
-                    <Button className="btn-main" onClick={handleCreate} disabled={createTournament.isPending}>
-                      <Plus className="mr-2"/> {createTournament.isPending ? "Creating..." : "Create Now"}
-                    </Button>
-                    {error && <span className="text-sm text-red-400">{error}</span>}
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            <div className="sub-grid">
-              <Card className="mini-action" onClick={() => navigate("/lobby")}>
-                <PlayCircle size={24} className="text-blue-400"/>
-                <div>
-                  <h3>Quick Play</h3>
-                  <p>Casual match</p>
-                </div>
-              </Card>
-              <Card className="mini-action" onClick={() => navigate("/leaderboard")}>
-                <Medal size={24} className="text-yellow-500"/>
-                <div>
-                  <h3>Standings</h3>
-                  <p>View top players</p>
-                </div>
-              </Card>
-            </div>
-          </section>
-
-          <section className="recent-section">
-            <div className="section-title">
-              <h3>Available Events</h3>
-              <Button variant="ghost" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ["tournaments"] })}>Refresh List</Button>
-            </div>
-            
-            <div className="games-stack">
-              {tournamentsQuery.isLoading ? (
-                <div className="flex justify-center p-8"><Spinner /></div>
-              ) : tournaments.length === 0 ? (
-                <div className="p-8 text-center text-neutral-500 text-sm">No active tournaments found.</div>
-              ) : (
-                tournaments.map((t) => {
-                  const isLeavingOwner = t.viewer_is_owner && t.viewer_is_member;
-                  return (
-                    <div key={t.id} className="game-row">
-                      <div className="res-indicator" data-result={t.status === "registration" ? "draw" : "win"}>
-                        {formatStatus(t.status)}
-                      </div>
-                      <div className="opp-info" onClick={() => navigate(`/tournaments/${t.id}`)} style={{ cursor: 'pointer' }}>
-                        <span className="name">{t.name}</span>
-                        <span className="meta">
-                          {t.time_control_name}   {t.player_count} Players   Round {t.current_round}/{Math.max(t.total_rounds, 0)}
-                        </span>
-                      </div>
-                      <div className="time">
-                        {t.owner.username}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {t.status === "registration" && (
-                          <>
-                            {!t.viewer_is_member && (
-                              <Button size="sm" onClick={() => joinTournament.mutate(t.id)} disabled={joinTournament.isPending}>
-                                Join
-                              </Button>
-                            )}
-                            {t.viewer_is_member && !isLeavingOwner && (
-                              <Button variant="ghost" size="sm" onClick={() => leaveTournament.mutate(t.id)} disabled={leaveTournament.isPending}>
-                                Leave
-                              </Button>
-                            )}
-                          </>
-                        )}
-                        <Button size="sm" variant="ghost" onClick={() => navigate(`/tournaments/${t.id}`)}>View</Button>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </section>
-        </main>
-
-        <aside className="side-panel right-panel">
-          <button className="collapse-btn" onClick={() => setUiState(s => ({...s, right: !s.right}))}>
-            {uiState.right ? <ChevronRight size={16}/> : <ChevronLeft size={16}/>}
-          </button>
-
-          <div className="panel-inner">
-            <div className="aside-section">
-              <div className="section-head"><Info size={18}/> Tournament Rules</div>
-              <div className="help-grid">
-                <div className="help-item" style={{ cursor: 'default', opacity: 0.8 }}>Swiss System</div>
-                <div className="help-item" style={{ cursor: 'default', opacity: 0.8 }}>Elo Rated</div>
-              </div>
-              <p className="text-[11px] text-neutral-500 mt-3 px-1">
-                Standings update in real-time. Pairings avoid rematches when possible.
+          <div className="rounded-full border border-neutral-800 bg-neutral-900 px-4 py-2 text-sm text-neutral-300">
+            <span className="text-neutral-500">Open</span> <strong className="ml-2 text-neutral-100">{openCount}</strong>
+          </div>
+          <Button variant="secondary" onClick={() => queryClient.invalidateQueries({ queryKey: ["tournaments"] })}>
+            Refresh
+          </Button>
+        </>
+      }
+    >
+      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.75fr)]">
+        <Card className="p-5">
+          <div className="flex flex-col gap-5">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.22em] text-violet-300">New event</div>
+              <h2 className="mt-2 text-2xl font-semibold text-neutral-100">Host a tournament</h2>
+              <p className="mt-2 text-sm leading-6 text-neutral-400">
+                Pick a time control, name the event, and invite players into a rated Swiss bracket.
               </p>
             </div>
 
-            <div className="aside-section tournaments-radar">
-              <div className="section-head"><Trophy size={18}/> Live Status</div>
-              <div className="t-list">
-                <div className="p-4 text-center text-xs text-neutral-600 border border-dashed border-neutral-800 rounded-xl">
-                  Tournament pairing updates will appear here.
-                </div>
-              </div>
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_160px_auto] md:items-center">
+              <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Tournament name" />
+              <select
+                value={timeControlName}
+                onChange={(event) => setTimeControlName(event.target.value as TimeControlKey)}
+                className="h-11 rounded-lg border border-neutral-700 bg-neutral-900 px-3 text-sm text-neutral-100 outline-hidden transition focus:border-violet-500"
+              >
+                {TIME_CONTROL_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+              <Button onClick={handleCreate} disabled={createTournament.isPending}>
+                <Plus className="h-4 w-4" />
+                {createTournament.isPending ? "Creating..." : "Create"}
+              </Button>
             </div>
 
-            <div className="status-footer">
-              <div className="status-card">
-                <div className="sys-icon"><div className="dot"/></div>
-                <div className="sys-meta">
-                  <span className="l">Matchmaking</span>
-                  <span className="v">Stable   Online</span>
-                </div>
-              </div>
-            </div>
+            {error ? <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div> : null}
           </div>
-        </aside>
-      </div>
-    </LocalAppShell>
+        </Card>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+          <Card className="cursor-pointer p-5 transition hover:border-violet-500/35" onClick={() => navigate("/lobby")}>
+            <PlayCircle className="h-6 w-6 text-violet-300" />
+            <h3 className="mt-3 text-lg font-semibold text-neutral-100">Quick play</h3>
+            <p className="mt-1 text-sm text-neutral-500">Warm up before the bracket.</p>
+          </Card>
+          <Card className="cursor-pointer p-5 transition hover:border-violet-500/35" onClick={() => navigate("/leaderboard")}>
+            <Medal className="h-6 w-6 text-yellow-400" />
+            <h3 className="mt-3 text-lg font-semibold text-neutral-100">Leaderboards</h3>
+            <p className="mt-1 text-sm text-neutral-500">Check the field before joining.</p>
+          </Card>
+        </div>
+      </section>
+
+      <section className="grid gap-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-neutral-100">Available events</h2>
+            <p className="mt-1 text-sm text-neutral-500">Open, active, and recently finished tournaments.</p>
+          </div>
+        </div>
+
+        {tournamentsQuery.isLoading ? (
+          <Card className="flex items-center justify-center p-10">
+            <Spinner />
+          </Card>
+        ) : tournaments.length === 0 ? (
+          <Card className="p-10 text-center text-sm text-neutral-500">No active tournaments found.</Card>
+        ) : (
+          <div className="grid gap-3">
+            {tournaments.map((tournament) => {
+              const isLeavingOwner = tournament.viewer_is_owner && tournament.viewer_is_member;
+              return (
+                <Card key={tournament.id} className="p-4">
+                  <div className="grid gap-4 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center">
+                    <div className={`w-fit rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${statusTone(tournament.status)}`}>
+                      {formatStatus(tournament.status)}
+                    </div>
+
+                    <button className="min-w-0 text-left" onClick={() => navigate(`/tournaments/${tournament.id}`)}>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <Trophy className="h-4 w-4 shrink-0 text-violet-300" />
+                        <span className="truncate text-lg font-semibold text-neutral-100">{tournament.name}</span>
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-neutral-500">
+                        <span>{tournament.time_control_name}</span>
+                        <span>{tournament.player_count} players</span>
+                        <span>
+                          Round {tournament.current_round}/{Math.max(tournament.total_rounds, 0)}
+                        </span>
+                        <span>Host: {tournament.owner.username}</span>
+                      </div>
+                    </button>
+
+                    <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                      {tournament.status === "registration" ? (
+                        <>
+                          {!tournament.viewer_is_member ? (
+                            <Button size="sm" onClick={() => joinTournament.mutate(tournament.id)} disabled={joinTournament.isPending}>
+                              Join
+                            </Button>
+                          ) : null}
+                          {tournament.viewer_is_member && !isLeavingOwner ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => leaveTournament.mutate(tournament.id)}
+                              disabled={leaveTournament.isPending}
+                            >
+                              Leave
+                            </Button>
+                          ) : null}
+                        </>
+                      ) : null}
+                      <Button size="sm" variant="secondary" onClick={() => navigate(`/tournaments/${tournament.id}`)}>
+                        View
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    </AppShell>
   );
 }

@@ -3,8 +3,9 @@
 from uuid import UUID
 
 from domains.identity.domain.exceptions import UserNotFound
-from domains.profiles.domain.entities import ProfileSummary
+from domains.profiles.domain.entities import ProfilePlayer, ProfileSummary
 from domains.profiles.domain.repository import AbstractProfileRepository
+from shared.time_controls import RatingSpeed
 
 
 class ProfileService:
@@ -19,5 +20,10 @@ class ProfileService:
             raise UserNotFound()
         return profile
 
-    async def get_top_players(self, limit: int = 50) -> list[ProfileSummary]:
-        return await self._repo.get_top_profiles(limit=limit)
+    async def get_top_players(self, limit: int = 50, category: RatingSpeed | None = None) -> list[ProfileSummary]:
+        return await self._repo.get_top_profiles(limit=limit, category=category)
+
+    async def search_players(self, query: str, limit: int = 10) -> list[ProfilePlayer]:
+        if not query.strip():
+            return []
+        return await self._repo.search_players(query=query.strip(), limit=limit)

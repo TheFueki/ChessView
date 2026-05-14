@@ -16,13 +16,8 @@ import {
   SkipForward,
   Trash2,
   WandSparkles,
-  Swords,
-  Users,
-  Medal,
-  Trophy,
-  Clock3
 } from "lucide-react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 import { useStockfishAnalysis } from "@/features/analyze-position";
 import { http } from "@/shared/api";
 import {
@@ -45,6 +40,7 @@ import {
 } from "@/shared/lib/chess";
 import type { GameDetailResponse, ProfileResponse } from "@/shared/types";
 import { Avatar, Button, Card } from "@/shared/ui";
+import { AppShell } from "@/widgets/app-shell";
 import { EvalBar } from "./EvalBar";
 import {
   buildBoardHighlights,
@@ -55,20 +51,6 @@ import {
   sourceTitleFromHeaders,
 } from "./analysis-utils";
 import "../../pages-style/analysis-page/analysispage.scss";
-import logoImage from "../../assets/logo.jpeg";
-
-interface AppShellProps {
-  children: React.ReactNode;
-  className?: string;
-}
-
-const LocalAppShell = ({ children, className }: AppShellProps) => {
-  return (
-    <div className={`app-shell-container ${className || ''}`}>
-      {children}
-    </div>
-  );
-};
 
 type AnalysisMode = "play" | "edit";
 type Orientation = "white" | "black";
@@ -91,11 +73,9 @@ const piecePalette: Array<{ value: EditorSelection; label: string; glyph: string
 ];
 
 export function AnalysisWorkspace() {
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const sourceGameId = searchParams.get("gameId");
   
-  const [uiState, setUiState] = useState({ left: true, right: true });
   const [mode, setMode] = useState<AnalysisMode>("play");
   const [orientation, setOrientation] = useState<Orientation>("white");
   const [rootFen, setRootFen] = useState(STANDARD_START_FEN);
@@ -163,7 +143,7 @@ export function AnalysisWorkspace() {
     [analysis.bestMove, analysisUnavailableReason],
   );
   const bestMoveArrows = useMemo<[Square, Square, string?][]>(
-    () => (bestMoveSquares && analysisFen ? [[bestMoveSquares[0] as Square, bestMoveSquares[1] as Square, "rgba(16, 185, 129, 0.85)"]] : []),
+    () => (bestMoveSquares && analysisFen ? [[bestMoveSquares[0] as Square, bestMoveSquares[1] as Square, "rgba(139, 92, 246, 0.85)"]] : []),
     [analysisFen, bestMoveSquares],
   );
   const boardHighlights = useMemo(
@@ -368,102 +348,29 @@ export function AnalysisWorkspace() {
   };
 
   return (
-    <LocalAppShell className={`dashboard-root ${!uiState.left ? 'l-collapsed' : ''} ${!uiState.right ? 'r-collapsed' : ''}`}>
-      <div className="dashboard-grid">
-        <aside className="side-panel left-panel">
-          <button className="collapse-btn" onClick={() => setUiState(s => ({...s, left: !s.left}))}>
-            {uiState.left ? <ChevronLeft size={16}/> : <ChevronRight size={16}/>}
-          </button>
-          
-          <div className="panel-inner">
-            <div className="brand-section">
-                <div className="logo-box">
-                  <img 
-        src={logoImage} 
-        alt="ChessView Logo" 
-        className="logo-img"
-      />
-                </div>
-              <div className="brand-text">
-                <span className="name">ChessView</span>
-                <span className="ver">v1.1.1</span>
-              </div>
-            </div>
-
-            <nav className="main-nav">
-              <button className="nav-item" onClick={() => navigate("/")}>
-                <Swords size={20}/> <span>Dashboard</span>
-              </button>
-              <button className="nav-item active" onClick={() => navigate("/analysis")}>
-                <BarChart3 size={20}/> <span>Study</span>
-              </button>
-              <button className="nav-item" onClick={() => navigate("/tournaments")}>
-                <Trophy size={20}/> <span>Tournaments</span>
-              </button>
-              <button className="nav-item" onClick={() => navigate("/clubs")}>
-                <Users size={20}/> <span>Clubs</span>
-              </button>
-              <button className="nav-item" onClick={() => navigate("/leaderboard")}>
-                <Medal size={20}/> <span>Leaderboard</span>
-              </button>
-            </nav>
-
-            <div className="aside-section">
-              <div className="section-head"><Clock3 size={18}/> Sandbox Line</div>
-              <div className="games-stack" style={{ maxHeight: 'calc(100vh - 450px)', overflowY: 'auto' }}>
-                {lineMoves.length === 0 ? (
-                  <div className="p-4 text-xs text-neutral-500">No moves yet. Make a move or import PGN.</div>
-                ) : (
-                  lineMoves.map((move, idx) => (
-                    <div 
-                      key={`${move.uci}-${idx}`} 
-                      className={`game-row ${currentMoveIndex === idx + 1 ? 'active' : ''}`}
-                      onClick={() => goToMoveIndex(idx + 1)}
-                    >
-                      <div className="res-indicator" data-result="win">{move.moveNumber}</div>
-                      <div className="opp-info">
-                        <span className="name">{move.san}</span>
-                        <span className="meta">{move.uci}</span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div className="profile-anchor">
-              <div className="user-card-mini" onClick={() => navigate("/profile")}>
-                <div className="relative"> 
-                  <Avatar username={profile?.username ?? "Guest"} avatarUrl={profile?.avatar_url} size="sm" />
-                  <div className="online-status" />
-                </div>
-                <div className="user-meta">
-                  <span className="username">{profile?.username ?? "Loading..."}</span>
-                  <span className="rank">Analysis Mode</span>
-                </div>
-              </div>
-            </div>
+    <AppShell
+      eyebrow="Study"
+      title={sourceTitle}
+      description={mode === "edit" ? "Edit a legal position and send it to the board." : "Analyze positions, import PGNs, and review candidate lines."}
+      maxWidthClassName="max-w-[1440px]"
+      actions={
+        <div className="flex flex-wrap gap-2">
+          <div className="rounded-lg border border-neutral-800 bg-neutral-900/80 px-3 py-2 text-sm text-neutral-300">
+            Depth <b className="text-neutral-100">{analysis.depth || 0}</b>
           </div>
-        </aside>
-
-        <main className="main-viewport">
-          <header className="viewport-header">
-            <div className="header-info">
-              <h1>{sourceTitle}</h1>
-              <div className="server-badge">
-                <span className="pulse-dot" /> {mode === "edit" ? "Editor" : "Sandbox"}
-              </div>
-            </div>
-            <div className="quick-stats">
-              <div className="stat-pill"><span>Depth</span> <b>{analysis.depth || 0}</b></div>
-              <div className="stat-pill"><span>Eval</span> <b>{formatEvaluation(normalizedScore)}</b></div>
-            </div>
-          </header>
+          <div className="rounded-lg border border-neutral-800 bg-neutral-900/80 px-3 py-2 text-sm text-neutral-300">
+            Eval <b className="text-neutral-100">{formatEvaluation(normalizedScore)}</b>
+          </div>
+        </div>
+      }
+    >
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="min-w-0 space-y-6">
 
           <section className="hero-action-section">
-            <div className="grid gap-4 md:grid-cols-[48px_1fr]">
+            <div className="grid min-w-0 gap-4 md:grid-cols-[48px_minmax(0,1fr)]">
               <EvalBar score={normalizedScore} />
-              <div className="overflow-hidden rounded-3xl border border-neutral-800 bg-neutral-950/60 p-4">
+              <div className="mx-auto aspect-square w-full max-w-[min(100%,calc(100vh-12rem),680px)] overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950/60 p-3 sm:p-4">
                 <Chessboard
                   id="analysis-board"
                   position={mode === "edit" ? editorPosition : currentFen}
@@ -533,14 +440,10 @@ export function AnalysisWorkspace() {
                 </Card>
              </div>
           </section>
-        </main>
+        </section>
 
-        <aside className="side-panel right-panel">
-          <button className="collapse-btn" onClick={() => setUiState(s => ({...s, right: !s.right}))}>
-            {uiState.right ? <ChevronRight size={16}/> : <ChevronLeft size={16}/>}
-          </button>
-
-          <div className="panel-inner">
+        <aside className="space-y-4">
+          <Card className="space-y-4">
             {mode === "edit" ? (
               <div className="aside-section">
                 <div className="section-head"><PenSquare size={18}/> Editor Palette</div>
@@ -606,7 +509,7 @@ export function AnalysisWorkspace() {
                   <div>
                     <div className="text-[10px] uppercase text-neutral-500 mb-2">FEN Input</div>
                     <textarea 
-                      className="w-full bg-neutral-900 border border-neutral-800 rounded-xl p-3 text-[11px] font-mono outline-none focus:border-blue-500/50 transition-colors"
+                      className="w-full bg-neutral-900 border border-neutral-800 rounded-xl p-3 text-[11px] font-mono outline-none focus:border-violet-500/50 transition-colors"
                       rows={3}
                       value={fenInput}
                       onChange={e => setFenInput(e.target.value)}
@@ -615,13 +518,13 @@ export function AnalysisWorkspace() {
                       <Button size="sm" className="flex-1" onClick={handleLoadFen}>Load</Button>
                       <Button size="sm" variant="secondary" onClick={handleCopyFen}><Clipboard size={14}/></Button>
                     </div>
-                    {fenMessage && <div className="text-[10px] text-blue-400 mt-2">{fenMessage}</div>}
+                    {fenMessage && <div className="text-[10px] text-violet-400 mt-2">{fenMessage}</div>}
                   </div>
 
                   <div>
                     <div className="text-[10px] uppercase text-neutral-500 mb-2">PGN Import</div>
                     <textarea 
-                      className="w-full bg-neutral-900 border border-neutral-800 rounded-xl p-3 text-[11px] outline-none focus:border-blue-500/50 transition-colors"
+                      className="w-full bg-neutral-900 border border-neutral-800 rounded-xl p-3 text-[11px] outline-none focus:border-violet-500/50 transition-colors"
                       rows={5}
                       value={pgnInput}
                       onChange={e => setPgnInput(e.target.value)}
@@ -645,19 +548,41 @@ export function AnalysisWorkspace() {
                 </div>
               </div>
             )}
+          </Card>
 
-            <div className="status-footer">
-              <div className="status-card">
-                <div className="sys-icon"><div className="dot"/></div>
-                <div className="sys-meta">
-                  <span className="l">Engine Status</span>
-                  <span className="v">Stable   {analysis.status}</span>
-                </div>
-              </div>
+          <Card className="space-y-3">
+            <div className="section-head"><BarChart3 size={18}/> Sandbox Line</div>
+            <div className="games-stack max-h-[360px] overflow-y-auto">
+              {lineMoves.length === 0 ? (
+                <div className="p-4 text-xs text-neutral-500">No moves yet. Make a move or import PGN.</div>
+              ) : (
+                lineMoves.map((move, idx) => (
+                  <button
+                    type="button"
+                    key={`${move.uci}-${idx}`}
+                    className={`game-row w-full text-left ${currentMoveIndex === idx + 1 ? 'active' : ''}`}
+                    onClick={() => goToMoveIndex(idx + 1)}
+                  >
+                    <div className="res-indicator" data-result="win">{move.moveNumber}</div>
+                    <div className="opp-info">
+                      <span className="name">{move.san}</span>
+                      <span className="meta">{move.uci}</span>
+                    </div>
+                  </button>
+                ))
+              )}
             </div>
-          </div>
+          </Card>
+
+          <Card className="flex items-center gap-3">
+            <Avatar username={profile?.username ?? "Guest"} avatarUrl={profile?.avatar_url} size="sm" />
+            <div>
+              <div className="text-sm font-semibold text-neutral-100">{profile?.username ?? "Loading..."}</div>
+              <div className="text-xs text-neutral-500">Engine {analysis.status}</div>
+            </div>
+          </Card>
         </aside>
       </div>
-    </LocalAppShell>
+    </AppShell>
   );
 }

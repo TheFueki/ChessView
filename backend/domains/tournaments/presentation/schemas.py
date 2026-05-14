@@ -8,6 +8,8 @@ from pydantic import BaseModel, Field
 class TournamentCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     time_control_name: str
+    initial_time_ms: int | None = Field(default=None, ge=1)
+    increment_ms: int | None = Field(default=None, ge=0)
     tournament_type: str = "swiss"
     entry_fee_cents: int = Field(default=0, ge=0)
     total_rounds: int | None = Field(default=None, ge=1)

@@ -2,7 +2,7 @@ import { type FormEvent, useState, useEffect} from "react";
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react-router";
 import { 
   ShieldCheck, Swords, Video, Mail, Lock, 
-  User, ArrowLeft, Github
+  User, ArrowLeft
 } from "lucide-react";
 import { resolvePostAuthPath, withRedirectQuery } from "@/app/authRedirect";
 import { useUserStore, type AuthenticatedUser } from "@/entities/user";
@@ -30,18 +30,18 @@ const initialFormState: AuthFormState = {
 const authHighlights = [
   {
     icon: Swords,
-    title: "Intent-Preserving Sign-In",
-    description: "Return to your active board without losing context.",
+    title: "Return to the Board",
+    description: "Jump back into live games, reviews, and tournaments.",
   },
   {
     icon: Video,
-    title: "Webcam-Ready Matches",
-    description: "The same account unlocks live play and pro tournaments.",
+    title: "Fair Live Matches",
+    description: "Play rated games and join organized events.",
   },
   {
     icon: ShieldCheck,
-    title: "Real Backend Session",
-    description: "Uses the actual JWT and secure endpoints in the API.",
+    title: "One Chess Profile",
+    description: "Keep ratings, history, and community activity together.",
   },
 ];
 
@@ -182,7 +182,7 @@ export default function AuthPage() {
               )}
             </h1>
             <p className="hero-desc">
-              Experience grandmaster-level analysis and live matches in a premium workspace.
+              Play online, join tournaments, review your games, and improve your rating.
             </p>
           </div>
 
@@ -205,7 +205,7 @@ export default function AuthPage() {
           <Card className="auth-card">
             <div className="card-header">
               <h2>{title}</h2>
-              <p>Continue with your preferred method</p>
+              <p>Continue with Google or email</p>
             </div>
 
             <div className="oauth-group">
@@ -214,16 +214,10 @@ export default function AuthPage() {
                 onClick={() => handleOAuth('google')} 
                 className="oauth-btn"
                 disabled={isSubmitting}
+                aria-label="Continue with Google"
               >
                 <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" />
-              </button>
-              <button 
-                type="button" 
-                onClick={() => handleOAuth('github')} 
-                className="oauth-btn"
-                disabled={isSubmitting}
-              >
-                <Github size={24} />
+                <span>Continue with Google</span>
               </button>
             </div>
 

@@ -43,7 +43,7 @@ export function Avatar({
   return (
     <div
       className={clsx(
-        "overflow-hidden rounded-full border border-emerald-500/20 bg-emerald-500/10 text-emerald-200",
+        "overflow-hidden rounded-full border border-neutral-700 bg-neutral-800 text-neutral-200",
         "inline-flex items-center justify-center font-semibold",
         sizeStyles[size],
         className,

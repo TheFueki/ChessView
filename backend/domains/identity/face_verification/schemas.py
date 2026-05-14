@@ -23,6 +23,7 @@ class FaceVerificationProfileResponse(BaseModel):
 
 
 class FaceVerificationStartRequest(BaseModel):
+    game_id: UUID | None = None
     tournament_id: UUID | None = None
     scheduled_match_id: UUID | None = None
 
@@ -44,3 +45,36 @@ class FaceVerificationSessionResponse(BaseModel):
     provider: str
     created_at: datetime
     completed_at: datetime | None
+
+
+class PasskeyEnrollmentChallengeRequest(BaseModel):
+    authenticator_attachment: str | None = "platform"
+    device_label: str | None = None
+
+
+class PasskeyChallengeResponse(BaseModel):
+    challenge_id: UUID
+    public_key: dict
+
+
+class PasskeyEnrollmentCompleteRequest(BaseModel):
+    challenge_id: UUID
+    credential: dict
+
+
+class PasskeyVerificationCompleteRequest(BaseModel):
+    challenge_id: UUID
+    credential: dict
+
+
+class FaceTemplateEnrollRequest(BaseModel):
+    device_label: str | None = None
+    consent: bool
+    face_sample: str
+
+
+class FaceTemplateVerifyRequest(BaseModel):
+    face_sample: str
+    game_id: UUID | None = None
+    tournament_id: UUID | None = None
+    scheduled_match_id: UUID | None = None
