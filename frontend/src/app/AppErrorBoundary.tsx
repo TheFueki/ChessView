@@ -69,7 +69,7 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-center gap-2 text-neutral-200">
-              <Crown className="h-5 w-5 text-emerald-500" />
+              <Crown className="h-5 w-5 text-violet-500" />
               <span className="text-sm font-semibold uppercase tracking-[0.24em] text-neutral-400">ChessView</span>
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-neutral-100">Something went wrong</h1>

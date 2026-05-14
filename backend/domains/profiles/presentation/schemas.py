@@ -6,6 +6,7 @@ class ProfilePlayerResponse(BaseModel):
     username: str
     rating: int
     avatar_url: str | None = None
+    ratings: dict[str, int | None] | None = None
 
 class ProfileGameResponse(BaseModel):
     id: str
@@ -34,8 +35,17 @@ class ProfileResponse(BaseModel):
     losses: int
     draws: int
     win_rate: float
+    ratings: dict[str, int | None] = {}
     global_rank: int = 0  
+    coins: int = 0
     recent_games: list[ProfileGameResponse] = []
+
+
+class PlayerSearchResultResponse(BaseModel):
+    id: str
+    username: str
+    avatar_url: str | None = None
+    ratings: dict[str, int | None] = {}
 
 
 class HeadToHeadTournamentBreakdownResponse(BaseModel):

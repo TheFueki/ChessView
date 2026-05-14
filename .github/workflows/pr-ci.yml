@@ -7,6 +7,9 @@ on:
   push:
     branches:
       - main
+      - feat/**
+      - fix/**
+      - ref/**
 
 permissions:
   contents: read
@@ -23,27 +26,27 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: ${{ vars.CI_POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD }}
-          POSTGRES_DB: ${{ vars.CI_POSTGRES_DB }}
+          POSTGRES_USER: ${{ vars.CI_POSTGRES_USER || 'chessview_ci' }}
+          POSTGRES_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD || 'chessview_ci' }}
+          POSTGRES_DB: ${{ vars.CI_POSTGRES_DB || 'chessview_test' }}
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U ${{ vars.CI_POSTGRES_USER }} -d ${{ vars.CI_POSTGRES_DB }}"
+          --health-cmd "pg_isready -U ${{ vars.CI_POSTGRES_USER || 'chessview_ci' }} -d ${{ vars.CI_POSTGRES_DB || 'chessview_test' }}"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: postgresql+asyncpg://${{ vars.CI_POSTGRES_USER }}:${{ secrets.CI_POSTGRES_PASSWORD }}@localhost:5432/${{ vars.CI_POSTGRES_DB }}
-      STORAGE_DIR: ${{ vars.CI_STORAGE_DIR }}
-      JWT_SECRET: ${{ secrets.CI_JWT_SECRET }}
-      JWT_ALGORITHM: ${{ vars.CI_JWT_ALGORITHM }}
-      ACCESS_TOKEN_EXPIRE_MINUTES: ${{ vars.CI_ACCESS_TOKEN_EXPIRE_MINUTES }}
-      REFRESH_TOKEN_EXPIRE_DAYS: ${{ vars.CI_REFRESH_TOKEN_EXPIRE_DAYS }}
-      BACKEND_URL: ${{ vars.CI_BACKEND_URL }}
-      FRONTEND_URL: ${{ vars.CI_FRONTEND_URL }}
-      CORS_ORIGINS: ${{ vars.CI_CORS_ORIGINS }}
-      OAUTHLIB_INSECURE_TRANSPORT: ${{ vars.CI_OAUTHLIB_INSECURE_TRANSPORT }}
+      DATABASE_URL: postgresql+asyncpg://${{ vars.CI_POSTGRES_USER || 'chessview_ci' }}:${{ secrets.CI_POSTGRES_PASSWORD || 'chessview_ci' }}@localhost:5432/${{ vars.CI_POSTGRES_DB || 'chessview_test' }}
+      STORAGE_DIR: ${{ vars.CI_STORAGE_DIR || 'storage' }}
+      JWT_SECRET: ${{ secrets.CI_JWT_SECRET || 'ci-jwt-secret' }}
+      JWT_ALGORITHM: ${{ vars.CI_JWT_ALGORITHM || 'HS256' }}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${{ vars.CI_ACCESS_TOKEN_EXPIRE_MINUTES || '60' }}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${{ vars.CI_REFRESH_TOKEN_EXPIRE_DAYS || '7' }}
+      BACKEND_URL: ${{ vars.CI_BACKEND_URL || 'http://localhost:8000' }}
+      FRONTEND_URL: ${{ vars.CI_FRONTEND_URL || 'http://localhost:5173' }}
+      CORS_ORIGINS: ${{ vars.CI_CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174' }}
+      OAUTHLIB_INSECURE_TRANSPORT: ${{ vars.CI_OAUTHLIB_INSECURE_TRANSPORT || '1' }}
       GOOGLE_CLIENT_ID: ""
       GOOGLE_CLIENT_SECRET: ""
       GITHUB_CLIENT_ID: ""
@@ -88,9 +91,9 @@ jobs:
     name: Frontend
     runs-on: ubuntu-latest
     env:
-      VITE_SERVER_URL: ${{ vars.CI_VITE_SERVER_URL }}
-      VITE_API_PROXY_TARGET: ${{ vars.CI_VITE_API_PROXY_TARGET }}
-      VITE_WS_PROXY_TARGET: ${{ vars.CI_VITE_WS_PROXY_TARGET }}
+      VITE_SERVER_URL: ${{ vars.CI_VITE_SERVER_URL || 'http://localhost:8000' }}
+      VITE_API_PROXY_TARGET: ${{ vars.CI_VITE_API_PROXY_TARGET || 'http://localhost:8000' }}
+      VITE_WS_PROXY_TARGET: ${{ vars.CI_VITE_WS_PROXY_TARGET || 'ws://localhost:8000' }}
     defaults:
       run:
         working-directory: frontend
@@ -111,5 +114,38 @@ jobs:
       - name: Run frontend lint
         run: yarn lint
 
+      - name: Run UI consistency checks
+        run: yarn test:ui-consistency
+
       - name: Build frontend
+        run: yarn build
+
+  admin-frontend:
+    name: Admin Frontend
+    runs-on: ubuntu-latest
+    env:
+      VITE_SERVER_URL: ${{ vars.CI_VITE_SERVER_URL || 'http://localhost:8000' }}
+      VITE_API_PROXY_TARGET: ${{ vars.CI_VITE_API_PROXY_TARGET || 'http://localhost:8000' }}
+      VITE_WS_PROXY_TARGET: ${{ vars.CI_VITE_WS_PROXY_TARGET || 'ws://localhost:8000' }}
+    defaults:
+      run:
+        working-directory: admin-frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: yarn
+          cache-dependency-path: admin-frontend/yarn.lock
+
+      - name: Install admin frontend dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Typecheck admin frontend
+        run: yarn typecheck
+
+      - name: Build admin frontend
         run: yarn build

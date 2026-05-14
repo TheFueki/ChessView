@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user_id, get_db
+from domains.payments.presentation.schemas import PaymentIntentResponse
+from domains.payments.service import PaymentService
 from domains.scheduled_matches.presentation.schemas import (
     ScheduledMatchCreateRequest,
     ScheduledMatchRescheduleRequest,
@@ -90,3 +92,13 @@ async def reschedule_match(
 ):
     service = ScheduledMatchService(session)
     return service.to_response(await service.reschedule(match_id, UUID(user_id), body.starts_at, body.expires_at))
+
+
+@router.post("/{match_id}/payment", response_model=PaymentIntentResponse)
+async def create_match_payment(
+    match_id: UUID,
+    session: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    payment = await PaymentService(session).create_scheduled_match_payment(match_id, UUID(user_id))
+    return PaymentService.to_response(payment)

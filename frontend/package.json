@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test:ui-consistency": "node scripts/check-ui-consistency.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

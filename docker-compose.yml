@@ -59,5 +59,20 @@ services:
     ports:
       - "5173:5173"
 
+  admin-frontend:
+    build:
+      context: .
+      dockerfile: ./admin-frontend/Dockerfile
+    container_name: chessview-admin-frontend
+    restart: unless-stopped
+    environment:
+      VITE_SERVER_URL: ${VITE_SERVER_URL}
+      VITE_API_PROXY_TARGET: ${VITE_API_PROXY_TARGET}
+      VITE_WS_PROXY_TARGET: ${VITE_WS_PROXY_TARGET}
+    depends_on:
+      - backend
+    ports:
+      - "5174:5174"
+
 volumes:
   pgdata:

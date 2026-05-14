@@ -1,7 +1,7 @@
 /**
  * Shared Input component.
  *
- * Dark theme: neutral-900 bg, soft border, emerald focus ring.
+ * Dark theme: neutral-900 bg, soft border, neutral focus ring.
  *
  * FSD layer: shared/ui
  */
@@ -27,7 +27,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           className={clsx(
             "rounded-lg border bg-neutral-900/80 px-4 py-2.5 text-sm text-neutral-100 placeholder-neutral-500",
-            "border-neutral-700 focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20",
+            "border-neutral-700 focus:border-neutral-500/70 focus:ring-2 focus:ring-neutral-500/20",
             "outline-none transition-all duration-200",
             error && "border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20",
             className,

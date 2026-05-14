@@ -1,18 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { 
-  BarChart3, Crown, TrendingUp, Trophy, Settings, Camera, Play, History, Swords,
-  Target, Zap, ShieldAlert, ChevronRight,
+  BarChart3, Crown, TrendingUp, Trophy, Camera, History, Swords,
+  Target, Zap, ShieldAlert, ChevronRight, Search,
   EyeOff, Eye, Copy
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 import { useUserStore } from "@/entities/user";
 import { http } from "@/shared/api";
-import type { GameHistoryItemResponse, HeadToHeadResponse, ProfileResponse, UserProfile } from "@/shared/types";
+import type { GameHistoryItemResponse, HeadToHeadResponse, PlayerSearchResult, ProfileResponse, UserProfile } from "@/shared/types";
 import { Avatar, Button, Card, Spinner } from "@/shared/ui";
 import { SERVER_URL } from "@/shared/config";
 import { HistoryTable } from "@/widgets/history-table";
 import { VerificationBadge } from "@/shared/ui";
+import { AppShell } from "@/widgets/app-shell";
 import "../../pages-style/profile-page/profilepage.scss";
 
 const toHistoryItems = (profile: ProfileResponse): GameHistoryItemResponse[] => {
@@ -21,6 +22,51 @@ const toHistoryItems = (profile: ProfileResponse): GameHistoryItemResponse[] => 
     my_color: game.player_color,
   }));
 };
+
+function OpponentSearch({
+  selectedId,
+  openProfileId,
+  onSelect,
+}: {
+  selectedId: string | null;
+  openProfileId: string;
+  onSelect: (player: PlayerSearchResult) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const searchQuery = useQuery({
+    queryKey: ["profile-h2h-search", query],
+    queryFn: () => http.get<PlayerSearchResult[]>(`/profiles/search?query=${encodeURIComponent(query)}`),
+    enabled: query.trim().length >= 2,
+  });
+  const results = (searchQuery.data ?? []).filter((player) => player.id !== openProfileId);
+
+  return (
+    <div className="opponent-search">
+      <div className="search-input">
+        <Search size={16} />
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search opponent" />
+      </div>
+      {query.trim().length >= 2 ? (
+        <div className="search-results">
+          {searchQuery.isFetching ? <div className="empty-state">Searching...</div> : null}
+          {!searchQuery.isFetching && results.length === 0 ? <div className="empty-state">No other players found.</div> : null}
+          {results.map((player) => (
+            <button
+              key={player.id}
+              className={selectedId === player.id ? "active" : ""}
+              onClick={() => {
+                onSelect(player);
+                setQuery(player.username);
+              }}
+            >
+              {player.username}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -32,6 +78,7 @@ export default function ProfilePage() {
   const [showEmail, setShowEmail] = useState(false);
   const [showId, setShowId] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [selectedOpponent, setSelectedOpponent] = useState<PlayerSearchResult | null>(null);
 
   const isOwnProfile = !userId || userId === currentUser?.id;
 
@@ -40,11 +87,24 @@ export default function ProfilePage() {
     queryFn: () => http.get<ProfileResponse>(isOwnProfile ? "/profiles/me" : `/profiles/${userId}`),
   });
 
+  const h2hPerspectiveId = !isOwnProfile && currentUser && profile ? currentUser.id : profile?.id;
+  const h2hOpponentId = !isOwnProfile && currentUser && profile ? profile.id : selectedOpponent?.id;
+
   const headToHeadQuery = useQuery({
-    queryKey: ["head-to-head", currentUser?.id, userId],
-    queryFn: () => http.get<HeadToHeadResponse>(`/profiles/${currentUser?.id}/head-to-head/${userId}`),
-    enabled: Boolean(currentUser?.id && userId && userId !== currentUser.id),
+    queryKey: ["head-to-head", h2hPerspectiveId, h2hOpponentId],
+    queryFn: () => http.get<HeadToHeadResponse>(`/profiles/${h2hPerspectiveId}/head-to-head/${h2hOpponentId}`),
+    enabled: Boolean(h2hPerspectiveId && h2hOpponentId && h2hPerspectiveId !== h2hOpponentId),
   });
+
+  useEffect(() => {
+    if (isOwnProfile || !currentUser || !profile || selectedOpponent) return;
+    if (profile.id === currentUser.id) return;
+    setSelectedOpponent({
+      id: currentUser.id,
+      username: currentUser.username,
+      avatar_url: currentUser.avatar_url,
+    });
+  }, [currentUser, isOwnProfile, profile, selectedOpponent]);
  
   const getRankTitle = (rank: number | null | undefined) => {
     if (!rank) return 'Active Player';
@@ -132,29 +192,13 @@ export default function ProfilePage() {
     : null;
 
   return (
-    <div className="profile-page-root">
-     <header className="profile-nav">
-        <div className="nav-container">
-          <div className="brand" onClick={() => navigate("/")} style={{ cursor: 'pointer' }}>
-            <Swords className="text-blue-500" />
-            <span className="font-black tracking-tighter uppercase">ChessView</span>
-          </div>
-          <div className="nav-actions">
-            <Button variant="ghost" className="text-neutral-400 hover:text-white" onClick={() => navigate("/")}>
-              Dashboard
-            </Button>
-            <Button onClick={() => navigate("/lobby")} className="play-btn">
-              <Play size={16} className="mr-2 fill-current" /> Play
-            </Button>
-            {isOwnProfile && (
-              <Button variant="secondary" onClick={() => navigate("/settings")} className="border-white/5 bg-white/5">
-                <Settings size={18} />
-              </Button>
-            )}
-          </div>
-        </div>
-      </header>
-
+    <AppShell
+      eyebrow={isOwnProfile ? "Your profile" : "Player profile"}
+      title={profile.username}
+      description="Ratings, match history, and head-to-head records in one place."
+      maxWidthClassName="max-w-6xl"
+    >
+    <div className="profile-page-root profile-page-embedded">
       <main className="profile-content">
         <div className="profile-container">
           <section className="profile-hero">
@@ -164,7 +208,7 @@ export default function ProfilePage() {
                   <Avatar 
                     username={profile.username} 
                     avatarUrl={finalAvatarUrl} 
-                    className={`main-avatar shadow-2xl shadow-blue-500/20 ${avatarMutation.isPending ? 'opacity-50' : ''}`}
+                    className={`main-avatar shadow-2xl shadow-violet-500/20 ${avatarMutation.isPending ? 'opacity-50' : ''}`}
                   />
                   {isOwnProfile && (
                     <label className={`edit-overlay ${avatarMutation.isPending ? 'cursor-wait' : ''}`}>
@@ -245,24 +289,67 @@ export default function ProfilePage() {
           </section>
 
           <div className="profile-details-grid">
-            {headToHeadQuery.data && (
-              <Card className="detail-card border-emerald-500/20 bg-emerald-600/5">
-                <div className="card-header">
-                  <Swords className="text-emerald-500" />
-                  <h2>Head to Head</h2>
-                </div>
-                <div className="stats-list">
-                  <div className="list-item">Games: <strong>{headToHeadQuery.data.total_games}</strong></div>
-                  <div className="list-item">Wins: <strong>{headToHeadQuery.data.wins}</strong></div>
-                  <div className="list-item">Draws: <strong>{headToHeadQuery.data.draws}</strong></div>
-                  <div className="list-item">Losses: <strong>{headToHeadQuery.data.losses}</strong></div>
-                  <div className="list-item">Avg moves: <strong>{headToHeadQuery.data.average_moves}</strong></div>
-                </div>
-              </Card>
-            )}
-            <Card className="detail-card main-stats-card bg-blue-600/5 border-blue-500/20">
+            <Card className="detail-card h2h-card">
               <div className="card-header">
-                <Trophy className="text-blue-500" />
+                <Swords className="text-violet-500" />
+                <h2>{isOwnProfile ? "Head to Head" : "Your record vs this player"}</h2>
+              </div>
+              {isOwnProfile ? (
+                <OpponentSearch
+                  selectedId={selectedOpponent?.id ?? null}
+                  openProfileId={profile.id}
+                  onSelect={setSelectedOpponent}
+                />
+              ) : null}
+              {headToHeadQuery.isFetching ? (
+                <div className="empty-state"><Spinner size="sm" /> Loading head-to-head...</div>
+              ) : headToHeadQuery.data ? (
+                headToHeadQuery.data.total_games === 0 ? (
+                  <div className="empty-state">No head-to-head games yet.</div>
+                ) : (
+                  <>
+                    <div className="h2h-stat-grid">
+                      <div><span>Total games</span><strong>{headToHeadQuery.data.total_games}</strong></div>
+                      <div><span>Wins</span><strong>{headToHeadQuery.data.wins}</strong></div>
+                      <div><span>Draws</span><strong>{headToHeadQuery.data.draws}</strong></div>
+                      <div><span>Losses</span><strong>{headToHeadQuery.data.losses}</strong></div>
+                      <div><span>As White</span><strong>{headToHeadQuery.data.white_wins}-{headToHeadQuery.data.white_draws}-{headToHeadQuery.data.white_losses}</strong></div>
+                      <div><span>As Black</span><strong>{headToHeadQuery.data.black_wins}-{headToHeadQuery.data.black_draws}-{headToHeadQuery.data.black_losses}</strong></div>
+                      <div><span>Average moves</span><strong>{headToHeadQuery.data.average_moves}</strong></div>
+                    </div>
+                    <div className="tournament-breakdown">
+                      <h3>Tournament breakdown</h3>
+                      {headToHeadQuery.data.tournament_breakdown.length === 0 ? (
+                        <div className="empty-state">No tournament games between these players.</div>
+                      ) : (
+                        headToHeadQuery.data.tournament_breakdown.map((item) => (
+                          <div key={item.tournament_id} className="breakdown-row">
+                            <span>{item.tournament_name}</span>
+                            <strong>{item.wins}-{item.draws}-{item.losses}</strong>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </>
+                )
+              ) : (
+                <div className="empty-state">
+                  {isOwnProfile ? `Choose another player to compare against ${profile.username}.` : "Your head-to-head with this player will appear here."}
+                </div>
+              )}
+              {h2hPerspectiveId && h2hOpponentId ? (
+                <Button
+                  variant="secondary"
+                  className="w-full mt-4"
+                  onClick={() => navigate(`/compare?playerA=${h2hPerspectiveId}&playerB=${h2hOpponentId}`)}
+                >
+                  Open compare page
+                </Button>
+              ) : null}
+            </Card>
+            <Card className="detail-card main-stats-card bg-violet-600/5 border-violet-500/20">
+              <div className="card-header">
+                <Trophy className="text-violet-500" />
                 <h2>Career Performance</h2>
               </div>
               
@@ -295,9 +382,9 @@ export default function ProfilePage() {
             </Card>
 
             <div className="side-cards-group">
-              <Card className="detail-card promo-card bg-gradient-to-br from-blue-600/20 to-transparent">
+              <Card className="detail-card promo-card">
                 <div className="flex items-center gap-3 mb-4">
-                   <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400"><BarChart3 size={20} /></div>
+                   <div className="p-2 rounded-lg bg-violet-500/20 text-violet-400"><BarChart3 size={20} /></div>
                    <h3 className="font-bold">Analysis Hub</h3>
                 </div>
                 <p className="text-sm text-neutral-400 leading-relaxed">
@@ -326,7 +413,7 @@ export default function ProfilePage() {
           <section className="history-full-width">
             <div className="section-header">
               <div className="title-group">
-                <Zap size={20} className="text-blue-500" />
+                <Zap size={20} className="text-violet-500" />
                 <h2>Recent Matches</h2>
               </div>
               <p className="text-sm text-neutral-500">Last 8 competitive games</p>
@@ -349,5 +436,6 @@ export default function ProfilePage() {
         </div>
       </main>
     </div>
+    </AppShell>
   );
 }

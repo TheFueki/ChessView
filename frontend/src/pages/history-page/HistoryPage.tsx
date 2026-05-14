@@ -62,8 +62,8 @@ export default function HistoryPage({ isModal, onClose }: HistoryPageProps) {
 
         <Card className="play-card p-5 border-neutral-800/50 bg-neutral-900/40 backdrop-blur-md">
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-green-500/10">
-              <TrendingUp className="h-5 w-5 text-green-500" />
+            <div className="p-2 rounded-lg bg-violet-500/10">
+              <TrendingUp className="h-5 w-5 text-violet-400" />
             </div>
             <span className="text-[11px] font-bold uppercase tracking-widest text-neutral-500">Performance</span>
           </div>
@@ -81,8 +81,8 @@ export default function HistoryPage({ isModal, onClose }: HistoryPageProps) {
 
         <Card className="play-card p-5 border-neutral-800/50 bg-neutral-900/40 backdrop-blur-md">
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-blue-500/10">
-              <Clock3 className="h-5 w-5 text-blue-400" />
+            <div className="p-2 rounded-lg bg-violet-500/10">
+              <Clock3 className="h-5 w-5 text-violet-400" />
             </div>
             <span className="text-[11px] font-bold uppercase tracking-widest text-neutral-500">Last Activity</span>
           </div>
@@ -124,13 +124,13 @@ export default function HistoryPage({ isModal, onClose }: HistoryPageProps) {
         <div className="relative w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col bg-[#0a0a0a] border border-neutral-800 shadow-2xl rounded-[2rem]">
           <header className="flex items-center justify-between px-8 py-6 border-b border-neutral-800/50 bg-neutral-900/10">
             <div className="flex items-center gap-4">
-              <div className="logo-box !bg-blue-500/10">
-                <Swords className="text-blue-400" size={20} />
+              <div className="logo-box !bg-violet-500/10">
+                <Swords className="text-violet-400" size={20} />
               </div>
               <div>
                 <h2 className="text-xl font-bold text-neutral-100 tracking-tight">Game History</h2>
-                <div className="server-badge !mt-0.5">
-                   <span className="pulse-dot" /> Live Database
+                <div className="mt-1 text-xs font-medium text-neutral-500">
+                   Match archive
                 </div>
               </div>
             </div>
@@ -159,7 +159,6 @@ export default function HistoryPage({ isModal, onClose }: HistoryPageProps) {
           <ArrowUpRight className="mr-2" size={18} /> Analysis Hub
         </Button>
       }
-      maxWidthClassName="max-w-7xl"
     >
       {content}
     </AppShell>

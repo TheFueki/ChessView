@@ -1,0 +1,14 @@
+**/node_modules
+**/.yarn/cache
+**/.yarn/unplugged
+**/.yarn/build-state.yml
+**/.yarn/install-state.gz
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/dist
+**/.mypy_cache
+**/.ruff_cache
+**/.cache
+backend/storage
+.git

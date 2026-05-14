@@ -17,6 +17,15 @@ $radius-md: 12px;
   background: $bg-main;
   color: $text-p;
   font-family: 'Inter', system-ui, sans-serif;
+
+  &.settings-embedded {
+    min-height: auto;
+    background: transparent;
+
+    .settings-container {
+      padding: 0;
+    }
+  }
 }
 
 .settings-header {

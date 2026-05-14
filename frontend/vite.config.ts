@@ -3,20 +3,11 @@ import { defineConfig, loadEnv, type ConfigEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-const requireEnv = (env: Record<string, string>, key: string): string => {
-  const value = env[key];
-
-  if (!value) {
-    throw new Error(`${key} must be set`);
-  }
-
-  return value;
-};
-
 export default defineConfig(({ mode }: ConfigEnv) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const apiProxyTarget = requireEnv(env, "VITE_API_PROXY_TARGET");
-  const wsProxyTarget = requireEnv(env, "VITE_WS_PROXY_TARGET");
+  const serverUrl = env.VITE_SERVER_URL || "http://localhost:8000";
+  const apiProxyTarget = env.VITE_API_PROXY_TARGET || serverUrl;
+  const wsProxyTarget = env.VITE_WS_PROXY_TARGET || serverUrl.replace(/^http/, "ws");
 
   return {
     plugins: [react(), tailwindcss()],

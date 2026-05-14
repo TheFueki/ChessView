@@ -146,6 +146,8 @@ class IdentityService:
             "username": user.username,
             "email": user.email,
             "rating": getattr(user, "rating", 800),
+            "role": getattr(user, "role", "user"),
+            "banned_at": getattr(user, "banned_at", None),
             "bio": getattr(user, "bio", None),  
             "avatar_url": user.avatar_path,
             "created_at": getattr(user, "created_at", datetime.utcnow()),

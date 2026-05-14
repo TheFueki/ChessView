@@ -23,6 +23,15 @@ $radius-lg: 32px;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
 
+  &.profile-page-embedded {
+    min-height: auto;
+    background: transparent;
+
+    .profile-content {
+      padding: 0;
+    }
+  }
+
   .profile-nav {
     border-bottom: 1px solid $border;
     background: rgba($bg-main, 0.8);
@@ -267,8 +276,7 @@ $radius-lg: 32px;
     position: relative;
     
     .hero-card-inner {
-      background: linear-gradient(135deg, rgba($accent-indigo, 0.1) 0%, rgba($bg-main, 0) 100%),
-                  $surface;
+      background: $surface;
       border: 1px solid $border;
       border-radius: $radius-lg;
       padding: 3.5rem;
@@ -338,9 +346,7 @@ $radius-lg: 32px;
             font-weight: 900; 
             letter-spacing: -0.04em;
             margin: 0;
-            background: linear-gradient(to bottom, #fff, #a3a3a3);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: #fff;
           }
         }
 
@@ -614,7 +620,7 @@ $radius-lg: 32px;
         content: '';
         position: absolute;
         inset: 0;
-        background: linear-gradient(45deg, transparent, rgba($accent-indigo, 0.05), transparent);
+        background: rgba($accent-indigo, 0.05);
         transform: translateX(-100%);
         transition: 0.5s;
       }
@@ -716,6 +722,135 @@ $radius-lg: 32px;
     z-index: 1000;
     font-weight: 700;
     animation: slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+}
+
+.profile-page-root {
+  .h2h-card {
+    grid-column: 1 / -1;
+
+    .card-header {
+      justify-content: flex-start !important;
+      gap: 0.75rem;
+      margin-bottom: 1rem !important;
+    }
+  }
+
+  .opponent-search {
+    margin-bottom: 1rem;
+
+    .search-input {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      border: 1px solid $border;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 0.8rem 1rem;
+
+      input {
+        min-width: 0;
+        width: 100%;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: $text-p;
+      }
+    }
+
+    .search-results {
+      display: grid;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+
+      button {
+        border: 1px solid $border;
+        border-radius: 10px;
+        background: $surface-lighter;
+        color: $text-p;
+        padding: 0.7rem 0.85rem;
+        text-align: left;
+        cursor: pointer;
+
+        &:hover,
+        &.active {
+          border-color: rgba($accent-indigo, 0.45);
+        }
+      }
+    }
+  }
+
+  .empty-state {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    border: 1px dashed $border;
+    border-radius: 12px;
+    color: $text-dim;
+    padding: 1rem;
+  }
+
+  .h2h-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-top: 1rem;
+
+    div {
+      border: 1px solid $border;
+      border-radius: 12px;
+      background: $surface-lighter;
+      padding: 1rem;
+    }
+
+    span {
+      display: block;
+      color: $text-dim;
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    strong {
+      display: block;
+      margin-top: 0.35rem;
+      color: $text-p;
+      font-size: 1.05rem;
+    }
+  }
+
+  .tournament-breakdown {
+    margin-top: 1rem;
+
+    h3 {
+      margin: 0 0 0.75rem;
+      color: $text-dim;
+      font-size: 0.78rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    .breakdown-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      border: 1px solid $border;
+      border-radius: 10px;
+      background: $surface-lighter;
+      padding: 0.8rem;
+      color: $text-p;
+    }
+  }
+}
+
+@media (max-width: 760px) {
+  .profile-page-root {
+    .h2h-stat-grid {
+      grid-template-columns: 1fr;
+    }
   }
 }
 

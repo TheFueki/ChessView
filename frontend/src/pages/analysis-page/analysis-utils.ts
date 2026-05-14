@@ -120,7 +120,7 @@ export function buildBoardHighlights({
 
   if (selectedSquare) {
     mergeSquareStyle(styles, selectedSquare, {
-      boxShadow: "inset 0 0 0 3px rgba(16, 185, 129, 0.95), inset 0 0 0 9999px rgba(16, 185, 129, 0.18)",
+      boxShadow: "inset 0 0 0 3px rgba(139, 92, 246, 0.95), inset 0 0 0 9999px rgba(139, 92, 246, 0.18)",
     });
   }
 
@@ -130,8 +130,8 @@ export function buildBoardHighlights({
       styles,
       square,
       occupied
-        ? { boxShadow: "inset 0 0 0 3px rgba(16, 185, 129, 0.82)" }
-        : { backgroundImage: "radial-gradient(circle, rgba(16, 185, 129, 0.42) 0%, rgba(16, 185, 129, 0.42) 22%, transparent 24%)" },
+        ? { boxShadow: "inset 0 0 0 3px rgba(139, 92, 246, 0.82)" }
+        : { backgroundImage: "radial-gradient(circle, rgba(139, 92, 246, 0.42) 0%, rgba(139, 92, 246, 0.42) 22%, transparent 24%)" },
     );
   }
 

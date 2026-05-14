@@ -1,7 +1,7 @@
 .clubs-root {
   --side-panel-width: 280px;
   --panel-bg: rgba(13, 13, 17, 0.8);
-  --accent-color: #00d1ff;
+  --accent-color: #8b5cf6;
   --border-color: rgba(255, 255, 255, 0.08);
   --glass-bg: rgba(255, 255, 255, 0.03);
 
@@ -139,7 +139,7 @@
       &:hover, &.active { background: var(--glass-bg); color: #fff; }
       &.active {
         border-left: 3px solid var(--accent-color);
-        background: linear-gradient(90deg, rgba(0, 209, 255, 0.1), transparent);
+        background: rgba(139, 92, 246, 0.1);
       }
     }
   }
@@ -197,7 +197,7 @@
 
       .club-banner {
         height: 80px;
-        background: linear-gradient(45deg, #1e1e2e, #2d2d3d);
+        background: #1e1e2e;
         position: relative;
       }
 

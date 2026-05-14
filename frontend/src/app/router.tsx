@@ -25,12 +25,13 @@ const LeaderboardPage = lazy(() => import("@/pages/leaderboard-page/LeaderboardP
 const GameReviewPage = lazy(() => import("@/pages/game-review-page/GameReviewPage"));
 const PuzzlePage = lazy(() => import("@/pages/puzzle-page/PuzzlePage"));
 const ProfilePage = lazy(() => import("@/pages/profile-page/ProfilePage"));
+const ComparePage = lazy(() => import("@/pages/compare-page/ComparePage"));
 const TournamentsPage = lazy(() => import("@/pages/tournaments-page/TournamentsPage"));
 const TournamentDetailPage = lazy(() => import("@/pages/tournament-detail-page/TournamentDetailPage"));
 const ShopPage = lazy(() => import("@/pages/shop-page/ShopPage"));
 const ClubsPage = lazy(() => import("@/pages/clubs-page/ClubsPage"));
 const ScheduledMatchesPage = lazy(() => import("@/pages/scheduled-matches-page/ScheduledMatchesPage"));
-const AdminPage = lazy(() => import("@/pages/admin-page/AdminPage"));
+const OtbManagerPage = lazy(() => import("@/pages/otb-manager-page/OtbManagerPage"));
 const routeErrorElement = <RouteErrorPage />;
 
 function SuspenseWrapper({ children }: { children: ReactNode }) {
@@ -38,7 +39,7 @@ function SuspenseWrapper({ children }: { children: ReactNode }) {
     <Suspense
       fallback={
         <div className="flex h-screen items-center justify-center bg-neutral-950">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
         </div>
       }
     >
@@ -56,7 +57,7 @@ function RequireAuth({ children }: { children: ReactNode }) {
   if (!hasHydrated || isBootstrapping) {
     return (
       <div className="flex h-screen items-center justify-center bg-neutral-950">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
       </div>
     );
   }
@@ -73,7 +74,7 @@ function RedirectIfAuthenticated({ children }: { children: ReactNode }) {
   if (!hasHydrated || isBootstrapping) {
     return (
       <div className="flex h-screen items-center justify-center bg-neutral-950">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
       </div>
     );
   }
@@ -111,6 +112,15 @@ const router = createBrowserRouter([
         <RedirectIfAuthenticated>
           <AuthPage />
         </RedirectIfAuthenticated>
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: "/compare",
+    errorElement: routeErrorElement,
+    element: (
+      <SuspenseWrapper>
+        <ComparePage />
       </SuspenseWrapper>
     ),
   },
@@ -291,12 +301,23 @@ const router = createBrowserRouter([
     ),
   },
   {
-    path: "/admin",
+    path: "/otb",
     errorElement: routeErrorElement,
     element: (
       <SuspenseWrapper>
         <RequireAuth>
-          <AdminPage />
+          <OtbManagerPage />
+        </RequireAuth>
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: "/otb-manager",
+    errorElement: routeErrorElement,
+    element: (
+      <SuspenseWrapper>
+        <RequireAuth>
+          <OtbManagerPage />
         </RequireAuth>
       </SuspenseWrapper>
     ),

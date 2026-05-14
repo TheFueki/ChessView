@@ -65,19 +65,21 @@ export function MatchmakingPanel() {
     queueStatus === "queued" ? `Searching... ${queuePosition ? `#${queuePosition}` : ""}` :
     queueStatus === "leaving" ? "Leaving queue..." :
     connectionState === "connecting" ? "Connecting..." :
-    connectionState === "open" ? "Ready for battle" : "Offline";
+    connectionState === "open" ? "Ready" :
+    connectionState === "error" ? "Connection issue" :
+    connectionState === "disconnected" ? "Reconnecting..." : "Idle";
 
   return (
     <Card className="flex flex-col gap-6 p-6 overflow-hidden min-h-[500px]">
       <div className="flex items-center justify-between w-full">
         <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-lg bg-emerald-500/10 text-emerald-500 ${isQueued ? 'animate-pulse' : ''}`}>
+          <div className={`p-2 rounded-lg bg-violet-500/10 text-violet-500 ${isQueued ? 'animate-pulse' : ''}`}>
             <Search size={20} />
           </div>
           <div className="text-left">
             <h2 className="text-lg font-bold text-neutral-100">Matchmaking</h2>
             <div className="flex items-center gap-1.5 text-xs text-neutral-500">
-              <span className={`h-1.5 w-1.5 rounded-full ${connectionState === 'open' ? 'bg-emerald-500' : 'bg-red-500'}`} />
+              <span className={`h-1.5 w-1.5 rounded-full ${connectionState === 'open' ? 'bg-violet-500' : connectionState === 'connecting' || connectionState === 'disconnected' ? 'bg-amber-400' : 'bg-neutral-600'}`} />
               {statusLabel}
             </div>
           </div>
@@ -150,8 +152,8 @@ export function MatchmakingPanel() {
                       key={time}
                       onClick={() => handleSelectTime(time)}
                       className={`p-4 rounded-xl border-2 transition-all text-center ${
-                        selectedTimeControl === time 
-                        ? 'border-emerald-500 bg-emerald-500/10 text-emerald-200' 
+                        selectedTimeControl === time
+                        ? 'border-violet-500 bg-violet-500/10 text-violet-200'
                         : 'border-neutral-800 bg-neutral-900/50 text-neutral-400 hover:border-neutral-700'
                       }`}
                     >
@@ -168,8 +170,8 @@ export function MatchmakingPanel() {
         {isQueued && (
            <div className="flex flex-col items-center justify-center py-20 text-center animate-pulse">
               <div className="relative mb-6">
-                <div className="absolute inset-0 bg-emerald-500/20 blur-xl rounded-full" />
-                <Globe className="h-16 w-16 text-emerald-500 relative" />
+                <div className="absolute inset-0 bg-violet-500/20 blur-xl rounded-full" />
+                <Globe className="h-16 w-16 text-violet-500 relative" />
               </div>
               <h3 className="text-xl font-bold text-white mb-2">Searching...</h3>
               <p className="text-neutral-500 text-sm max-w-[200px]">

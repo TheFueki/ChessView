@@ -1,11 +1,27 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { BarChart3, Brain, Crown, History, LayoutGrid, Shield, Swords, Trophy, Settings, Medal } from "lucide-react";
+import {
+  BarChart3,
+  Brain,
+  CalendarClock,
+  ClipboardList,
+  History,
+  LayoutGrid,
+  LogOut,
+  Medal,
+  Menu,
+  Settings,
+  ShoppingBag,
+  Swords,
+  Trophy,
+  X,
+} from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router";
 import { useMatchmakingStore } from "@/entities/matchmaking";
 import { useUserStore } from "@/entities/user";
 import { wsClient } from "@/shared/api";
 import { Avatar, Button } from "@/shared/ui";
+import logoImage from "../../assets/logo.jpeg";
 
 interface AppShellProps {
   eyebrow?: string;
@@ -16,16 +32,33 @@ interface AppShellProps {
   maxWidthClassName?: string;
 }
 
-const navItems = [
-  { to: "/", label: "Home", icon: LayoutGrid },
-  { to: "/lobby", label: "Play", icon: Swords },
-  { to: "/history", label: "History", icon: History },
-  { to: "/analysis", label: "Study", icon: BarChart3 },
-  { to: "/puzzles", label: "Puzzles", icon: Brain },
-  { to: "/tournaments", label: "Tournaments", icon: Trophy },
-  { to: "/profile", label: "Profile", icon: Shield },
-  { to: "/settings", label: "Settings", icon: Settings },
-  { to: "/leaderboards", label: "Leaderboards", icon: Medal },
+const navGroups = [
+  {
+    label: "Main",
+    items: [
+      { to: "/", label: "Home", icon: LayoutGrid },
+      { to: "/lobby", label: "Play", icon: Swords },
+      { to: "/tournaments", label: "Tournaments", icon: Trophy },
+      { to: "/scheduled-matches", label: "Matches", icon: CalendarClock },
+      { to: "/otb", label: "OTB manager", icon: ClipboardList },
+    ],
+  },
+  {
+    label: "Improve",
+    items: [
+      { to: "/analysis", label: "Study", icon: BarChart3 },
+      { to: "/puzzles", label: "Puzzles", icon: Brain },
+      { to: "/history", label: "History", icon: History },
+    ],
+  },
+  {
+    label: "Community",
+    items: [
+      { to: "/leaderboard", label: "Leaderboards", icon: Medal },
+      { to: "/compare", label: "Compare", icon: Swords },
+      { to: "/shop", label: "Market", icon: ShoppingBag },
+    ],
+  },
 ];
 
 export function AppShell({
@@ -34,11 +67,12 @@ export function AppShell({
   description,
   actions,
   children,
-  maxWidthClassName = "max-w-7xl",
+  maxWidthClassName = "max-w-6xl",
 }: AppShellProps) {
   const prefersReducedMotion = useReducedMotion();
   const navigate = useNavigate();
   const location = useLocation();
+  const [isNavOpen, setIsNavOpen] = useState(false);
   const user = useUserStore((state) => state.user);
   const logout = useUserStore((state) => state.logout);
   const resetMatchmaking = useMatchmakingStore((state) => state.reset);
@@ -47,71 +81,117 @@ export function AppShell({
     wsClient.disconnect();
     resetMatchmaking();
     logout();
+    setIsNavOpen(false);
     navigate("/", { replace: true });
   };
 
-  return (
-    <div className="relative min-h-screen overflow-hidden bg-neutral-950 text-neutral-100">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-24 top-0 h-96 w-96 rounded-full bg-emerald-500/6 blur-3xl" />
-        <div className="absolute right-0 top-1/3 h-80 w-80 rounded-full bg-cyan-500/5 blur-3xl" />
-        <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-amber-500/4 blur-3xl" />
+  const isActivePath = (to: string) => location.pathname === to || (to !== "/" && location.pathname.startsWith(to));
+
+  const brand = (
+    <button onClick={() => navigate("/")} className="flex items-center gap-3 text-left transition hover:opacity-85">
+      <img src={logoImage} alt="ChessView" className="h-11 w-11 rounded-md border border-neutral-800 object-cover" />
+      <div>
+        <div className="text-sm font-semibold text-neutral-100">ChessView</div>
+        <div className="text-xs text-neutral-500">Chess platform</div>
       </div>
+    </button>
+  );
 
-      <header className="relative z-10 border-b border-neutral-800/60 bg-neutral-950/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={() => navigate("/")} className="flex items-center gap-2 transition hover:opacity-85">
-              <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-2">
-                <Crown className="h-5 w-5 text-emerald-400" />
-              </div>
-              <div className="text-left">
-                <div className="text-sm font-semibold tracking-[0.18em] text-neutral-400">CHESSVIEW</div>
-                <div className="text-lg font-bold tracking-tight text-neutral-100">Competitive chess, built for review.</div>
-              </div>
-            </button>
-          </div>
-
-          <div className="flex flex-col gap-3 lg:items-end">
-            <nav className="flex flex-wrap items-center gap-2">
-              {navItems.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={({ isActive }) =>
-                    `inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-medium uppercase tracking-[0.18em] transition ${
-                      isActive || (item.to !== "/" && location.pathname.startsWith(item.to))
-                        ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-200"
-                        : "border-neutral-800 bg-neutral-900/70 text-neutral-400 hover:border-neutral-700 hover:text-neutral-200"
-                    }`
-                  }
-                >
-                  <item.icon className="h-3.5 w-3.5" />
-                  {item.label}
-                </NavLink>
-              ))}
-            </nav>
-
-            <div className="flex items-center gap-3 self-start lg:self-auto">
-              {user ? (
-                <button
-                  onClick={() => navigate("/profile")}
-                  className="flex items-center gap-3 rounded-full border border-neutral-800 bg-neutral-900/80 px-4 py-2 transition hover:border-neutral-700"
-                >
-                  <Avatar username={user.username} avatarUrl={user.avatar_url} size="sm" />
-                  <div className="text-left">
-                    <div className="text-sm font-medium text-neutral-100">{user.username}</div>
-                    <div className="text-xs tabular-nums text-neutral-500">{user.rating} rapid</div>
-                  </div>
-                </button>
-              ) : null}
-              <Button variant="secondary" size="sm" onClick={handleLogout}>
-                Logout
-              </Button>
-            </div>
+  const navigation = (
+    <nav className="grid gap-5">
+      {navGroups.map((group) => (
+        <div key={group.label} className="grid gap-2">
+          <div className="px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-600">{group.label}</div>
+          <div className="grid gap-1">
+            {group.items.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={() => setIsNavOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition ${
+                    isActive || isActivePath(item.to)
+                      ? "border-l-[3px] border-l-[var(--color-accent)] bg-neutral-900 pl-[9px] text-neutral-100 ring-1 ring-neutral-800"
+                      : "text-neutral-400 hover:bg-neutral-900 hover:text-neutral-200"
+                  }`
+                }
+              >
+                <item.icon className="h-4 w-4" />
+                {item.label}
+              </NavLink>
+            ))}
           </div>
         </div>
+      ))}
+    </nav>
+  );
+
+  const userControls = user ? (
+    <div className="grid gap-2">
+      <button
+        onClick={() => {
+          setIsNavOpen(false);
+          navigate("/profile");
+        }}
+        className="flex items-center gap-3 rounded-md border border-neutral-800 bg-neutral-900/70 px-3 py-2 transition hover:border-neutral-700"
+      >
+        <Avatar username={user.username} avatarUrl={user.avatar_url} size="sm" />
+        <div className="min-w-0 text-left">
+          <div className="truncate text-sm font-medium text-neutral-100">{user.username}</div>
+          <div className="text-xs tabular-nums text-neutral-500">{user.rating} rapid</div>
+        </div>
+      </button>
+      <div className="grid grid-cols-2 gap-2">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => {
+            setIsNavOpen(false);
+            navigate("/settings");
+          }}
+        >
+          <Settings className="h-4 w-4" />
+          Settings
+        </Button>
+        <Button variant="secondary" size="sm" onClick={handleLogout}>
+          <LogOut className="h-4 w-4" />
+          Logout
+        </Button>
+      </div>
+    </div>
+  ) : null;
+
+  return (
+    <div className="relative min-h-screen overflow-x-hidden bg-neutral-950 text-neutral-100 lg:pl-72">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-neutral-800 bg-neutral-950 px-5 py-5 lg:flex lg:flex-col">
+        <div className="pb-5">{brand}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto py-2 pr-1">{navigation}</div>
+        {userControls ? <div className="border-t border-neutral-800 pt-4">{userControls}</div> : null}
+      </aside>
+
+      <header className="sticky top-0 z-30 border-b border-neutral-800 bg-neutral-950/95 backdrop-blur lg:hidden">
+        <div className="flex items-center justify-between px-4 py-3">
+          {brand}
+          <Button variant="secondary" size="sm" onClick={() => setIsNavOpen(true)} aria-label="Open navigation">
+            <Menu className="h-4 w-4" />
+          </Button>
+        </div>
       </header>
+
+      {isNavOpen ? (
+        <div className="fixed inset-0 z-40 bg-black/70 lg:hidden">
+          <div className="flex h-full w-[min(22rem,calc(100vw-2rem))] flex-col border-r border-neutral-800 bg-neutral-950 px-5 py-5 shadow-2xl">
+            <div className="flex items-center justify-between pb-5">
+              {brand}
+              <Button variant="secondary" size="sm" onClick={() => setIsNavOpen(false)} aria-label="Close navigation">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto py-2 pr-1">{navigation}</div>
+            {userControls ? <div className="border-t border-neutral-800 pt-4">{userControls}</div> : null}
+          </div>
+        </div>
+      ) : null}
 
       <motion.main
         initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
@@ -122,7 +202,7 @@ export function AppShell({
         <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div>
             {eyebrow ? (
-              <div className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-300/80">{eyebrow}</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">{eyebrow}</div>
             ) : null}
             <h1 className="mt-2 text-4xl font-bold tracking-tight text-neutral-100">{title}</h1>
             {description ? <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-400">{description}</p> : null}

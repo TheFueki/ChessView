@@ -9,7 +9,9 @@ from pydantic import BaseModel, Field
 class PaymentIntentResponse(BaseModel):
     id: UUID
     user_id: UUID
-    tournament_id: UUID
+    tournament_id: UUID | None
+    scheduled_match_id: UUID | None = None
+    subject_type: str
     amount_cents: int
     currency: str
     status: str

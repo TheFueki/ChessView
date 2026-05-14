@@ -15,7 +15,7 @@ from domains.identity.infrastructure.models import UserModel
 from domains.scheduled_matches.infrastructure.models import ScheduledMatchModel
 from domains.scheduled_matches.presentation.schemas import ScheduledMatchResponse
 from domains.tournaments.infrastructure.models import TournamentModel, TournamentPairingModel
-from shared.time_controls import get_time_control_preset
+from shared.time_controls import TimeControl, get_time_control_preset, make_time_control
 
 
 STARTABLE_MATCH_STATUSES = {"scheduled", "accepted", "rescheduled"}
@@ -140,13 +140,12 @@ class ScheduledMatchService:
         black = await self._session.get(UserModel, match.black_player_id)
         if white is None or black is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Player not found")
-        time_control_name = "5+0"
+        time_control: TimeControl | None = get_time_control_preset("5+0")
         if match.tournament_id is not None:
             tournament = await self._session.get(TournamentModel, match.tournament_id)
             if tournament is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tournament not found")
-            time_control_name = tournament.time_control_name
-        time_control = get_time_control_preset(time_control_name)
+            time_control = self._resolve_match_time_control(tournament)
         if time_control is None:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Default time control missing")
         game = await GameService(SqlAlchemyGameRepository(self._session)).create_game(
@@ -195,3 +194,13 @@ class ScheduledMatchService:
             created_at=match.created_at,
             updated_at=match.updated_at,
         )
+
+    @staticmethod
+    def _resolve_match_time_control(tournament: TournamentModel | object) -> TimeControl:
+        preset = get_time_control_preset(tournament.time_control_name)
+        if preset is not None:
+            return preset
+        try:
+            return make_time_control(tournament.time_control_name, tournament.initial_time_ms, tournament.increment_ms)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Tournament time control missing") from exc

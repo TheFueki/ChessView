@@ -105,6 +105,8 @@ async def create_tournament(
         request.tournament_type,
         request.entry_fee_cents,
         request.total_rounds,
+        initial_time_ms=request.initial_time_ms,
+        increment_ms=request.increment_ms,
     )
     return await _serialize_summary(session, tournament, viewer_id, 1)
 

@@ -15,6 +15,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { http } from "@/shared/api";
 import type { PaymentIntentResponse, TournamentDetailResponse, TournamentPairingResponse } from "@/shared/types";
 import { Button, Card, Spinner } from "@/shared/ui";
+import { AppShell } from "@/widgets/app-shell";
 
 import "../../pages-style/dashboard-page/dashboardpage.scss";
 
@@ -32,8 +33,8 @@ function formatStatus(status: TournamentDetailResponse["status"]) {
   return status.replaceAll("_", " ");
 }
 
-function formatMoney(cents: number, currency = "USD") {
-  return new Intl.NumberFormat([], { style: "currency", currency }).format(cents / 100);
+function formatCoins(amount: number) {
+  return `${amount.toLocaleString()} coins`;
 }
 
 function isRegistrationOpen(status: TournamentDetailResponse["status"]) {
@@ -118,16 +119,24 @@ export default function TournamentDetailPage() {
     mutationFn: () => http.post(`/tournaments/${tournamentId}/start`),
     onSuccess: async () => {
       setActionError(null);
-      await queryClient.invalidateQueries({ queryKey: ["tournament", tournamentId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["tournament", tournamentId] }),
+        queryClient.invalidateQueries({ queryKey: ["tournaments"] }),
+      ]);
     },
+    onError: (error) => setActionError(error instanceof Error ? error.message : "Unable to start tournament."),
   });
 
   const advanceTournament = useMutation({
     mutationFn: () => http.post(`/tournaments/${tournamentId}/advance`),
     onSuccess: async () => {
       setActionError(null);
-      await queryClient.invalidateQueries({ queryKey: ["tournament", tournamentId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["tournament", tournamentId] }),
+        queryClient.invalidateQueries({ queryKey: ["tournaments"] }),
+      ]);
     },
+    onError: (error) => setActionError(error instanceof Error ? error.message : "Round is not ready to advance."),
   });
 
   const tournament = tournamentQuery.data ?? null;
@@ -139,41 +148,26 @@ export default function TournamentDetailPage() {
   }, [actionError, tournamentId, tournamentQuery.error]);
 
   return (
-    <div className="dashboard-root">
-      <main className="main-viewport" style={{ paddingBottom: '4rem' }}>
-        <header className="viewport-header">
-          <div className="header-info">
-            <div className="flex items-center gap-4">
-               <button 
-                 onClick={() => navigate("/tournaments")} 
-                 className="p-2 hover:bg-white/5 rounded-lg transition-colors"
-                 title="Back to tournaments"
-               >
-                 <ChevronLeft size={20} className="text-neutral-400" />
-               </button>
-               <div>
-                 <h1 className="text-2xl font-bold tracking-tight">
-                   {tournament?.name ?? "Tournament Details"}
-                 </h1>
-                 <div className="server-badge mt-1">
-                   <span className={tournament?.status === "active" ? "pulse-dot" : "pulse-dot bg-neutral-600"} /> 
-                   {tournament ? formatStatus(tournament.status) : "Synchronizing..."}
-                 </div>
-               </div>
-            </div>
+    <AppShell
+      eyebrow="Tournament"
+      title={tournament?.name ?? "Tournament details"}
+      description={tournament ? formatStatus(tournament.status) : "Loading tournament data."}
+      actions={
+        <>
+          <Button variant="secondary" onClick={() => navigate("/tournaments")}>
+            <ChevronLeft className="h-4 w-4" />
+            Back
+          </Button>
+          <div className="rounded-full border border-neutral-800 bg-neutral-900 px-4 py-2 text-sm text-neutral-300">
+            <span className="text-neutral-500">Round</span>{" "}
+            <strong className="text-violet-300">{tournament?.current_round ?? 0} / {tournament?.total_rounds ?? 0}</strong>
           </div>
-
-          <div className="quick-stats">
-            <div className="stat-pill">
-              <span>Current Round</span> 
-              <b className="text-emerald-400">{tournament?.current_round ?? 0} / {tournament?.total_rounds ?? 0}</b>
-            </div>
-            <div className="stat-pill">
-              <span>Players</span> 
-              <b>{tournament?.player_count ?? 0}</b>
-            </div>
+          <div className="rounded-full border border-neutral-800 bg-neutral-900 px-4 py-2 text-sm text-neutral-300">
+            <span className="text-neutral-500">Players</span> <strong>{tournament?.player_count ?? 0}</strong>
           </div>
-        </header>
+        </>
+      }
+    >
 
         {tournamentQuery.isLoading ? (
           <div className="flex flex-col items-center justify-center p-24 gap-4">
@@ -198,14 +192,14 @@ export default function TournamentDetailPage() {
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="grid gap-4 md:grid-cols-3 mb-8">
               <Card className="mini-action bg-white/[0.02] border-white/[0.05]" style={{ cursor: 'default' }}>
-                <Users size={20} className="text-blue-400 opacity-80"/>
+                <Users size={20} className="text-violet-400 opacity-80"/>
                 <div>
                   <h3 className="text-[10px] uppercase tracking-widest text-neutral-500">Organizer</h3>
                   <p className="font-medium text-sm text-neutral-200">{tournament.owner.username}</p>
                 </div>
               </Card>
               <Card className="mini-action bg-white/[0.02] border-white/[0.05]" style={{ cursor: 'default' }}>
-                <Clock size={20} className="text-emerald-400 opacity-80"/>
+                <Clock size={20} className="text-violet-400 opacity-80"/>
                 <div>
                   <h3 className="text-[10px] uppercase tracking-widest text-neutral-500">Time Control</h3>
                   <p className="font-medium text-sm text-neutral-200">{tournament.time_control_name}</p>
@@ -225,9 +219,9 @@ export default function TournamentDetailPage() {
             <Card className="flex flex-wrap items-center justify-between gap-4 p-4 mb-8 bg-white/[0.02] border-white/[0.05] backdrop-blur-sm">
               <div className="flex items-center gap-3">
                 {!tournament.viewer_is_member && isRegistrationOpen(tournament.status) && tournament.entry_fee_cents <= 0 && (
-                  <Button 
-                    className="btn-main shadow-lg shadow-emerald-500/10" 
-                    onClick={() => joinTournament.mutate()} 
+                  <Button
+                    className="btn-main shadow-lg shadow-violet-500/10"
+                    onClick={() => joinTournament.mutate()}
                     disabled={joinTournament.isPending}
                   >
                     Register for Tournament
@@ -235,11 +229,11 @@ export default function TournamentDetailPage() {
                 )}
                 {!tournament.viewer_is_member && isRegistrationOpen(tournament.status) && tournament.entry_fee_cents > 0 && (
                   <Button
-                    className="btn-main shadow-lg shadow-emerald-500/10"
+                    className="btn-main shadow-lg shadow-violet-500/10"
                     onClick={() => createEntryPayment.mutate()}
                     disabled={createEntryPayment.isPending}
                   >
-                    Reserve Entry {formatMoney(tournament.entry_fee_cents)}
+                    Reserve Entry {formatCoins(tournament.entry_fee_cents)}
                   </Button>
                 )}
                 {tournament.viewer_is_member && isRegistrationOpen(tournament.status) && !tournament.viewer_is_owner && (
@@ -257,11 +251,11 @@ export default function TournamentDetailPage() {
                     {isRegistrationOpen(tournament.status) && (
                       <Button 
                         size="sm"
-                        className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold"
+                        className="bg-violet-500 hover:bg-violet-600 text-black font-bold"
                         onClick={() => startTournament.mutate()} 
                         disabled={startTournament.isPending}
                       >
-                        <Play size={14} className="mr-1 fill-current"/> Start
+                        <Play size={14} className="mr-1 fill-current"/> Start event
                       </Button>
                     )}
                     {tournament.status === "active" && (
@@ -271,15 +265,15 @@ export default function TournamentDetailPage() {
                         onClick={() => advanceTournament.mutate()} 
                         disabled={advanceTournament.isPending}
                       >
-                        Force Next Round
+                        Next round
                       </Button>
                     )}
                   </div>
                 )}
               </div>
               <div className="text-right">
-                <span className="text-[10px] font-mono text-neutral-600 block uppercase tracking-tighter">System Status</span>
-                <p className="text-xs text-neutral-400 italic">
+                <span className="text-[10px] font-mono text-neutral-600 block uppercase tracking-tighter">Tournament state</span>
+                <p className="text-xs text-neutral-400">
                   {isRegistrationOpen(tournament.status)
                     ? "Awaiting players to fill brackets..."
                     : "Pairings managed by Swiss System algorithm."}
@@ -292,7 +286,7 @@ export default function TournamentDetailPage() {
                 <div>
                   <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-300">Entry Payment Emulator</h3>
                   <p className="text-xs text-neutral-400 mt-1">
-                    {formatMoney(entryPayment.amount_cents, entryPayment.currency)} entry is {entryPayment.status}.
+                    {formatCoins(entryPayment.amount_cents)} entry is {entryPayment.status}.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -330,12 +324,12 @@ export default function TournamentDetailPage() {
                       <div key={s.player.id} className="game-row hover:bg-white/[0.03] transition-colors border-b border-white/[0.02] last:border-0">
                         <div className="text-neutral-600 font-mono text-xs pl-2">{s.rank}</div>
                         <Link to={`/players/${s.player.id}`} className="flex items-center gap-2 group">
-                          <span className="text-sm font-medium group-hover:text-emerald-400 transition-colors truncate">
+                          <span className="text-sm font-medium group-hover:text-violet-400 transition-colors truncate">
                             {s.player.username}
                           </span>
                           <span className="text-[10px] text-neutral-600 font-mono">[{s.player.rating}]</span>
                         </Link>
-                        <div className="text-emerald-400 font-bold text-sm text-center">{s.score.toFixed(1)}</div>
+                        <div className="text-violet-400 font-bold text-sm text-center">{s.score.toFixed(1)}</div>
                         <div className="text-neutral-500 text-xs text-center font-mono">{s.games_played}</div>
                       </div>
                     ))}
@@ -344,9 +338,9 @@ export default function TournamentDetailPage() {
               </section>
 
               <section className="space-y-6">
-                <div className="section-title border-l-2 border-blue-500 pl-3">
+                <div className="section-title border-l-2 border-violet-500 pl-3">
                   <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-neutral-300">
-                    <Swords size={16} className="text-blue-500"/> Match Pairings
+                    <Swords size={16} className="text-violet-500"/> Match Pairings
                   </h3>
                 </div>
                 
@@ -357,7 +351,7 @@ export default function TournamentDetailPage() {
                         <span className="text-xs font-black uppercase tracking-widest text-neutral-400 bg-white/5 px-2 py-1 rounded">
                           Round {round.round_number}
                         </span>
-                        <div className="h-[1px] flex-1 bg-gradient-to-r from-white/[0.08] to-transparent" />
+                        <div className="h-[1px] flex-1 bg-white/[0.08]" />
                       </div>
                       
                       <div className="grid gap-2">
@@ -369,7 +363,7 @@ export default function TournamentDetailPage() {
                               className="group relative flex items-center justify-between p-4 rounded-xl border border-white/[0.03] bg-white/[0.01] hover:bg-white/[0.03] hover:border-white/[0.1] transition-all"
                             >
                               <div className="flex-1 grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-                                <Link to={`/players/${pairing.white.id}`} className="text-xs font-semibold hover:text-emerald-400 transition-colors truncate text-right">
+                                <Link to={`/players/${pairing.white.id}`} className="text-xs font-semibold hover:text-violet-400 transition-colors truncate text-right">
                                   {pairing.white.username}
                                   <span className="block text-[9px] text-neutral-600 font-normal">White</span>
                                 </Link>
@@ -381,7 +375,7 @@ export default function TournamentDetailPage() {
                                 </div>
 
                                 {pairing.black ? (
-                                  <Link to={`/players/${pairing.black.id}`} className="text-xs font-semibold hover:text-emerald-400 transition-colors truncate text-left">
+                                  <Link to={`/players/${pairing.black.id}`} className="text-xs font-semibold hover:text-violet-400 transition-colors truncate text-left">
                                     {pairing.black.username}
                                     <span className="block text-[9px] text-neutral-600 font-normal">Black</span>
                                   </Link>
@@ -395,7 +389,7 @@ export default function TournamentDetailPage() {
                                   <Button 
                                     size="sm" 
                                     variant="ghost" 
-                                    className="h-9 w-9 p-0 rounded-full hover:bg-emerald-500 hover:text-black transition-all"
+                                    className="h-9 w-9 p-0 rounded-full hover:bg-violet-500 hover:text-black transition-all"
                                     onClick={() => navigate(target)}
                                     title={pairing.game_status === "active" ? "Spectate Match" : "View Analysis"}
                                   >
@@ -418,7 +412,6 @@ export default function TournamentDetailPage() {
             </div>
           </div>
         )}
-      </main>
-    </div>
+    </AppShell>
   );
 }

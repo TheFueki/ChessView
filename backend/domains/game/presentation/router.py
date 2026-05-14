@@ -123,7 +123,7 @@ async def submit_game_face_verification(
     await require_game_face_verification_access(session, game_id, UUID(user_id))
     service = FaceVerificationService(session)
     verification = await service.start_session(user_id=UUID(user_id), game_id=game_id, tournament_id=None, scheduled_match_id=None)
-    verification = await service.submit(verification.id, body.scenario)
+    verification = await service.submit(verification.id, UUID(user_id), body.scenario)
     return service.session_response(verification)
 
 

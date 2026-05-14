@@ -41,6 +41,7 @@ export type ConnectionState = "idle" | "connecting" | "open" | "disconnected" | 
 export type PlayerColor = "white" | "black";
 export type GameStatus = "active" | "checkmate" | "stalemate" | "draw" | "resigned" | "timeout" | "aborted";
 export type GameResult = "1-0" | "0-1" | "1/2-1/2";
+export type RatingCategory = "bullet" | "blitz" | "rapid" | "classical";
 export type TimeControlKey = "1+0" | "1+1" | "1+2" |  "2+1" | "3+0" | "3+1" | "3+2" | "5+0" | "5+3" | "10+0" | "15+0" | "15+10";
 export type TerminationReason =
   | "checkmate"
@@ -276,6 +277,7 @@ export interface ProfileResponse {
   id: string;
   username: string;
   rating: number;
+  ratings?: Record<string, number | null>;
   global_rank: number;
   avatar_url?: string | null;
   created_at: string;
@@ -286,6 +288,13 @@ export interface ProfileResponse {
   win_rate: number;
   coins: number;
   recent_games: ProfileRecentGameResponse[];
+}
+
+export interface PlayerSearchResult {
+  id: string;
+  username: string;
+  avatar_url?: string | null;
+  ratings?: Record<string, number | null>;
 }
 
 export type TournamentStatus =
@@ -419,7 +428,9 @@ export interface ScheduledMatchResponse {
 export interface PaymentIntentResponse {
   id: string;
   user_id: string;
-  tournament_id: string;
+  tournament_id: string | null;
+  scheduled_match_id: string | null;
+  subject_type: string;
   amount_cents: number;
   currency: string;
   status: string;
@@ -473,4 +484,45 @@ export interface FaceVerificationSessionResponse {
   provider: string;
   created_at: string;
   completed_at: string | null;
+}
+
+export interface PasskeyCredentialDescriptorJson {
+  id: string;
+  type: "public-key";
+  transports?: AuthenticatorTransport[];
+}
+
+export interface PasskeyCredentialCreationOptionsJson {
+  challenge: string;
+  rp: PublicKeyCredentialRpEntity;
+  user: {
+    id: string;
+    name: string;
+    displayName: string;
+  };
+  pubKeyCredParams: PublicKeyCredentialParameters[];
+  timeout?: number;
+  attestation?: AttestationConveyancePreference;
+  authenticatorSelection?: AuthenticatorSelectionCriteria;
+  excludeCredentials?: PasskeyCredentialDescriptorJson[];
+  extensions?: AuthenticationExtensionsClientInputs;
+}
+
+export interface PasskeyCredentialRequestOptionsJson {
+  challenge: string;
+  timeout?: number;
+  rpId?: string;
+  allowCredentials?: PasskeyCredentialDescriptorJson[];
+  userVerification?: UserVerificationRequirement;
+  extensions?: AuthenticationExtensionsClientInputs;
+}
+
+export interface PasskeyEnrollmentChallengeResponse {
+  challenge_id: string;
+  public_key: PasskeyCredentialCreationOptionsJson;
+}
+
+export interface PasskeyVerificationChallengeResponse {
+  challenge_id: string;
+  public_key: PasskeyCredentialRequestOptionsJson;
 }

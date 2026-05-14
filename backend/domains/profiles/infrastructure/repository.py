@@ -9,6 +9,7 @@ from domains.game.infrastructure.models import GameModel, MoveModel
 from domains.identity.infrastructure.models import UserModel
 from domains.profiles.domain.entities import ProfileGamePreview, ProfilePlayer, ProfileSummary
 from domains.profiles.domain.repository import AbstractProfileRepository
+from shared.time_controls import RatingSpeed, rating_speed_for_clock, rating_speed_for_time_control_name
 
 UNKNOWN_PLAYER_USERNAME = "?"
 UNKNOWN_PLAYER_RATING = 1200
@@ -37,6 +38,8 @@ class SqlAlchemyProfileRepository(AbstractProfileRepository):
         games_played = len(completed_games)
 
         recent_games = games[:recent_game_limit]
+        category_ratings = self._category_ratings_for_user(user)
+        ratings = self._ratings_by_speed(user_id, category_ratings, completed_games)
         user_ids = {user_id}
         for game in recent_games:
             user_ids.add(game.white_id)
@@ -77,18 +80,21 @@ class SqlAlchemyProfileRepository(AbstractProfileRepository):
             id=str(user.id),
             username=user.username,
             rating=user.rating,
-            avatar_url=user.avatar_path,
+            avatar_url=self._avatar_url(user.avatar_path),
             created_at=user.created_at,
             games_played=games_played,
             wins=wins,
             losses=losses,
             draws=draws,
             win_rate=win_rate,
+            ratings=ratings,
             recent_games=previews,
-            global_rank=rank
+            global_rank=rank,
+            coins=user.coins,
         )
 
-    async def get_top_profiles(self, limit: int) -> list[ProfileSummary]:
+    async def get_top_profiles(self, limit: int, category: RatingSpeed | None = None) -> list[ProfileSummary]:
+        rating_column = self._rating_column_for_speed(category)
         stmt = (
             select(
                 UserModel,
@@ -110,7 +116,7 @@ class SqlAlchemyProfileRepository(AbstractProfileRepository):
             )
             .outerjoin(GameModel, or_(UserModel.id == GameModel.white_id, UserModel.id == GameModel.black_id))
             .group_by(UserModel.id)
-            .order_by(UserModel.rating.desc())
+            .order_by(rating_column.desc())
             .limit(limit)
         )
         
@@ -127,23 +133,46 @@ class SqlAlchemyProfileRepository(AbstractProfileRepository):
                 ProfileSummary(
                     id=str(user.id),
                     username=user.username,
-                    rating=user.rating,
-                    avatar_url=user.avatar_path,
+                    rating=getattr(user, rating_column.key),
+                    avatar_url=self._avatar_url(user.avatar_path),
                     created_at=user.created_at,
                     games_played=total,
                     wins=wins,
                     losses=losses,
                     draws=draws,
                     win_rate=wr,
+                    ratings=self._category_ratings_response(self._category_ratings_for_user(user)),
                     recent_games=[],
-                    global_rank=index + 1
+                    global_rank=index + 1,
+                    coins=user.coins,
                 )
             )
 
         return top_profiles
 
-    async def get_user_rank(self, rating: int) -> int:
-        stmt = select(func.count(UserModel.id)).where(UserModel.rating > rating)
+    async def search_players(self, query: str, limit: int = 10) -> list[ProfilePlayer]:
+        stmt = (
+            select(UserModel)
+            .where(UserModel.username.ilike(f"%{query}%"))
+            .order_by(UserModel.username.asc())
+            .limit(limit)
+        )
+        result = await self._session.execute(stmt)
+        players = []
+        for user in result.scalars().all():
+            players.append(
+                ProfilePlayer(
+                    id=str(user.id),
+                    username=user.username,
+                    rating=user.rating,
+                    avatar_url=self._avatar_url(user.avatar_path),
+                )
+            )
+        return players
+
+    async def get_user_rank(self, rating: int, category: RatingSpeed | None = None) -> int:
+        rating_column = self._rating_column_for_speed(category)
+        stmt = select(func.count(UserModel.id)).where(rating_column > rating)
         result = await self._session.execute(stmt)
         count = result.scalar() or 0
         return count + 1
@@ -167,7 +196,7 @@ class SqlAlchemyProfileRepository(AbstractProfileRepository):
                 id=str(player.id),
                 username=player.username,
                 rating=player.rating,
-                avatar_url=player.avatar_path,
+                avatar_url=self._avatar_url(player.avatar_path),
             )
             for player in player_result.scalars().all()
         }
@@ -197,9 +226,72 @@ class SqlAlchemyProfileRepository(AbstractProfileRepository):
         return None
 
     @staticmethod
+    def _category_ratings_for_user(user: UserModel) -> dict[RatingSpeed, int]:
+        return {
+            RatingSpeed.BULLET: user.bullet_rating,
+            RatingSpeed.BLITZ: user.blitz_rating,
+            RatingSpeed.RAPID: user.rapid_rating,
+            RatingSpeed.CLASSICAL: user.classical_rating,
+        }
+
+    @staticmethod
+    def _category_ratings_response(ratings: dict[RatingSpeed, int]) -> dict[str, int]:
+        return {speed.value: ratings[speed] for speed in RatingSpeed}
+
+    @staticmethod
+    def _rating_column_for_speed(speed: RatingSpeed | None):
+        if speed is RatingSpeed.BULLET:
+            return UserModel.bullet_rating
+        if speed is RatingSpeed.BLITZ:
+            return UserModel.blitz_rating
+        if speed is RatingSpeed.RAPID:
+            return UserModel.rapid_rating
+        if speed is RatingSpeed.CLASSICAL:
+            return UserModel.classical_rating
+        return UserModel.rating
+
+    @staticmethod
+    def _ratings_by_speed(
+        user_id: UUID,
+        base_ratings: dict[RatingSpeed, int],
+        completed_games: list[GameModel],
+    ) -> dict[str, int]:
+        ratings = dict(base_ratings)
+        filled_speeds: set[RatingSpeed] = set()
+        for game in sorted(completed_games, key=lambda g: g.ended_at or g.started_at, reverse=True):
+            if not game.rated:
+                continue
+            speed = SqlAlchemyProfileRepository._rating_speed_for_game(game)
+            if speed in filled_speeds:
+                continue
+            if game.white_id == user_id:
+                ratings[speed] = game.white_rating_after or game.white_rating_before or base_ratings[speed]
+                filled_speeds.add(speed)
+            elif game.black_id == user_id:
+                ratings[speed] = game.black_rating_after or game.black_rating_before or base_ratings[speed]
+                filled_speeds.add(speed)
+        return SqlAlchemyProfileRepository._category_ratings_response(ratings)
+
+    @staticmethod
+    def _rating_speed_for_game(game: GameModel) -> RatingSpeed:
+        initial_time_ms = getattr(game, "initial_time_ms", None)
+        increment_ms = getattr(game, "increment_ms", None)
+        if initial_time_ms is not None and increment_ms is not None and initial_time_ms > 0 and increment_ms >= 0:
+            return rating_speed_for_clock(initial_time_ms, increment_ms)
+        return rating_speed_for_time_control_name(getattr(game, "time_control_name", ""))
+
+    @staticmethod
     def _unknown_player(user_id: UUID) -> ProfilePlayer:
         return ProfilePlayer(
             id=str(user_id),
             username=UNKNOWN_PLAYER_USERNAME,
             rating=UNKNOWN_PLAYER_RATING,
         )
+
+    @staticmethod
+    def _avatar_url(path: str | None) -> str | None:
+        if not path:
+            return None
+        if path.startswith(("http://", "https://", "/media/")):
+            return path
+        return f"/media/avatars/{path.lstrip('/')}"

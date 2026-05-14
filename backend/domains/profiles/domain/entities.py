@@ -42,6 +42,8 @@ class ProfileSummary:
     losses: int
     draws: int
     win_rate: float
+    ratings: dict[str, int | None] = field(default_factory=dict)
     recent_games: list[ProfileGamePreview] = field(default_factory=list)
     global_rank: int = 0  
     bio: str | None = None 
+    coins: int = 0

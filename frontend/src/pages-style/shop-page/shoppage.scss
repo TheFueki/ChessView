@@ -1,7 +1,7 @@
 .shop-root {
   --side-panel-width: 280px;
   --panel-bg: rgba(13, 13, 17, 0.8);
-  --accent-color: #00d1ff;
+  --accent-color: #8b5cf6;
   --border-color: rgba(255, 255, 255, 0.08);
   --glass-bg: rgba(255, 255, 255, 0.03);
 
@@ -9,11 +9,11 @@
   background: #08080a;
   color: #e2e8f0;
   display: flex;
-  overflow: hidden;
+  overflow-x: hidden;
 
   .dashboard-grid {
     display: grid;
-    grid-template-columns: var(--side-panel-width) 1fr var(--side-panel-width);
+    grid-template-columns: var(--side-panel-width) minmax(0, 1fr) var(--side-panel-width);
     width: 100%;
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   }
@@ -110,7 +110,7 @@
 
       &.active {
         border-left: 3px solid var(--accent-color);
-        background: linear-gradient(90deg, rgba(0, 209, 255, 0.1), transparent);
+        background: rgba(139, 92, 246, 0.12);
       }
     }
   }
@@ -118,6 +118,7 @@
   .main-viewport {
     height: 100vh;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 40px;
 
     .viewport-header {
@@ -164,7 +165,7 @@
         color: #fff;
       }
 
-      &.active { background: rgba(0, 209, 255, 0.1); }
+      &.active { background: rgba(139, 92, 246, 0.1); }
     }
   }
 
@@ -259,7 +260,7 @@
   }
 
   .promo-mini-card {
-    background: linear-gradient(135deg, rgba(0, 209, 255, 0.1), rgba(168, 85, 247, 0.1));
+    background: rgba(139, 92, 246, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.05);
     padding: 20px;
     text-align: center;
@@ -274,5 +275,62 @@
     font-weight: 700;
     margin-bottom: 20px;
     color: #fff;
+  }
+}
+
+@media (max-width: 1100px) {
+  .shop-root {
+    .dashboard-grid,
+    &.l-collapsed .dashboard-grid,
+    &.r-collapsed .dashboard-grid {
+      grid-template-columns: 80px minmax(0, 1fr);
+    }
+
+    .right-panel { display: none; }
+    .brand-text, .nav-item span, .user-meta { display: none; }
+    .nav-item { justify-content: center; }
+  }
+}
+
+@media (max-width: 720px) {
+  .shop-root {
+    .dashboard-grid,
+    &.l-collapsed .dashboard-grid,
+    &.r-collapsed .dashboard-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .side-panel.left-panel {
+      height: auto;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .collapse-btn, .profile-anchor { display: none; }
+
+    .side-panel .panel-inner {
+      height: auto;
+      padding: 12px;
+    }
+
+    .main-nav {
+      flex-direction: row;
+      overflow-x: auto;
+      .nav-item { flex: 0 0 auto; span { display: inline; } }
+    }
+
+    .main-viewport {
+      height: auto;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .viewport-header {
+      flex-direction: column;
+    }
+
+    .shop-categories {
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
   }
 }

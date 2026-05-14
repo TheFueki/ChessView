@@ -1,14 +1,68 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, Check, Play, Plus, X } from "lucide-react";
+import { CalendarClock, Check, CreditCard, Play, Plus, Search, X } from "lucide-react";
 import { http } from "@/shared/api";
-import type { ScheduledMatchResponse } from "@/shared/types";
+import type { PaymentIntentResponse, PlayerSearchResult, ScheduledMatchResponse } from "@/shared/types";
 import { Button, Card, Input, Spinner } from "@/shared/ui";
+import { AppShell } from "@/widgets/app-shell";
+
+function statusLabel(status: string) {
+  return status.replaceAll("_", " ");
+}
+
+function PlayerSearch({
+  selectedId,
+  onSelect,
+}: {
+  selectedId: string;
+  onSelect: (player: PlayerSearchResult) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const searchQuery = useQuery({
+    queryKey: ["scheduled-player-search", query],
+    queryFn: () => http.get<PlayerSearchResult[]>(`/profiles/search?query=${encodeURIComponent(query)}`),
+    enabled: query.trim().length >= 2,
+  });
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2">
+        <Search className="h-4 w-4 text-neutral-500" />
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search opponent"
+          className="h-7 flex-1 bg-transparent text-sm text-neutral-100 outline-none placeholder:text-neutral-600"
+        />
+      </div>
+      {query.trim().length >= 2 ? (
+        <div className="overflow-hidden rounded-md border border-neutral-800 bg-neutral-950">
+          {searchQuery.isFetching ? <div className="px-3 py-2 text-sm text-neutral-500">Searching...</div> : null}
+          {(searchQuery.data ?? []).map((player) => (
+            <button
+              key={player.id}
+              className={`block w-full px-3 py-2 text-left text-sm hover:bg-neutral-900 ${
+                selectedId === player.id ? "bg-violet-500/10 text-violet-200" : "text-neutral-300"
+              }`}
+              onClick={() => {
+                onSelect(player);
+                setQuery(player.username);
+              }}
+            >
+              {player.username}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export default function ScheduledMatchesPage() {
   const queryClient = useQueryClient();
   const [invitedUserId, setInvitedUserId] = useState("");
   const [startsAt, setStartsAt] = useState("");
+  const [matchFee, setMatchFee] = useState("0");
   const [actionError, setActionError] = useState<string | null>(null);
 
   const matchesQuery = useQuery({
@@ -21,11 +75,14 @@ export default function ScheduledMatchesPage() {
       http.post<ScheduledMatchResponse>("/scheduled-matches", {
         invited_user_id: invitedUserId || null,
         starts_at: new Date(startsAt).toISOString(),
-        metadata: {},
+        metadata: {
+          match_fee_cents: Math.max(0, Math.round(Number(matchFee || 0))),
+        },
       }),
     onSuccess: async () => {
       setInvitedUserId("");
       setStartsAt("");
+      setMatchFee("0");
       setActionError(null);
       await queryClient.invalidateQueries({ queryKey: ["scheduled-matches"] });
     },
@@ -42,66 +99,93 @@ export default function ScheduledMatchesPage() {
     onError: (error) => setActionError(error instanceof Error ? error.message : "Unable to update match"),
   });
 
+  const createPayment = useMutation({
+    mutationFn: async (id: string) => {
+      const payment = await http.post<PaymentIntentResponse>(`/scheduled-matches/${id}/payment`);
+      return http.post<PaymentIntentResponse>(`/payments/emulator/${payment.id}/simulate`, { scenario: "success" });
+    },
+    onSuccess: async () => {
+      setActionError(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["scheduled-matches"] }),
+        queryClient.invalidateQueries({ queryKey: ["profile"] }),
+        queryClient.invalidateQueries({ queryKey: ["marketplace-profile"] }),
+      ]);
+    },
+    onError: (error) => setActionError(error instanceof Error ? error.message : "Unable to create payment"),
+  });
+
   const matches = matchesQuery.data ?? [];
 
   return (
-    <main className="min-h-screen bg-neutral-950 px-6 py-8 text-neutral-100">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6">
-        <header>
-          <div className="flex items-center gap-3 text-emerald-400">
-            <CalendarClock size={22} />
-            <span className="text-sm uppercase tracking-wide">Match calendar</span>
+    <AppShell
+      eyebrow="Match calendar"
+      title="Scheduled matches"
+      description="Plan direct matches with another player, accept invitations, and launch games when both players are ready."
+      maxWidthClassName="max-w-6xl"
+    >
+      <Card className="p-5">
+        {(matchesQuery.error || actionError) && (
+          <div className="mb-4 rounded-md border border-red-500/20 bg-red-950/10 p-3 text-sm text-red-300">
+            {actionError ?? (matchesQuery.error instanceof Error ? matchesQuery.error.message : "Unable to load matches")}
           </div>
-          <h1 className="mt-2 text-3xl font-bold">Scheduled Matches</h1>
-        </header>
+        )}
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_120px_auto] lg:items-start">
+          <PlayerSearch
+            selectedId={invitedUserId}
+            onSelect={(player) => setInvitedUserId(player.id)}
+          />
+          <Input type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} />
+          <Input value={matchFee} onChange={(event) => setMatchFee(event.target.value)} placeholder="Fee coins" />
+          <Button disabled={!startsAt || createMatch.isPending} onClick={() => createMatch.mutate()}>
+            <Plus className="h-4 w-4" /> Invite
+          </Button>
+        </div>
+      </Card>
 
-        <Card>
-          {(matchesQuery.error || actionError) && (
-            <div className="mb-3 rounded-lg border border-red-500/20 bg-red-950/10 p-3 text-sm text-red-300">
-              {actionError ?? (matchesQuery.error instanceof Error ? matchesQuery.error.message : "Unable to load matches")}
-            </div>
-          )}
-          <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-            <Input value={invitedUserId} onChange={(event) => setInvitedUserId(event.target.value)} placeholder="Opponent user id" />
-            <Input type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} />
-            <Button disabled={!startsAt || createMatch.isPending} onClick={() => createMatch.mutate()}>
-              <Plus size={16} /> Invite
-            </Button>
-          </div>
-        </Card>
-
-        <Card>
-          {matchesQuery.isLoading ? (
-            <Spinner />
-          ) : matches.length === 0 ? (
-            <p className="text-sm text-neutral-400">No scheduled matches yet.</p>
-          ) : (
-            <div className="divide-y divide-neutral-800">
-              {matches.map((match) => (
-                <div key={match.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
-                  <div>
-                    <div className="font-semibold">{new Date(match.starts_at).toLocaleString()}</div>
-                    <div className="text-sm text-neutral-400">
-                      {match.status} {match.game_id ? `/ game ${match.game_id}` : ""}
-                    </div>
+      <Card className="p-5">
+        {matchesQuery.isLoading ? (
+          <Spinner />
+        ) : matches.length === 0 ? (
+          <p className="text-sm text-neutral-400">No scheduled matches yet.</p>
+        ) : (
+          <div className="divide-y divide-neutral-800">
+            {matches.map((match) => (
+              <div key={match.id} className="grid gap-3 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <CalendarClock className="h-4 w-4 text-violet-300" />
+                    <span className="font-semibold">{new Date(match.starts_at).toLocaleString()}</span>
+                    <span className="rounded-md border border-neutral-800 bg-neutral-950 px-2 py-1 text-xs uppercase tracking-[0.14em] text-neutral-500">
+                      {statusLabel(match.status)}
+                    </span>
                   </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => action.mutate({ id: match.id, verb: "accept" })}>
-                      <Check size={14} /> Accept
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => action.mutate({ id: match.id, verb: "decline" })}>
-                      <X size={14} /> Decline
-                    </Button>
-                    <Button size="sm" onClick={() => action.mutate({ id: match.id, verb: "start" })}>
-                      <Play size={14} /> Start
-                    </Button>
+                  <div className="mt-1 text-sm text-neutral-500">
+                    {match.game_id ? `Game ${match.game_id}` : "Direct planned match"}
+                    {typeof match.metadata?.match_fee_cents === "number" && match.metadata.match_fee_cents > 0
+                      ? ` / ${match.metadata.match_fee_cents.toLocaleString()} coins`
+                      : ""}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      </div>
-    </main>
+                <div className="flex flex-wrap gap-2 lg:justify-end">
+                  <Button size="sm" variant="secondary" onClick={() => action.mutate({ id: match.id, verb: "accept" })}>
+                    <Check className="h-4 w-4" /> Accept
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => action.mutate({ id: match.id, verb: "decline" })}>
+                    <X className="h-4 w-4" /> Decline
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={() => createPayment.mutate(match.id)}>
+                    <CreditCard className="h-4 w-4" /> Pay coins
+                  </Button>
+                  <Button size="sm" onClick={() => action.mutate({ id: match.id, verb: "start" })}>
+                    <Play className="h-4 w-4" /> Start
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </AppShell>
   );
 }

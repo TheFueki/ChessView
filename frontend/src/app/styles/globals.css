@@ -6,10 +6,12 @@
     --color-surface: #242424;
     --color-surface-elevated: #1a1a1a;
     --color-border: rgba(255, 255, 255, 0.1);
-    --color-border-hover: #646cff;
-    --color-accent: #646cff;
-    --color-accent-hover: #535bf2;
-    --color-accent-glow: rgba(100, 108, 255, 0.25);
+    --color-border-hover: #8b8b8b;
+    --color-board-light: #f0d9b5;
+    --color-board-dark: #b58863;
+    --color-accent: #8b8b8b;
+    --color-accent-hover: #a3a3a3;
+    --color-accent-glow: rgba(139, 139, 139, 0.22);
     --color-danger: #f43f5e;
     --color-warning: #fbbf24;
     --color-text-primary: rgba(255, 255, 255, 0.87);
@@ -50,11 +52,11 @@
 
 @keyframes glow-pulse {
   0%, 100% { 
-    box-shadow: 0 0 8px rgba(100, 108, 255, 0.2);
-    border-color: rgba(100, 108, 255, 0.3);
+    box-shadow: 0 0 8px rgba(139, 139, 139, 0.18);
+    border-color: rgba(139, 139, 139, 0.3);
   }
   50% { 
-    box-shadow: 0 0 20px rgba(100, 108, 255, 0.4);
+    box-shadow: 0 0 20px rgba(139, 139, 139, 0.28);
     border-color: var(--color-accent);
   }
 }
@@ -76,6 +78,14 @@
 
 @utility animate-fade-in-up {
   animation: fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 @utility btn-vite {

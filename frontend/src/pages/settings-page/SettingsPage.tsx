@@ -1,20 +1,164 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useUserStore } from "@/entities/user";
 import { http } from "@/shared/api";
-import type { FaceVerificationProfileResponse } from "@/shared/types";
+import type {
+  FaceVerificationProfileResponse,
+  FaceVerificationSessionResponse,
+  PasskeyCredentialCreationOptionsJson,
+  PasskeyCredentialRequestOptionsJson,
+  PasskeyEnrollmentChallengeResponse,
+  PasskeyVerificationChallengeResponse,
+} from "@/shared/types";
 import { 
   User, Shield, Camera, Save, 
-  Trash2, Bell, Swords, Play, 
-  Lock, Palette
+  Trash2, Bell, Lock, Palette
 } from "lucide-react";
 import { Button, Input, Card, Avatar } from "@/shared/ui";
+import { AppShell } from "@/widgets/app-shell";
 import "../../pages-style/settings-page/SettingsPage.scss";
+
+type PasskeyActionState = "idle" | "enrolling" | "verifying";
+type FaceTemplateActionState = "idle" | "enrolling";
+
+function base64UrlToBuffer(value: string): ArrayBuffer {
+  const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+  const binary = window.atob(padded);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return bytes.buffer;
+}
+
+function bufferToBase64Url(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+
+  return window
+    .btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/u, "");
+}
+
+function toCreationOptions(publicKey: PasskeyCredentialCreationOptionsJson): PublicKeyCredentialCreationOptions {
+  return {
+    ...publicKey,
+    challenge: base64UrlToBuffer(publicKey.challenge),
+    user: {
+      ...publicKey.user,
+      id: base64UrlToBuffer(publicKey.user.id),
+    },
+    excludeCredentials: publicKey.excludeCredentials?.map((credential) => ({
+      ...credential,
+      id: base64UrlToBuffer(credential.id),
+    })),
+  };
+}
+
+function toRequestOptions(publicKey: PasskeyCredentialRequestOptionsJson): PublicKeyCredentialRequestOptions {
+  return {
+    ...publicKey,
+    challenge: base64UrlToBuffer(publicKey.challenge),
+    allowCredentials: publicKey.allowCredentials?.map((credential) => ({
+      ...credential,
+      id: base64UrlToBuffer(credential.id),
+    })),
+  };
+}
+
+function serializeAttestationCredential(credential: PublicKeyCredential) {
+  if (!(credential.response instanceof AuthenticatorAttestationResponse)) {
+    throw new Error("Passkey enrollment did not return attestation data");
+  }
+
+  return {
+    id: credential.id,
+    raw_id: bufferToBase64Url(credential.rawId),
+    type: credential.type,
+    authenticator_attachment: credential.authenticatorAttachment ?? null,
+    response: {
+      attestation_object: bufferToBase64Url(credential.response.attestationObject),
+      client_data_json: bufferToBase64Url(credential.response.clientDataJSON),
+    },
+  };
+}
+
+function serializeAssertionCredential(credential: PublicKeyCredential) {
+  if (!(credential.response instanceof AuthenticatorAssertionResponse)) {
+    throw new Error("Passkey verification did not return assertion data");
+  }
+
+  return {
+    id: credential.id,
+    raw_id: bufferToBase64Url(credential.rawId),
+    type: credential.type,
+    authenticator_attachment: credential.authenticatorAttachment ?? null,
+    response: {
+      authenticator_data: bufferToBase64Url(credential.response.authenticatorData),
+      client_data_json: bufferToBase64Url(credential.response.clientDataJSON),
+      signature: bufferToBase64Url(credential.response.signature),
+      user_handle: credential.response.userHandle ? bufferToBase64Url(credential.response.userHandle) : null,
+    },
+  };
+}
+
+function getPasskeyErrorMessage(error: unknown): string {
+  if (error instanceof DOMException && error.name === "NotAllowedError") {
+    return "Face ID/passkey prompt was cancelled or timed out";
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Face ID/passkey request failed";
+}
+
+function captureFaceSample(video: HTMLVideoElement): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = video.videoWidth || 320;
+  canvas.height = video.videoHeight || 240;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Unable to read camera frame");
+  }
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", 0.72);
+}
+
+async function captureFaceSampleFromCamera(): Promise<string> {
+  const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+  const video = document.createElement("video");
+  video.muted = true;
+  video.playsInline = true;
+  video.srcObject = stream;
+
+  try {
+    await video.play();
+    await new Promise<void>((resolve) => {
+      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        resolve();
+        return;
+      }
+      video.onloadeddata = () => resolve();
+    });
+    return captureFaceSample(video);
+  } finally {
+    stream.getTracks().forEach((track) => track.stop());
+  }
+}
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("account");
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, setUser } = useUserStore();
   const [isSaving, setIsSaving] = useState(false);
@@ -24,6 +168,19 @@ export default function SettingsPage() {
     email: "",
     bio: "",
   });
+  const [verificationSession, setVerificationSession] = useState<FaceVerificationSessionResponse | null>(null);
+  const [passkeyAction, setPasskeyAction] = useState<PasskeyActionState>("idle");
+  const [faceTemplateAction, setFaceTemplateAction] = useState<FaceTemplateActionState>("idle");
+
+  const passkeysSupported =
+    typeof window !== "undefined" &&
+    "PublicKeyCredential" in window &&
+    Boolean(navigator.credentials?.create) &&
+    Boolean(navigator.credentials?.get);
+
+  const cameraSupported =
+    typeof navigator !== "undefined" &&
+    Boolean(navigator.mediaDevices?.getUserMedia);
 
   useEffect(() => {
     if (user) {
@@ -53,6 +210,136 @@ export default function SettingsPage() {
     },
     onError: () => setMessage({ type: 'error', text: "Unable to enroll face verification" }),
   });
+
+  const startFaceVerification = useMutation({
+    mutationFn: () => http.post<FaceVerificationSessionResponse>("/identity/face-verification/sessions", {}),
+    onSuccess: (session) => {
+      setVerificationSession(session);
+      setMessage({ type: 'success', text: "Face verification session started" });
+    },
+    onError: () => setMessage({ type: 'error', text: "Unable to start face verification" }),
+  });
+
+  const submitFaceVerification = useMutation({
+    mutationFn: (scenario: "pass" | "fail" | "uncertain") =>
+      http.post<FaceVerificationSessionResponse>(`/identity/face-verification/sessions/${verificationSession?.id}/submit`, {
+        scenario: scenario === "pass" ? null : scenario,
+      }),
+    onSuccess: (session) => {
+      setVerificationSession(session);
+      setMessage({ type: session.status === "verified" ? 'success' : 'error', text: `Face verification ${session.status}` });
+    },
+    onError: () => setMessage({ type: 'error', text: "Unable to submit face verification" }),
+  });
+
+  const startPasskeyEnrollment = async () => {
+    if (!passkeysSupported) {
+      setMessage({ type: "error", text: "This browser does not support Face ID/passkeys" });
+      return;
+    }
+
+    setPasskeyAction("enrolling");
+    setMessage(null);
+
+    try {
+      const challenge = await http.post<PasskeyEnrollmentChallengeResponse>(
+        "/identity/face-verification/passkeys/enrollment/challenge",
+        {
+          authenticator_attachment: "platform",
+          device_label: "Primary browser",
+        },
+      );
+      const credential = await navigator.credentials.create({
+        publicKey: toCreationOptions(challenge.public_key),
+      });
+
+      if (!(credential instanceof PublicKeyCredential)) {
+        throw new Error("Face ID/passkey enrollment was not completed");
+      }
+
+      await http.post<FaceVerificationProfileResponse>(
+        "/identity/face-verification/passkeys/enrollment/complete",
+        {
+          challenge_id: challenge.challenge_id,
+          credential: serializeAttestationCredential(credential),
+        },
+      );
+
+      setMessage({ type: "success", text: "Face ID/passkey enrolled for verification" });
+      await queryClient.invalidateQueries({ queryKey: ["face-verification-profiles"] });
+    } catch (error) {
+      setMessage({ type: "error", text: getPasskeyErrorMessage(error) });
+    } finally {
+      setPasskeyAction("idle");
+    }
+  };
+
+  const verifyPasskeySession = async () => {
+    if (!passkeysSupported) {
+      setMessage({ type: "error", text: "This browser does not support Face ID/passkeys" });
+      return;
+    }
+
+    setPasskeyAction("verifying");
+    setMessage(null);
+
+    try {
+      const challenge = await http.post<PasskeyVerificationChallengeResponse>(
+        "/identity/face-verification/passkeys/verification/challenge",
+        {},
+      );
+      const credential = await navigator.credentials.get({
+        publicKey: toRequestOptions(challenge.public_key),
+      });
+
+      if (!(credential instanceof PublicKeyCredential)) {
+        throw new Error("Face ID/passkey verification was not completed");
+      }
+
+      const session = await http.post<FaceVerificationSessionResponse>(
+        "/identity/face-verification/passkeys/verification/complete",
+        {
+          challenge_id: challenge.challenge_id,
+          credential: serializeAssertionCredential(credential),
+        },
+      );
+
+      setVerificationSession(session);
+      setMessage({
+        type: session.status === "verified" ? "success" : "error",
+        text: `Face ID/passkey verification ${session.status}`,
+      });
+    } catch (error) {
+      setMessage({ type: "error", text: getPasskeyErrorMessage(error) });
+    } finally {
+      setPasskeyAction("idle");
+    }
+  };
+
+  const enrollFaceFromCamera = async () => {
+    if (!cameraSupported) {
+      setMessage({ type: "error", text: "This browser does not support camera capture" });
+      return;
+    }
+
+    setFaceTemplateAction("enrolling");
+    setMessage(null);
+
+    try {
+      const faceSample = await captureFaceSampleFromCamera();
+      await http.post<FaceVerificationProfileResponse>("/identity/face-verification/faces/enroll", {
+        device_label: "Primary camera",
+        consent: true,
+        face_sample: faceSample,
+      });
+      setMessage({ type: "success", text: "Face template enrolled from camera. Raw frames are not stored." });
+      await queryClient.invalidateQueries({ queryKey: ["face-verification-profiles"] });
+    } catch (error) {
+      setMessage({ type: "error", text: getPasskeyErrorMessage(error) });
+    } finally {
+      setFaceTemplateAction("idle");
+    }
+  };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -212,12 +499,16 @@ export default function SettingsPage() {
               </div>
             </div>
             <div className="avatar-info">
-              <h3>Face Verification</h3>
-              <p>Local consent and stub verification profile for game checks.</p>
+              <h3>Face ID / Live Camera Verification</h3>
+              <p>Enroll a camera face template so live video checks can confirm the player at the board is you.</p>
             </div>
           </div>
 
           <div className="stub-list">
+            <div className="stub-row">
+              <span>{cameraSupported ? "Camera enrollment available" : "Camera enrollment unavailable"}</span>
+              <span className="text-xs text-neutral-400 uppercase">{cameraSupported ? "ready" : "unsupported"}</span>
+            </div>
             {faceProfilesQuery.isLoading ? (
               <div className="stub-row">
                 <span>Loading verification status...</span>
@@ -236,19 +527,72 @@ export default function SettingsPage() {
               ))
             ) : (
               <div className="stub-row">
-                <span>No face verification profile enrolled</span>
-                <span className="text-xs text-neutral-400 uppercase">local stub</span>
+                <span>No Face ID/passkey profile enrolled</span>
+                <span className="text-xs text-neutral-400 uppercase">not set</span>
               </div>
             )}
           </div>
 
-          <div className="form-actions">
+          <div className="form-actions flex-wrap gap-2">
+            <Button
+              onClick={enrollFaceFromCamera}
+              disabled={!cameraSupported || faceTemplateAction !== "idle"}
+            >
+              <Shield size={18} /> {faceTemplateAction === "enrolling" ? "Enrolling..." : "Enroll Face from Camera"}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={startPasskeyEnrollment}
+              disabled={!passkeysSupported || passkeyAction !== "idle"}
+            >
+              <Shield size={18} /> {passkeyAction === "enrolling" ? "Enrolling..." : "Enroll Device Passkey"}
+            </Button>
             <Button
               variant="secondary"
               onClick={() => enrollFaceVerification.mutate()}
-              disabled={enrollFaceVerification.isPending}
+              disabled={enrollFaceVerification.isPending || passkeyAction !== "idle"}
             >
-              <Camera size={18} /> Enroll Local Stub
+              <Camera size={18} /> Dev Stub Enrollment
+            </Button>
+          </div>
+        </Card>
+
+        <Card className="settings-card mt-6">
+          <div className="avatar-upload-group" style={{ marginBottom: 24 }}>
+            <div className="avatar-preview-wrapper">
+              <div className="settings-avatar-preview flex items-center justify-center bg-black">
+                <Shield size={30} className="text-violet-300" />
+              </div>
+            </div>
+            <div className="avatar-info">
+              <h3>Passkey Verification Check</h3>
+              <p>Verify the current session with your device passkey. Local simulation remains available for development.</p>
+            </div>
+          </div>
+          <div className="stub-list">
+            <div className="stub-row">
+              <span>{verificationSession ? `Session ${verificationSession.status}` : "No active verification session"}</span>
+              <span className="text-xs text-neutral-400 uppercase">{verificationSession?.provider ?? "local"}</span>
+            </div>
+          </div>
+          <div className="form-actions flex-wrap gap-2">
+            <Button
+              onClick={verifyPasskeySession}
+              disabled={!passkeysSupported || passkeyAction !== "idle"}
+            >
+              <Shield size={18} /> {passkeyAction === "verifying" ? "Verifying..." : "Verify with Face ID"}
+            </Button>
+            <Button variant="secondary" onClick={() => startFaceVerification.mutate()} disabled={startFaceVerification.isPending}>
+              Dev Start Check
+            </Button>
+            <Button onClick={() => submitFaceVerification.mutate("pass")} disabled={!verificationSession || submitFaceVerification.isPending}>
+              Dev Verify
+            </Button>
+            <Button variant="ghost" onClick={() => submitFaceVerification.mutate("uncertain")} disabled={!verificationSession || submitFaceVerification.isPending}>
+              Dev Uncertain
+            </Button>
+            <Button variant="danger" onClick={() => submitFaceVerification.mutate("fail")} disabled={!verificationSession || submitFaceVerification.isPending}>
+              Dev Fail
             </Button>
           </div>
         </Card>
@@ -350,25 +694,13 @@ export default function SettingsPage() {
 );
 
   return (
-    <div className="settings-root">
-      <header className="settings-header">
-        <div className="header-container">
-          <div className="brand" onClick={() => navigate("/")}>
-            <Swords className="text-indigo-500" />
-            <span className="brand-text">CHESSVIEW</span>
-          </div>
-          <div className="nav-actions">
-            <Button variant="ghost" onClick={() => navigate("/")}>Dashboard</Button>
-            <Button onClick={() => navigate("/lobby")} className="play-btn">
-              <Play size={16} className="mr-2 fill-current" /> Play
-            </Button>
-            <Button variant="secondary" onClick={() => navigate("/profile")}>
-              <User size={18} />
-            </Button>
-          </div>
-        </div>
-      </header>
-
+    <AppShell
+      eyebrow="Account"
+      title="Settings"
+      description="Manage your profile, account safety, notifications, and board preferences."
+      maxWidthClassName="max-w-6xl"
+    >
+    <div className="settings-root settings-embedded">
       <div className="settings-container">
         <aside className="settings-sidebar">
           <h2 className="sidebar-title">Settings</h2>
@@ -408,5 +740,6 @@ export default function SettingsPage() {
         </main>
       </div>
     </div>
+    </AppShell>
   );
 }
