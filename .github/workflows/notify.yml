@@ -1,5 +1,12 @@
 name: TG Notification
-on: [push]
+on:
+  push:
+  pull_request:
+  release:
+    types: [published]
+  issues:
+    types: [opened]
+
 jobs:
   notify:
     runs-on: ubuntu-latest
@@ -9,10 +16,16 @@ jobs:
         with:
           to: ${{ secrets.TELEGRAM_TO_CHESSVIEW }}
           token: ${{ secrets.TELEGRAM_TOKEN }}
+          format: markdown
           message: |
-            🚀 **Push to ${{ github.repository }}**
+            🚀 **Event in ${{ github.repository }}**
             
-            Commit: ${{ github.event.head_commit.message }}
-            Author: ${{ github.actor }}
+            Action by: ${{ github.actor }}
+            Event Type: ${{ github.event_name }}
             
-            Link: ${{ github.event.head_commit.url }}
+            ${{ github.event_name == 'push' && format('Commit: {0}', github.event.head_commit.message) || '' }}
+            ${{ github.event_name == 'pull_request' && format('PR: {0}', github.event.pull_request.title) || '' }}
+            ${{ github.event_name == 'release' && format('New Release: {0}', github.event.release.tag_name) || '' }}
+            ${{ github.event_name == 'issues' && format('Issue: {0}', github.event.issue.title) || '' }}
+            
+            Link: ${{ github.event.release.html_url || github.event.pull_request.html_url || github.event.issue.html_url || github.event.head_commit.url }}
