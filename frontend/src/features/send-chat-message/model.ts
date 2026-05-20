@@ -40,7 +40,7 @@ export function useGameChat() {
     let isDisposed = false;
 
     http
-      .get<ChatMessagePayload[]>(`/games/${gameId}/messages`)
+      .get<ChatMessagePayload[]>(`/chat/${gameId}/messages`)
       .then((messages) => {
         if (isDisposed) {
           return;

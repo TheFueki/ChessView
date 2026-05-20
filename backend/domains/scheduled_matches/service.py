@@ -118,6 +118,8 @@ class ScheduledMatchService:
         match = await self._require_match(match_id)
         if user_id not in {match.creator_user_id, match.invited_user_id}:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed")
+        if match.status in {"live", "completed", "cancelled", "declined"}:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Match cannot be rescheduled")
         match.starts_at = starts_at
         match.expires_at = expires_at
         match.status = "rescheduled"

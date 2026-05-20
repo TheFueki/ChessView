@@ -52,8 +52,8 @@ services:
     restart: unless-stopped
     environment:
       VITE_SERVER_URL: ${VITE_SERVER_URL}
-      VITE_API_PROXY_TARGET: ${VITE_API_PROXY_TARGET}
-      VITE_WS_PROXY_TARGET: ${VITE_WS_PROXY_TARGET}
+      VITE_API_PROXY_TARGET: http://backend:8000
+      VITE_WS_PROXY_TARGET: ws://backend:8000
     depends_on:
       - backend
     ports:
@@ -67,8 +67,8 @@ services:
     restart: unless-stopped
     environment:
       VITE_SERVER_URL: ${VITE_SERVER_URL}
-      VITE_API_PROXY_TARGET: ${VITE_API_PROXY_TARGET}
-      VITE_WS_PROXY_TARGET: ${VITE_WS_PROXY_TARGET}
+      VITE_API_PROXY_TARGET: http://backend:8000
+      VITE_WS_PROXY_TARGET: ws://backend:8000
     depends_on:
       - backend
     ports:

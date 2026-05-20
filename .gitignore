@@ -51,3 +51,6 @@ pnpm-debug.log*
 # Project-local generated files
 backend/.git-backup/
 .aider*
+.codegraph/
+defense_artifacts/
+docs/diploma/

@@ -20,6 +20,7 @@ import { NavLink, useLocation, useNavigate } from "react-router";
 import { useMatchmakingStore } from "@/entities/matchmaking";
 import { useUserStore } from "@/entities/user";
 import { wsClient } from "@/shared/api";
+import { beginLogoutRedirect } from "@/shared/lib/authRedirect";
 import { Avatar, Button } from "@/shared/ui";
 import logoImage from "../../assets/logo.jpeg";
 
@@ -78,11 +79,12 @@ export function AppShell({
   const resetMatchmaking = useMatchmakingStore((state) => state.reset);
 
   const handleLogout = () => {
+    setIsNavOpen(false);
+    beginLogoutRedirect();
+    navigate("/", { replace: true });
     wsClient.disconnect();
     resetMatchmaking();
     logout();
-    setIsNavOpen(false);
-    navigate("/", { replace: true });
   };
 
   const isActivePath = (to: string) => location.pathname === to || (to !== "/" && location.pathname.startsWith(to));

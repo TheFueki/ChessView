@@ -8,10 +8,10 @@
  * May import: pages, shared
  */
 
-import { lazy, Suspense, type ReactNode } from "react";
+import { lazy, Suspense, type ReactNode, useEffect } from "react";
 import { createBrowserRouter, Navigate, RouterProvider, useLocation } from "react-router";
 import { useUserStore } from "@/entities/user";
-import { buildAuthRedirectPath, resolvePostAuthPath } from "./authRedirect";
+import { buildAuthRedirectPath, clearLogoutRedirect, hasLogoutRedirect, resolvePostAuthPath } from "./authRedirect";
 import HomeRoute from "./HomeRoute";
 import RouteErrorPage from "./RouteErrorPage";
 
@@ -62,7 +62,19 @@ function RequireAuth({ children }: { children: ReactNode }) {
     );
   }
 
-  return isAuthenticated ? children : <Navigate to={buildAuthRedirectPath(location)} replace />;
+  if (isAuthenticated) {
+    return children;
+  }
+
+  return hasLogoutRedirect() ? <LogoutRedirectHome /> : <Navigate to={buildAuthRedirectPath(location)} replace />;
+}
+
+function LogoutRedirectHome() {
+  useEffect(() => {
+    clearLogoutRedirect();
+  }, []);
+
+  return <Navigate to="/" replace />;
 }
 
 function RedirectIfAuthenticated({ children }: { children: ReactNode }) {

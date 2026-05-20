@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarClock, Check, CreditCard, Play, Plus, Search, X } from "lucide-react";
+import { useUserStore } from "@/entities/user";
 import { http } from "@/shared/api";
 import type { PaymentIntentResponse, PlayerSearchResult, ScheduledMatchResponse } from "@/shared/types";
 import { Button, Card, Input, Spinner } from "@/shared/ui";
@@ -8,6 +9,34 @@ import { AppShell } from "@/widgets/app-shell";
 
 function statusLabel(status: string) {
   return status.replaceAll("_", " ");
+}
+
+const startableStatuses = new Set(["scheduled", "accepted", "rescheduled"]);
+const closedStatuses = new Set(["cancelled", "declined", "completed", "live"]);
+
+function canAcceptMatch(match: ScheduledMatchResponse, userId: string | undefined) {
+  return match.status === "pending_acceptance" && match.invited_user_id === userId && match.creator_user_id !== userId;
+}
+
+function canDeclineMatch(match: ScheduledMatchResponse, userId: string | undefined) {
+  return match.status === "pending_acceptance" && match.invited_user_id === userId;
+}
+
+function canCancelMatch(match: ScheduledMatchResponse, userId: string | undefined) {
+  return match.creator_user_id === userId && !closedStatuses.has(match.status);
+}
+
+function canPayForMatch(match: ScheduledMatchResponse) {
+  return (
+    typeof match.metadata?.match_fee_cents === "number" &&
+    match.metadata.match_fee_cents > 0 &&
+    !closedStatuses.has(match.status)
+  );
+}
+
+function canStartMatch(match: ScheduledMatchResponse, userId: string | undefined) {
+  const isParticipant = [match.creator_user_id, match.invited_user_id, match.white_player_id, match.black_player_id].includes(userId ?? "");
+  return isParticipant && startableStatuses.has(match.status);
 }
 
 function PlayerSearch({
@@ -60,6 +89,7 @@ function PlayerSearch({
 
 export default function ScheduledMatchesPage() {
   const queryClient = useQueryClient();
+  const user = useUserStore((state) => state.user);
   const [invitedUserId, setInvitedUserId] = useState("");
   const [startsAt, setStartsAt] = useState("");
   const [matchFee, setMatchFee] = useState("0");
@@ -150,39 +180,63 @@ export default function ScheduledMatchesPage() {
           <p className="text-sm text-neutral-400">No scheduled matches yet.</p>
         ) : (
           <div className="divide-y divide-neutral-800">
-            {matches.map((match) => (
-              <div key={match.id} className="grid gap-3 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <CalendarClock className="h-4 w-4 text-violet-300" />
-                    <span className="font-semibold">{new Date(match.starts_at).toLocaleString()}</span>
-                    <span className="rounded-md border border-neutral-800 bg-neutral-950 px-2 py-1 text-xs uppercase tracking-[0.14em] text-neutral-500">
-                      {statusLabel(match.status)}
-                    </span>
+            {matches.map((match) => {
+              const userId = user?.id;
+              const canAccept = canAcceptMatch(match, userId);
+              const canDecline = canDeclineMatch(match, userId);
+              const canCancel = canCancelMatch(match, userId);
+              const canPay = canPayForMatch(match);
+              const canStart = canStartMatch(match, userId);
+              const hasActions = canAccept || canDecline || canCancel || canPay || canStart;
+
+              return (
+                <div key={match.id} className="grid gap-3 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <CalendarClock className="h-4 w-4 text-violet-300" />
+                      <span className="font-semibold">{new Date(match.starts_at).toLocaleString()}</span>
+                      <span className="rounded-md border border-neutral-800 bg-neutral-950 px-2 py-1 text-xs uppercase tracking-[0.14em] text-neutral-500">
+                        {statusLabel(match.status)}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-sm text-neutral-500">
+                      {match.game_id ? `Game ${match.game_id}` : "Direct planned match"}
+                      {typeof match.metadata?.match_fee_cents === "number" && match.metadata.match_fee_cents > 0
+                        ? ` / ${match.metadata.match_fee_cents.toLocaleString()} coins`
+                        : ""}
+                    </div>
                   </div>
-                  <div className="mt-1 text-sm text-neutral-500">
-                    {match.game_id ? `Game ${match.game_id}` : "Direct planned match"}
-                    {typeof match.metadata?.match_fee_cents === "number" && match.metadata.match_fee_cents > 0
-                      ? ` / ${match.metadata.match_fee_cents.toLocaleString()} coins`
-                      : ""}
+                  <div className="flex flex-wrap gap-2 lg:justify-end">
+                    {canAccept ? (
+                      <Button size="sm" variant="secondary" onClick={() => action.mutate({ id: match.id, verb: "accept" })}>
+                        <Check className="h-4 w-4" /> Accept
+                      </Button>
+                    ) : null}
+                    {canDecline ? (
+                      <Button size="sm" variant="ghost" onClick={() => action.mutate({ id: match.id, verb: "decline" })}>
+                        <X className="h-4 w-4" /> Decline
+                      </Button>
+                    ) : null}
+                    {canCancel ? (
+                      <Button size="sm" variant="ghost" onClick={() => action.mutate({ id: match.id, verb: "cancel" })}>
+                        <X className="h-4 w-4" /> Cancel
+                      </Button>
+                    ) : null}
+                    {canPay ? (
+                      <Button size="sm" variant="secondary" onClick={() => createPayment.mutate(match.id)}>
+                        <CreditCard className="h-4 w-4" /> Pay coins
+                      </Button>
+                    ) : null}
+                    {canStart ? (
+                      <Button size="sm" onClick={() => action.mutate({ id: match.id, verb: "start" })}>
+                        <Play className="h-4 w-4" /> Start
+                      </Button>
+                    ) : null}
+                    {!hasActions ? <span className="text-sm text-neutral-500">No actions available</span> : null}
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2 lg:justify-end">
-                  <Button size="sm" variant="secondary" onClick={() => action.mutate({ id: match.id, verb: "accept" })}>
-                    <Check className="h-4 w-4" /> Accept
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => action.mutate({ id: match.id, verb: "decline" })}>
-                    <X className="h-4 w-4" /> Decline
-                  </Button>
-                  <Button size="sm" variant="secondary" onClick={() => createPayment.mutate(match.id)}>
-                    <CreditCard className="h-4 w-4" /> Pay coins
-                  </Button>
-                  <Button size="sm" onClick={() => action.mutate({ id: match.id, verb: "start" })}>
-                    <Play className="h-4 w-4" /> Start
-                  </Button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Card>

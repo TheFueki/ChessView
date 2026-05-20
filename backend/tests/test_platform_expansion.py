@@ -411,6 +411,47 @@ async def test_scheduled_tournament_match_start_creates_game_and_links_pairing()
     assert pairing.game_id == started.game_id
 
 
+@pytest.mark.asyncio
+async def test_live_scheduled_match_cannot_be_rescheduled():
+    creator_id = uuid4()
+    invited_id = uuid4()
+    match_id = uuid4()
+    match = ScheduledMatchModel(
+        id=match_id,
+        creator_user_id=creator_id,
+        invited_user_id=invited_id,
+        white_player_id=creator_id,
+        black_player_id=invited_id,
+        starts_at=datetime.now(timezone.utc),
+        status="live",
+        game_id=uuid4(),
+        metadata_json={},
+    )
+
+    class FakeSession:
+        async def get(self, model, key):
+            if model is ScheduledMatchModel and key == match_id:
+                return match
+            return None
+
+        async def commit(self):
+            raise AssertionError("live match reschedule should not commit")
+
+        async def refresh(self, _item):
+            raise AssertionError("live match reschedule should not refresh")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await ScheduledMatchService(FakeSession()).reschedule(
+            match_id,
+            creator_id,
+            datetime.now(timezone.utc) + timedelta(days=1),
+            None,
+        )
+
+    assert exc_info.value.status_code == 400
+    assert match.status == "live"
+
+
 def test_custom_tournament_time_control_falls_back_to_stored_clock_values():
     tournament = SimpleNamespace(
         time_control_name="25+10",
