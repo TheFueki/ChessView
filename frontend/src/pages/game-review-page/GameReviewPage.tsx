@@ -40,8 +40,8 @@ const CLASS_LABELS: Record<MoveClass, string> = {
 };
 
 const TONE_STYLES = {
-  brilliant: "border-cyan-400/40 bg-cyan-400/10 text-cyan-200",
-  best: "border-emerald-400/40 bg-emerald-400/10 text-emerald-200",
+  brilliant: "border-violet-400/40 bg-violet-400/10 text-violet-200",
+  best: "border-violet-500/40 bg-violet-500/10 text-violet-200",
   good: "border-lime-400/35 bg-lime-400/10 text-lime-200",
   neutral: "border-neutral-700 bg-neutral-900/80 text-neutral-300",
   warning: "border-amber-400/40 bg-amber-400/10 text-amber-200",

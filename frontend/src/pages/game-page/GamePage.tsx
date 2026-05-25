@@ -208,7 +208,7 @@ function PlayerBar({
 }
 
 function verificationTone(status: string | null) {
-  if (status === "verified") return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
+  if (status === "verified") return "border-violet-500/30 bg-violet-500/10 text-violet-200";
   if (status === "failed") return "border-red-500/30 bg-red-500/10 text-red-200";
   if (status === "uncertain") return "border-amber-500/30 bg-amber-500/10 text-amber-200";
   return "border-neutral-800 bg-neutral-950/70 text-neutral-300";
