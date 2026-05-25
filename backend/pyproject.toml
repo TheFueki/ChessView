@@ -26,8 +26,29 @@ dependencies = [
 dev = [
     "pytest>=8.4.0",
     "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.1.0",
 ]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.coverage.run]
+omit = [
+    "app/main.py",
+    "app/ws_entry.py",
+    "*/presentation/router.py",
+    "*/presentation/ws_handler.py",
+    "*/infrastructure/repository.py",
+    "infrastructure/database.py",
+    "infrastructure/database_migrations.py",
+    "infrastructure/database_registry.py",
+    "domains/admin/infrastructure/seed.py",
+    "domains/game/presentation/identity_verification.py",
+    "domains/game/presentation/runtime.py",
+    "domains/scheduled_matches/tournament.py",
+]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true

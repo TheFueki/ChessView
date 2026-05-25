@@ -9,6 +9,7 @@ node_modules
 .yarn-cache
 dist
 dist-ssr
+coverage
 *.local
 .vscode/*
 !.vscode/extensions.json

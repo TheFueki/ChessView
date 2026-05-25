@@ -2,6 +2,8 @@ __pycache__/
 *.py[oc]
 build/
 dist/
+coverage/
+coverage.json
 wheels/
 *.egg-info
 .venv

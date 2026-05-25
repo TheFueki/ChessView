@@ -77,5 +77,8 @@ backend-smoke:
 backend-tests:
     Set-Location backend; uv run pytest tests
 
+backend-coverage:
+    Set-Location backend; uv run pytest tests --cov=app --cov=domains --cov=infrastructure --cov=shared --cov-report=term-missing --cov-report=json:coverage.json
+
 check:
     Set-Location backend; uv run python -m compileall app domains infrastructure shared tests; uv run python -c "import app.main"; uv run pytest tests; Set-Location ..\frontend; yarn lint; yarn build
