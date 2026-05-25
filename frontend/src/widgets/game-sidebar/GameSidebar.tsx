@@ -3,9 +3,13 @@ import { useGameStore } from "@/entities/game";
 import { ResignButton } from "@/features/resign-game";
 import { Card } from "@/shared/ui";
 
-function formatStatus(status: string, turn: "white" | "black", result: string | null) {
+function formatStatus(status: string, turn: "white" | "black", result: string | null, reason: string | null) {
   if (status === "active") {
     return `Turn: ${turn}`;
+  }
+
+  if (reason === "identity_verification_failed") {
+    return result ? `Identity stopped - ${result}` : "Identity stopped";
   }
 
   if (result) {
@@ -52,7 +56,7 @@ export function GameSidebar() {
           {isGameOver ? "Game Finished" : "Game Status"}
         </div>
         <div className="text-base font-semibold capitalize text-neutral-100">
-          {formatStatus(status, turn, result)}
+          {formatStatus(status, turn, result, terminationReason ?? gameOverReason)}
         </div>
         <div className="text-sm text-neutral-500">Time control: {timeControlName}</div>
         {isGameOver && gameOverReason ? (

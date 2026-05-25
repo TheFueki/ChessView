@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarClock, Check, CreditCard, Play, Plus, Search, X } from "lucide-react";
+import { Link, useNavigate } from "react-router";
 import { useUserStore } from "@/entities/user";
 import { http } from "@/shared/api";
 import type { PaymentIntentResponse, PlayerSearchResult, ScheduledMatchResponse } from "@/shared/types";
@@ -13,6 +14,11 @@ function statusLabel(status: string) {
 
 const startableStatuses = new Set(["scheduled", "accepted", "rescheduled"]);
 const closedStatuses = new Set(["cancelled", "declined", "completed", "live"]);
+
+function toDatetimeLocalValue(date: Date) {
+  const offsetMs = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
 
 function canAcceptMatch(match: ScheduledMatchResponse, userId: string | undefined) {
   return match.status === "pending_acceptance" && match.invited_user_id === userId && match.creator_user_id !== userId;
@@ -89,9 +95,10 @@ function PlayerSearch({
 
 export default function ScheduledMatchesPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const user = useUserStore((state) => state.user);
   const [invitedUserId, setInvitedUserId] = useState("");
-  const [startsAt, setStartsAt] = useState("");
+  const [startsAt, setStartsAt] = useState(() => toDatetimeLocalValue(new Date()));
   const [matchFee, setMatchFee] = useState("0");
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -108,10 +115,10 @@ export default function ScheduledMatchesPage() {
         metadata: {
           match_fee_cents: Math.max(0, Math.round(Number(matchFee || 0))),
         },
-      }),
+    }),
     onSuccess: async () => {
       setInvitedUserId("");
-      setStartsAt("");
+      setStartsAt(toDatetimeLocalValue(new Date()));
       setMatchFee("0");
       setActionError(null);
       await queryClient.invalidateQueries({ queryKey: ["scheduled-matches"] });
@@ -121,10 +128,13 @@ export default function ScheduledMatchesPage() {
 
   const action = useMutation({
     mutationFn: ({ id, verb }: { id: string; verb: "accept" | "decline" | "cancel" | "start" }) =>
-      http.post<ScheduledMatchResponse>(`/scheduled-matches/${id}/${verb}`),
-    onSuccess: async () => {
+      http.post<ScheduledMatchResponse>(`/scheduled-matches/${id}/${verb}`).then((match) => ({ match, verb })),
+    onSuccess: async ({ match, verb }) => {
       setActionError(null);
       await queryClient.invalidateQueries({ queryKey: ["scheduled-matches"] });
+      if (verb === "start" && match.game_id) {
+        navigate(`/game/${match.game_id}`);
+      }
     },
     onError: (error) => setActionError(error instanceof Error ? error.message : "Unable to update match"),
   });
@@ -167,7 +177,7 @@ export default function ScheduledMatchesPage() {
           />
           <Input type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} />
           <Input value={matchFee} onChange={(event) => setMatchFee(event.target.value)} placeholder="Fee coins" />
-          <Button disabled={!startsAt || createMatch.isPending} onClick={() => createMatch.mutate()}>
+          <Button disabled={!invitedUserId || !startsAt || createMatch.isPending} onClick={() => createMatch.mutate()}>
             <Plus className="h-4 w-4" /> Invite
           </Button>
         </div>
@@ -200,7 +210,13 @@ export default function ScheduledMatchesPage() {
                       </span>
                     </div>
                     <div className="mt-1 text-sm text-neutral-500">
-                      {match.game_id ? `Game ${match.game_id}` : "Direct planned match"}
+                      {match.game_id ? (
+                        <Link to={`/game/${match.game_id}`} className="text-violet-300 hover:text-violet-200">
+                          Game {match.game_id}
+                        </Link>
+                      ) : (
+                        "Direct planned match"
+                      )}
                       {typeof match.metadata?.match_fee_cents === "number" && match.metadata.match_fee_cents > 0
                         ? ` / ${match.metadata.match_fee_cents.toLocaleString()} coins`
                         : ""}

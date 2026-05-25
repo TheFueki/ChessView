@@ -37,6 +37,10 @@ class ConnectionManager:
             except Exception:
                 pass
 
+    def is_current_connection(self, user_id: str, websocket: WebSocket) -> bool:
+        """Return whether websocket is still the active connection for user_id."""
+        return self.active_connections.get(user_id) is websocket
+
     async def disconnect(self, user_id: str, websocket: WebSocket | None = None) -> None:
         """Remove a user's connection and clean up room memberships."""
         current = self.active_connections.get(user_id)

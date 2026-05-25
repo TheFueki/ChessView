@@ -345,7 +345,7 @@ function PuzzleWorkspace({
             </div>
 
             <div className="grid min-w-0 gap-8 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)] lg:p-8">
-              <div className="relative aspect-square w-full max-w-[min(100%,calc(100vh-12rem),600px)] overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/40 shadow-2xl">
+              <div className="relative mx-auto aspect-square w-full max-w-[600px] overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/40 shadow-2xl">
                 <Chessboard
                   id="fueki-puzzle-board"
                   position={currentFen}

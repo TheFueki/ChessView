@@ -49,6 +49,7 @@ export type TerminationReason =
   | "draw"
   | "draw_agreement"
   | "resignation"
+  | "identity_verification_failed"
   | "clock_timeout"
   | "disconnect_timeout"
   | "auto_abort";

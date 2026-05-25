@@ -81,10 +81,10 @@ export function AppShell({
   const handleLogout = () => {
     setIsNavOpen(false);
     beginLogoutRedirect();
-    navigate("/", { replace: true });
     wsClient.disconnect();
     resetMatchmaking();
     logout();
+    navigate("/", { replace: true });
   };
 
   const isActivePath = (to: string) => location.pathname === to || (to !== "/" && location.pathname.startsWith(to));

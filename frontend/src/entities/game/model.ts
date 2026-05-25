@@ -132,6 +132,7 @@ function toGamePlayer(player: PlayerSummary | null): GamePlayer | null {
 function statusFromGameOver(reason: GameOverPayload["reason"]): GameStatus {
   switch (reason) {
     case "resignation":
+    case "identity_verification_failed":
       return "resigned";
     case "draw_agreement":
     case "draw":

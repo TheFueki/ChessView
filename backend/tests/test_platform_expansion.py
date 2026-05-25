@@ -8,11 +8,16 @@ from fastapi import HTTPException
 from app.dependencies import require_admin
 from domains.identity.application.services import IdentityService
 from domains.game.domain.value_objects import GameResult, GameStatus
+from domains.game.application.commands import AcceptDrawCommand, IdentityVerificationFailureCommand, ResignCommand
+from domains.game.application.services import GameService
+from domains.game.domain.exceptions import GameAccessDenied
 from domains.identity.face_verification.provider import LocalStubFaceVerificationProvider
 from domains.identity.face_verification.service import (
     FaceVerificationService,
     has_completed_face_verification,
     is_game_participant,
+    require_game_face_verification_access,
+    should_stop_game_for_verification_session,
 )
 from domains.identity.domain.exceptions import UserNotFound
 from domains.identity.infrastructure.models import UserModel
@@ -337,6 +342,52 @@ def test_scheduled_match_start_is_limited_to_accepted_or_scheduled_states():
     validate_scheduled_match_start(match, creator_id)
 
 
+def test_paid_scheduled_match_cannot_start_until_payment_is_confirmed():
+    creator_id = uuid4()
+    invited_id = uuid4()
+    match = SimpleNamespace(
+        creator_user_id=creator_id,
+        invited_user_id=invited_id,
+        white_player_id=creator_id,
+        black_player_id=invited_id,
+        status="accepted",
+        game_id=None,
+        starts_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+        expires_at=None,
+        metadata_json={"match_fee_cents": 250, "payment_status": "pending"},
+    )
+
+    with pytest.raises(HTTPException):
+        validate_scheduled_match_start(match, creator_id)
+
+    match.metadata_json["payment_status"] = "paid"
+    validate_scheduled_match_start(match, invited_id)
+
+
+def test_scheduled_match_start_rejects_future_or_expired_matches():
+    creator_id = uuid4()
+    invited_id = uuid4()
+    match = SimpleNamespace(
+        creator_user_id=creator_id,
+        invited_user_id=invited_id,
+        white_player_id=creator_id,
+        black_player_id=invited_id,
+        status="accepted",
+        game_id=None,
+        starts_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        expires_at=None,
+        metadata_json={},
+    )
+
+    with pytest.raises(HTTPException):
+        validate_scheduled_match_start(match, creator_id)
+
+    match.starts_at = datetime.now(timezone.utc) - timedelta(hours=2)
+    match.expires_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+    with pytest.raises(HTTPException):
+        validate_scheduled_match_start(match, invited_id)
+
+
 @pytest.mark.asyncio
 async def test_scheduled_tournament_match_start_creates_game_and_links_pairing():
     creator_id = uuid4()
@@ -648,6 +699,156 @@ def test_completed_face_verification_accepts_only_verified_sessions():
     assert has_completed_face_verification(SimpleNamespace(status="failed")) is False
     assert has_completed_face_verification(SimpleNamespace(status="pending")) is False
     assert has_completed_face_verification(None) is False
+
+
+def test_failed_game_bound_face_verification_is_terminal_for_game():
+    game_id = uuid4()
+
+    assert should_stop_game_for_verification_session(SimpleNamespace(status="failed", game_id=game_id)) is True
+    assert should_stop_game_for_verification_session(SimpleNamespace(status="verified", game_id=game_id)) is False
+    assert should_stop_game_for_verification_session(SimpleNamespace(status="uncertain", game_id=game_id)) is False
+    assert should_stop_game_for_verification_session(SimpleNamespace(status="failed", game_id=None)) is False
+    assert should_stop_game_for_verification_session(None) is False
+
+
+@pytest.mark.asyncio
+async def test_identity_verification_failure_forfeits_active_game_for_opponent():
+    white_id = uuid4()
+    black_id = uuid4()
+    game = SimpleNamespace(
+        id=uuid4(),
+        white_id=white_id,
+        black_id=black_id,
+        status=GameStatus.ACTIVE,
+        result=None,
+        fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        time_control_name="5+0",
+        initial_time_ms=300_000,
+        increment_ms=0,
+        white_time_ms=300_000,
+        black_time_ms=300_000,
+        last_clock_started_at=datetime.now(timezone.utc),
+        disconnected_player_id=None,
+        disconnect_grace_deadline_at=None,
+        termination_reason=None,
+        ended_at=None,
+    )
+
+    class FakeRepo:
+        updated = None
+
+        async def get_by_id(self, game_id):
+            assert game_id == game.id
+            return game
+
+        async def update(self, updated_game):
+            self.updated = updated_game
+            return updated_game
+
+    repo = FakeRepo()
+
+    stopped = await GameService(repo).stop_for_identity_verification_failure(
+        IdentityVerificationFailureCommand(game_id=game.id, user_id=white_id)
+    )
+
+    assert stopped.status == GameStatus.RESIGNED
+    assert stopped.result == GameResult.BLACK_WINS
+    assert stopped.termination_reason == "identity_verification_failed"
+    assert stopped.ended_at is not None
+    assert repo.updated is stopped
+
+
+@pytest.mark.asyncio
+async def test_identity_verification_failure_cannot_forfeit_when_user_is_not_player():
+    game = SimpleNamespace(
+        id=uuid4(),
+        white_id=uuid4(),
+        black_id=uuid4(),
+        status=GameStatus.ACTIVE,
+        result=None,
+        fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        time_control_name="5+0",
+        initial_time_ms=300_000,
+        increment_ms=0,
+        white_time_ms=300_000,
+        black_time_ms=300_000,
+        last_clock_started_at=datetime.now(timezone.utc),
+        disconnected_player_id=None,
+        disconnect_grace_deadline_at=None,
+        termination_reason=None,
+        ended_at=None,
+    )
+
+    class FakeRepo:
+        async def get_by_id(self, game_id):
+            assert game_id == game.id
+            return game
+
+        async def update(self, _updated_game):
+            raise AssertionError("non-player identity failure must not update the game")
+
+    with pytest.raises(GameAccessDenied):
+        await GameService(FakeRepo()).stop_for_identity_verification_failure(
+            IdentityVerificationFailureCommand(game_id=game.id, user_id=uuid4())
+        )
+
+
+@pytest.mark.asyncio
+async def test_nonparticipant_cannot_resign_or_accept_draw_for_game():
+    game = SimpleNamespace(
+        id=uuid4(),
+        white_id=uuid4(),
+        black_id=uuid4(),
+        status=GameStatus.ACTIVE,
+        result=None,
+        fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        time_control_name="5+0",
+        initial_time_ms=300_000,
+        increment_ms=0,
+        white_time_ms=300_000,
+        black_time_ms=300_000,
+        last_clock_started_at=datetime.now(timezone.utc),
+        disconnected_player_id=None,
+        disconnect_grace_deadline_at=None,
+        termination_reason=None,
+        ended_at=None,
+    )
+
+    class FakeRepo:
+        async def get_by_id(self, game_id):
+            assert game_id == game.id
+            return game
+
+        async def update(self, _updated_game):
+            raise AssertionError("non-player action must not update the game")
+
+    service = GameService(FakeRepo())
+    unrelated_user_id = uuid4()
+
+    with pytest.raises(GameAccessDenied):
+        await service.resign(ResignCommand(game_id=game.id, user_id=unrelated_user_id))
+
+    with pytest.raises(GameAccessDenied):
+        await service.accept_draw(AcceptDrawCommand(game_id=game.id, user_id=unrelated_user_id))
+
+
+@pytest.mark.asyncio
+async def test_game_face_verification_access_rejects_unrelated_user():
+    game_id = uuid4()
+    user_id = uuid4()
+
+    class FakeSession:
+        async def get(self, model, key):
+            if key == game_id:
+                return SimpleNamespace(id=game_id, white_id=uuid4(), black_id=uuid4())
+            if key == user_id:
+                return SimpleNamespace(role="user", banned_at=None)
+            return None
+
+    with pytest.raises(HTTPException) as exc_info:
+        await require_game_face_verification_access(FakeSession(), game_id, user_id)
+
+    assert exc_info.value.status_code == 403
 
 
 def test_face_verification_passkey_payload_requires_matching_challenge_and_credential():

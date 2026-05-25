@@ -1,13 +1,15 @@
-import { Crown } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Crown, Shield, ShieldAlert, ShieldCheck } from "lucide-react";
 import { Chessboard } from "react-chessboard";
 import type { CustomSquareStyles, Square } from "react-chessboard/dist/chessboard/types";
 import { Link, useNavigate, useParams } from "react-router";
 import { useGameStore } from "@/entities/game";
 import { useUserStore } from "@/entities/user"; 
 import { useGameRealtime, useMakeMove } from "@/features/make-move";
-import { wsClient } from "@/shared/api";
+import { http, wsClient } from "@/shared/api";
 import { useLiveClock } from "@/shared/hooks";
 import { getCheckSquare, getMoveSquares, getSquareColor } from "@/shared/lib/chess";
+import type { FaceVerificationSessionResponse } from "@/shared/types";
 import { Button, Card } from "@/shared/ui";
 import { GameLayout } from "@/widgets/game-layout";
 import { GameSidebar } from "@/widgets/game-sidebar";
@@ -205,9 +207,17 @@ function PlayerBar({
   );
 }
 
+function verificationTone(status: string | null) {
+  if (status === "verified") return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
+  if (status === "failed") return "border-red-500/30 bg-red-500/10 text-red-200";
+  if (status === "uncertain") return "border-amber-500/30 bg-amber-500/10 text-amber-200";
+  return "border-neutral-800 bg-neutral-950/70 text-neutral-300";
+}
+
 export default function GamePage() {
   const navigate = useNavigate();
   const { gameId } = useParams();
+  const queryClient = useQueryClient();
 
   useGameRealtime(gameId);
 
@@ -247,6 +257,21 @@ export default function GamePage() {
     selectedSquare,
     legalTargets,
     premove,
+  });
+  const verificationQuery = useQuery({
+    queryKey: ["game-face-verification", gameId],
+    queryFn: () => http.get<FaceVerificationSessionResponse[]>(`/games/${gameId}/face-verification/status`),
+    enabled: Boolean(gameId && user),
+  });
+  const latestVerification = verificationQuery.data?.[0] ?? null;
+  const submitFaceVerification = useMutation({
+    mutationFn: (scenario: "pass" | "fail" | "uncertain") =>
+      http.post<FaceVerificationSessionResponse>(`/games/${gameId}/face-verification/submit`, {
+        scenario: scenario === "pass" ? null : scenario,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["game-face-verification", gameId] });
+    },
   });
 
   const handleLogout = () => {
@@ -388,6 +413,61 @@ export default function GamePage() {
                   : null}
               </div>
             ) : null}
+
+            <div className={`rounded-xl border px-4 py-3 ${verificationTone(latestVerification?.status ?? null)}`}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
+                  {latestVerification?.status === "verified" ? (
+                    <ShieldCheck className="h-5 w-5" />
+                  ) : latestVerification?.status === "failed" ? (
+                    <ShieldAlert className="h-5 w-5" />
+                  ) : (
+                    <Shield className="h-5 w-5" />
+                  )}
+                  <div>
+                    <div className="text-sm font-semibold">
+                      Face ID {latestVerification ? latestVerification.status : "not checked"}
+                    </div>
+                    <div className="text-xs opacity-75">
+                      {latestVerification?.reason ?? "Run a live identity check before or during sensitive games."}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => submitFaceVerification.mutate("pass")}
+                    disabled={!gameId || status !== "active" || submitFaceVerification.isPending}
+                  >
+                    <ShieldCheck className="mr-2 h-4 w-4" />
+                    Verify
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => submitFaceVerification.mutate("uncertain")}
+                    disabled={!gameId || status !== "active" || submitFaceVerification.isPending}
+                  >
+                    Review
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={() => submitFaceVerification.mutate("fail")}
+                    disabled={!gameId || status !== "active" || submitFaceVerification.isPending}
+                  >
+                    Fail
+                  </Button>
+                </div>
+              </div>
+              {submitFaceVerification.error ? (
+                <div className="mt-2 text-xs text-red-200">
+                  {submitFaceVerification.error instanceof Error
+                    ? submitFaceVerification.error.message
+                    : "Face ID check failed to submit."}
+                </div>
+              ) : null}
+            </div>
           </Card>
         </div>
       }

@@ -3,14 +3,21 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from domains.game.application.commands import AcceptDrawCommand, CreateGameCommand, MakeMoveCommand, ResignCommand
+from domains.game.application.commands import (
+    AcceptDrawCommand,
+    CreateGameCommand,
+    IdentityVerificationFailureCommand,
+    MakeMoveCommand,
+    ResignCommand,
+)
 from domains.game.domain.entities import Game, Move
-from domains.game.domain.exceptions import GameNotActive, GameNotFound
+from domains.game.domain.exceptions import GameAccessDenied, GameNotActive, GameNotFound
 from domains.game.domain.clock import active_player_id, active_remaining_time_ms, capture_clock_snapshot
 from domains.game.domain.moves import apply_player_move
 from domains.game.domain.outcomes import (
     abort_game,
     accept_draw,
+    forfeit_game_for_identity_failure,
     pause_for_disconnect,
     resign_game,
     resume_after_reconnect,
@@ -71,14 +78,25 @@ class GameService:
     async def resign(self, cmd: ResignCommand) -> Game:
         """Handle a player's resignation."""
         game = await self._require_active_game(cmd.game_id)
+        self._require_participant(game, cmd.user_id)
         now = utc_now()
         snapshot = capture_clock_snapshot(game, now)
         resign_game(game, cmd.user_id, snapshot, now)
         return await self._repo.update(game)
 
+    async def stop_for_identity_verification_failure(self, cmd: IdentityVerificationFailureCommand) -> Game:
+        """Forfeit an active game when a participant fails identity verification."""
+        game = await self._require_active_game(cmd.game_id)
+        self._require_participant(game, cmd.user_id)
+        now = utc_now()
+        snapshot = capture_clock_snapshot(game, now)
+        forfeit_game_for_identity_failure(game, cmd.user_id, snapshot, now)
+        return await self._repo.update(game)
+
     async def accept_draw(self, cmd: AcceptDrawCommand) -> Game:
         """Finalize a draw agreement for an active game."""
         game = await self._require_active_game(cmd.game_id)
+        self._require_participant(game, cmd.user_id)
         now = utc_now()
         snapshot = capture_clock_snapshot(game, now)
         accept_draw(game, snapshot, now)
@@ -163,3 +181,8 @@ class GameService:
         if game.status != GameStatus.ACTIVE:
             raise GameNotActive()
         return game
+
+    @staticmethod
+    def _require_participant(game: Game, user_id: UUID) -> None:
+        if user_id not in {game.white_id, game.black_id}:
+            raise GameAccessDenied()

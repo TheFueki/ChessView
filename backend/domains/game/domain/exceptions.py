@@ -21,3 +21,8 @@ class GameNotActive(Exception):
 class GameNotFound(Exception):
     """Raised when a game lookup returns nothing."""
     pass
+
+
+class GameAccessDenied(Exception):
+    """Raised when a user is not allowed to act on a game."""
+    pass

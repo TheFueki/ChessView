@@ -52,6 +52,17 @@ def validate_scheduled_match_start(match: ScheduledMatchModel, user_id: UUID) ->
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Match is not ready to start")
     if match.white_player_id is None or match.black_player_id is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Both players are required")
+    now = datetime.now(timezone.utc)
+    starts_at = getattr(match, "starts_at", None)
+    if starts_at is not None and starts_at > now:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Match cannot start before its scheduled time")
+    expires_at = getattr(match, "expires_at", None)
+    if expires_at is not None and expires_at <= now:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Match has expired")
+    metadata = getattr(match, "metadata_json", None) or {}
+    match_fee_cents = metadata.get("match_fee_cents")
+    if isinstance(match_fee_cents, int | float) and match_fee_cents > 0 and metadata.get("payment_status") != "paid":
+        raise HTTPException(status_code=status.HTTP_402_PAYMENT_REQUIRED, detail="Scheduled match payment is required")
 
 
 class ScheduledMatchService:

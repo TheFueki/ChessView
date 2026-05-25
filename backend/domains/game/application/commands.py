@@ -38,6 +38,14 @@ class ResignCommand:
 
 
 @dataclass(frozen=True, slots=True)
+class IdentityVerificationFailureCommand:
+    """Input for stopping a game after a failed identity verification."""
+
+    game_id: UUID
+    user_id: UUID
+
+
+@dataclass(frozen=True, slots=True)
 class OfferDrawCommand:
     """Input for offering a draw."""
 

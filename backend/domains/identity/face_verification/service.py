@@ -35,6 +35,10 @@ def has_completed_face_verification(session: object | None) -> bool:
     return getattr(session, "status", None) == "verified"
 
 
+def should_stop_game_for_verification_session(session: object | None) -> bool:
+    return getattr(session, "status", None) == "failed" and getattr(session, "game_id", None) is not None
+
+
 async def require_game_face_verification_access(session: AsyncSession, game_id: UUID, user_id: UUID) -> GameModel:
     game = await session.get(GameModel, game_id)
     if game is None:
@@ -298,6 +302,22 @@ class FaceVerificationService:
         await self._session.commit()
         await self._session.refresh(session)
         return session
+
+    async def stop_game_after_failed_verification(self, verification: FaceVerificationSessionModel) -> object | None:
+        if not should_stop_game_for_verification_session(verification):
+            return None
+
+        from domains.game.application.commands import IdentityVerificationFailureCommand
+        from domains.game.application.services import GameService
+        from domains.game.domain.exceptions import GameAccessDenied, GameNotActive, GameNotFound
+        from domains.game.infrastructure.repository import SqlAlchemyGameRepository
+
+        try:
+            return await GameService(SqlAlchemyGameRepository(self._session)).stop_for_identity_verification_failure(
+                IdentityVerificationFailureCommand(game_id=verification.game_id, user_id=verification.user_id)
+            )
+        except (GameAccessDenied, GameNotActive, GameNotFound):
+            return None
 
     def _event(self, session_id: UUID, event_type: str, payload: dict) -> None:
         self._session.add(FaceVerificationEventModel(session_id=session_id, event_type=event_type, payload=payload))

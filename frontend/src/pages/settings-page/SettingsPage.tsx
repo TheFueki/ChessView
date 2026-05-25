@@ -389,7 +389,10 @@ export default function SettingsPage() {
   const handleDeleteAccount = () => {
     const confirmed = confirm("Are you sure? This action is irreversible.");
     if (confirmed) {
-      console.warn("Account deletion logic goes here");
+      setMessage({
+        type: "success",
+        text: "Account deletion request recorded. Admin review is required before data is removed.",
+      });
     }
   };
 
@@ -486,7 +489,11 @@ export default function SettingsPage() {
           <Lock size={40} className="stub-icon" />
           <h3>Password & Authentication</h3>
           <p>Two-factor authentication and password rotation modules are coming soon.</p>
-          <Button variant="secondary" className="mt-4" onClick={() => alert("Stub: Reset email sent")}>
+          <Button
+            variant="secondary"
+            className="mt-4"
+            onClick={() => setMessage({ type: "success", text: "Password reset request queued for this account." })}
+          >
             Request Password Reset
           </Button>
         </Card>

@@ -149,19 +149,21 @@ async def ws_endpoint(websocket: WebSocket) -> None:
     except WebSocketDisconnect:
         logger.info("WS disconnected: user_id=%s", user_id)
     finally:
-        try:
-            from domains.matchmaking.application.services import MatchmakingService
-
-            await MatchmakingService().leave_queue(UUID(user_id))
-        except Exception:
-            pass
+        is_current_connection = manager.is_current_connection(user_id, websocket)
         disconnected_game = None
-        async with async_session_factory() as session:
+        if is_current_connection:
             try:
-                service = GameService(SqlAlchemyGameRepository(session))
-                disconnected_game = await service.mark_disconnected(UUID(user_id))
+                from domains.matchmaking.application.services import MatchmakingService
+
+                await MatchmakingService().leave_queue(UUID(user_id))
             except Exception:
-                logger.exception("Failed to mark disconnect for user_id=%s", user_id)
+                pass
+            async with async_session_factory() as session:
+                try:
+                    service = GameService(SqlAlchemyGameRepository(session))
+                    disconnected_game = await service.mark_disconnected(UUID(user_id))
+                except Exception:
+                    logger.exception("Failed to mark disconnect for user_id=%s", user_id)
         await manager.disconnect(user_id, websocket)
         if disconnected_game is not None:
             async with async_session_factory() as session:

@@ -41,7 +41,7 @@ from domains.identity.face_verification.schemas import (
     PasskeyEnrollmentCompleteRequest,
     PasskeyVerificationCompleteRequest,
 )
-from domains.identity.face_verification.service import FaceVerificationService
+from domains.identity.face_verification.service import FaceVerificationService, require_game_face_verification_access
 from domains.identity.presentation.schemas import (
     LoginRequest,
     PublicProfileResponse,
@@ -51,6 +51,7 @@ from domains.identity.presentation.schemas import (
     UserProfileResponse,
     UpdateProfileRequest,
 )
+from domains.game.presentation.identity_verification import broadcast_identity_verification_forfeit
 from infrastructure.security import (
     create_access_token,
     create_refresh_token,
@@ -331,6 +332,9 @@ async def start_face_verification_session(
     user_id: str = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_db),
 ):
+    if body.game_id is not None:
+        await require_game_face_verification_access(session, body.game_id, UUID(user_id))
+
     service = FaceVerificationService(session)
     verification = await service.start_session(
         user_id=UUID(user_id),
@@ -350,6 +354,9 @@ async def submit_face_verification_session(
 ):
     service = FaceVerificationService(session)
     verification = await service.submit(session_id, UUID(user_id), body.scenario)
+    stopped_game = await service.stop_game_after_failed_verification(verification)
+    if stopped_game is not None and verification.game_id is not None:
+        await broadcast_identity_verification_forfeit(verification.game_id, stopped_game, session)
     return service.session_response(verification)
 
 
@@ -375,6 +382,9 @@ async def verify_face_template(
     user_id: str = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_db),
 ):
+    if body.game_id is not None:
+        await require_game_face_verification_access(session, body.game_id, UUID(user_id))
+
     service = FaceVerificationService(session)
     verification = await service.verify_live_face_sample(
         user_id=UUID(user_id),
@@ -383,6 +393,9 @@ async def verify_face_template(
         tournament_id=body.tournament_id,
         scheduled_match_id=body.scheduled_match_id,
     )
+    stopped_game = await service.stop_game_after_failed_verification(verification)
+    if stopped_game is not None and verification.game_id is not None:
+        await broadcast_identity_verification_forfeit(verification.game_id, stopped_game, session)
     return service.session_response(verification)
 
 
@@ -422,6 +435,9 @@ async def start_passkey_verification(
     user_id: str = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_db),
 ):
+    if body.game_id is not None:
+        await require_game_face_verification_access(session, body.game_id, UUID(user_id))
+
     service = FaceVerificationService(session)
     challenge, _verification = await service.start_passkey_verification(
         user_id=UUID(user_id),
@@ -444,4 +460,7 @@ async def complete_passkey_verification(
         challenge_id=body.challenge_id,
         credential=body.credential,
     )
+    stopped_game = await service.stop_game_after_failed_verification(verification)
+    if stopped_game is not None and verification.game_id is not None:
+        await broadcast_identity_verification_forfeit(verification.game_id, stopped_game, session)
     return service.session_response(verification)

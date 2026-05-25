@@ -39,6 +39,13 @@ def resign_game(game: Game, user_id: UUID, snapshot: ClockSnapshot, now: datetim
     _finish_game(game, status=GameStatus.RESIGNED, result=result, reason="resignation", now=now)
 
 
+def forfeit_game_for_identity_failure(game: Game, user_id: UUID, snapshot: ClockSnapshot, now: datetime) -> None:
+    result = GameResult.BLACK_WINS if user_id == game.white_id else GameResult.WHITE_WINS
+    game.white_time_ms = snapshot.white_time_ms
+    game.black_time_ms = snapshot.black_time_ms
+    _finish_game(game, status=GameStatus.RESIGNED, result=result, reason="identity_verification_failed", now=now)
+
+
 def accept_draw(game: Game, snapshot: ClockSnapshot, now: datetime) -> None:
     game.white_time_ms = snapshot.white_time_ms
     game.black_time_ms = snapshot.black_time_ms

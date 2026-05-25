@@ -7,6 +7,10 @@ import { createJSONStorage, persist } from "zustand/middleware";
 
 const AUTH_STORAGE_KEY = "chessview-auth";
 
+function removePersistedAuth() {
+  localStorage.removeItem(AUTH_STORAGE_KEY);
+}
+
 export interface User {
   id: string;
   username: string;
@@ -57,23 +61,27 @@ export const useUserStore = create<UserState>()(
           isBootstrapping: false,
         }),
 
-      clearAuth: () =>
+      clearAuth: () => {
+        removePersistedAuth();
         set({
           user: null,
           accessToken: null,
           refreshToken: null,
           isAuthenticated: false,
           isBootstrapping: false,
-        }),
+        });
+      },
 
-      logout: () =>
+      logout: () => {
+        removePersistedAuth();
         set({
           user: null,
           accessToken: null,
           refreshToken: null,
           isAuthenticated: false,
           isBootstrapping: false,
-        }),
+        });
+      },
 
       setTokens: (accessToken, refreshToken) =>
         set((state) => ({
