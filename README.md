@@ -1,191 +1,150 @@
 # ChessView
 
-ChessView is a full-stack chess platform focused on live play, review, and study.
+ChessView is a full-stack educational chess web application. It demonstrates authenticated play, server-authoritative game state, WebSocket events, PostgreSQL persistence, local browser analysis, puzzles, tournaments, scheduled matches, and an admin surface.
 
-It combines server-authoritative multiplayer chess with replay, browser-local Stockfish analysis, puzzles, tournaments, profiles, ratings, and study tooling in one product surface.
+Repository: <https://github.com/thefueki/chessview>
+Current baseline: `v1.0.1`
 
 ## Status
 
-ChessView is frozen at `v1.0.1` as a stable refinement baseline for multi-engineer development.
+ChessView is suitable for local development, diploma demonstration, and single-instance Docker Compose deployment. It is not described as a hardened industrial deployment: matchmaking queues, WebSocket rooms, and background game monitors are in memory, and uploaded media is stored locally.
 
-What that means:
+## Features
 
-- the product surface is feature-complete for v1
-- pull requests to `main` should stay incremental and reviewable
-- repository guardrails and CI are part of the baseline, not optional follow-up work
+Implemented core:
 
-## v1 Features
+- JWT registration, login, refresh, current-user loading, and guarded frontend routes
+- player profiles, ratings, leaderboard, history, and head-to-head comparison
+- live 1v1 chess with server-side move validation through `python-chess`
+- time controls, clock snapshots, resign/draw flows, reconnect handling, timeout, and early auto-abort policy
+- WebSocket endpoint at `/ws?token=<access_token>` with typed event envelopes
+- game chat and WebRTC signaling relay for live games
+- replay/review and local Stockfish analysis in the browser
+- analysis workspace with FEN/PGN workflows and board editing
+- puzzle catalog and per-user attempt tracking
+- tournaments with Swiss helpers, standings, round progression, entry-payment emulator hooks, and OTB tournament type
+- scheduled matches with invite/accept/decline/cancel/start lifecycle
+- admin API and separate admin frontend for user, audit, payment, and verification views
 
-- JWT authentication with guarded frontend routes
-- Live multiplayer chess with server-authoritative move validation
-- Matchmaking with time controls, reconnect handling, timeout resolution, and abort policy
-- Ratings, player profiles, and match history
-- Replay with move stepping and synchronized local engine analysis
-- Analysis board with board editor, PGN import, and sandbox move exploration
-- Puzzle mode with starter content and attempt tracking
-- Tournaments with pairings, standings, and round progression
-- Avatar uploads and polished application shell/navigation
+Demo and extended modules:
+
+- `ClubsPage` is a frontend demonstration module with local UI state.
+- `ShopPage` is a marketplace/wallet UI demonstration. It reads profile coins and stores item inventory locally in the browser.
+- payments are handled by an emulator for internal scenarios such as scheduled match or tournament entry payments.
+- face verification and passkey flows provide a local architectural foundation, not a certified identity verification service.
+
+Known limitations:
+
+- single application instance is assumed
+- matchmaking queue, WebSocket connection state, room membership, and game monitor are process-local
+- media storage is local filesystem storage under `backend/storage`
+- horizontal scaling would require Redis/pub-sub, distributed monitor coordination, and object storage
+- WebSocket authentication uses a query token, which is practical for this local app but should be reviewed for hardened deployments
+- automated E2E and load testing are not part of the current baseline
 
 ## Tech Stack
 
-- Frontend: React 19, TypeScript, Vite, Tailwind CSS, TanStack Query, Zustand, react-router, react-chessboard, chess.js, Framer Motion
-- Backend: FastAPI, SQLAlchemy async, PostgreSQL, python-chess, Uvicorn
-- Tooling: Yarn, uv, Docker Compose, just
+- Frontend: React, TypeScript, Vite, TanStack Query, Zustand, react-router, react-chessboard, chess.js, Stockfish, Tailwind CSS
+- Backend: FastAPI, SQLAlchemy async, Alembic, PostgreSQL, Uvicorn, PyJWT, python-chess
+- Tooling: Docker Compose, Yarn Classic, uv, pytest, ESLint, TypeScript build
 
-## Architecture
+## Repository Layout
 
-ChessView uses a domain-oriented backend and a feature-sliced frontend.
+```text
+backend/          FastAPI app, domains, migrations, tests
+frontend/         React/Vite user frontend
+admin-frontend/   React/Vite admin frontend
+docs/             architecture, domain, event, scaling, diploma notes
+docker-compose.yml
+justfile
+```
 
-- Backend domains live under `backend/domains/` and keep domain, application, infrastructure, and presentation concerns separated.
-- Frontend code lives under `frontend/src/` with app, pages, widgets, features, entities, and shared layers.
-- Live gameplay remains server-authoritative.
-- Browser-local Stockfish powers replay and study analysis without changing backend gameplay ownership.
+Useful docs:
 
-More detail:
+- [Architecture](docs/architecture.md)
+- [Domain map](docs/domain-map.md)
+- [Event contract](docs/event-contract.md)
+- [Scaling notes](docs/scaling.md)
+- [Backend README](backend/README.md)
+- [Frontend README](frontend/README.md)
 
-- architecture: `docs/architecture.md`
-- contribution guide: `CONTRIBUTING.md`
-- domain map: `docs/domain-map.md`
-- event contract: `docs/event-contract.md`
-- GitHub admin checklist: `docs/github-admin.md`
-- scaling notes: `docs/scaling.md`
-- backend notes: `backend/README.md`
-- frontend notes: `frontend/README.md`
+## Environment
 
-## Supported Workflows
-
-ChessView supports two practical development workflows:
-
-Configuration lives in the root `.env` file. Docker Compose reads it directly; local backend commands run from `backend/` also load the root `.env`. The default `.env` is for local development:
-
-- `DATABASE_URL` points to the PostgreSQL port published on `localhost`
-- `DOCKER_DATABASE_URL` is used by the backend container to reach the `postgres` service
-- `STORAGE_DIR=storage` keeps local media under `backend/storage`
-- `DOCKER_STORAGE_DIR=/app/storage` maps the container to `./backend/storage`
-- `VITE_SERVER_URL` is the browser-facing backend URL
-
-To start from a clean checkout:
+Create a local env file:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-### A. Docker Compose
+The example file contains local development defaults. Replace `JWT_SECRET` and database credentials for any shared environment.
 
-Use this when you want the full stack running together with the least setup friction.
+Important variables:
+
+- `DATABASE_URL`: backend connection string for local split development
+- `DOCKER_DATABASE_URL`: backend container connection string for Docker Compose
+- `STORAGE_DIR`: local media directory for backend commands
+- `DOCKER_STORAGE_DIR`: media directory inside the backend container
+- `VITE_SERVER_URL`: browser-facing backend URL
+- `VITE_API_PROXY_TARGET`, `VITE_WS_PROXY_TARGET`: Vite proxy targets
+
+## Quickstart: Docker Compose
 
 ```powershell
-cd C:\Users\Anek\ChessViewVentie\ChessView
 docker compose up --build
 ```
 
 Endpoints:
 
-- frontend: [http://localhost:5173](http://localhost:5173)
-- backend API: [http://localhost:8000/api](http://localhost:8000/api)
-- backend health: [http://localhost:8000/health](http://localhost:8000/health)
+- frontend: <http://localhost:5173>
+- admin frontend: <http://localhost:5174>
+- backend health: <http://localhost:8000/health>
+- backend API base: <http://localhost:8000/api/v1>
 
-Notes:
-
-- tracked Alembic migrations are applied on backend startup, and already-populated legacy dev databases are auto-adopted into the current tracked revision
-- starter puzzle data seeds automatically when the puzzle catalog is empty
-- once the stack is running, Docker-backed maintenance commands are available through the root `justfile`
-
-### B. Local Split
-
-Use this when you want the fastest inner-loop frontend/backend development.
-
-1. Start PostgreSQL:
+Check the resolved Compose configuration:
 
 ```powershell
-cd C:\Users\Anek\ChessViewVentie\ChessView
+docker compose config
+```
+
+## Quickstart: Split Development
+
+Start PostgreSQL:
+
+```powershell
 docker compose up -d postgres
 ```
 
-2. Start the backend:
+Start backend:
 
 ```powershell
-cd C:\Users\Anek\ChessViewVentie\ChessView\backend
+cd backend
 uv sync
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload --host localhost --port 8000
 ```
 
-3. Start the frontend:
+Start frontend:
 
 ```powershell
-cd C:\Users\Anek\ChessViewVentie\ChessView\frontend
+cd frontend
 yarn install --frozen-lockfile
 yarn dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173).
-
-Example API smoke check after the backend is running:
+Start admin frontend:
 
 ```powershell
-Invoke-RestMethod http://localhost:8000/health
-Invoke-RestMethod http://localhost:8000/api/v1/puzzles
-```
-
-## Package Manager
-
-The frontend now uses Yarn Classic as the supported package manager.
-
-Common commands:
-
-```powershell
-cd C:\Users\Anek\ChessViewVentie\ChessView\frontend
+cd admin-frontend
+yarn install --frozen-lockfile
 yarn dev
-yarn lint
-yarn build
 ```
 
-If Yarn is not installed yet on Windows, install Yarn with your preferred package manager or activate it through Corepack when available.
-
-## Just Commands
-
-The root `justfile` provides the main day-to-day commands:
-
-```powershell
-just docker-up
-just docker-down
-just docker-rebuild
-just stack-up
-just docker-ps
-just docker-logs-backend
-just docker-backend-db-current
-just docker-backend-db-upgrade
-just docker-backend-db-check
-just backend-smoke
-just backend-dev
-just frontend-dev
-just frontend-lint
-just frontend-build
-just backend-tests
-just check
-```
-
-If `just` is not installed yet on Windows:
-
-```powershell
-winget install jdx.just
-```
-
-```powershell
-scoop install just
-```
-
-```powershell
-choco install just
-```
-
-## Verification
+## Verification Commands
 
 Backend:
 
 ```powershell
-cd C:\Users\Anek\ChessViewVentie\ChessView\backend
+cd backend
 uv run python -m compileall app domains infrastructure shared tests
 uv run alembic upgrade head
 uv run alembic check
@@ -193,68 +152,46 @@ uv run python -c "import app.main"
 uv run pytest tests
 ```
 
-## Backend Migrations
-
-Alembic is now the source of truth for backend schema changes.
-
-Apply migrations:
-
-```powershell
-cd C:\Users\Anek\ChessViewVentie\ChessView\backend
-uv run alembic upgrade head
-```
-
-If your local database predates the new Alembic workflow, start the backend once first so the legacy dev schema can be adopted into the tracked revision safely.
-
-Docker Compose equivalents for a running stack:
-
-```powershell
-cd C:\Users\Anek\ChessViewVentie\ChessView
-just docker-backend-db-current
-just docker-backend-db-upgrade
-just docker-backend-db-check
-just docker-backend-db-revision MESSAGE="describe_change"
-```
-
-Create a new migration after changing SQLAlchemy models:
-
-```powershell
-cd C:\Users\Anek\ChessViewVentie\ChessView\backend
-uv run alembic revision --autogenerate -m "describe_change"
-```
-
-Check that migrations and metadata still match:
-
-```powershell
-cd C:\Users\Anek\ChessViewVentie\ChessView\backend
-uv run alembic check
-```
-
-For convenience, backend startup still applies tracked migrations automatically in Docker Compose and local dev. What changed is that startup no longer does `create_all` or ad hoc `ALTER TABLE` compatibility writes.
-
 Frontend:
 
 ```powershell
-cd C:\Users\Anek\ChessViewVentie\ChessView\frontend
+cd frontend
+yarn install --frozen-lockfile
 yarn lint
+yarn test:ui-consistency
 yarn build
 ```
 
-## Collaboration Guardrails
+Admin frontend:
 
-ChessView now includes:
+```powershell
+cd admin-frontend
+yarn install --frozen-lockfile
+yarn typecheck
+yarn build
+```
 
-- pull-request CI in `.github/workflows/pr-ci.yml`
-- CODEOWNERS in `.github/CODEOWNERS`
-- a pull request template and a minimal bug template
-- contributor guidance in `CONTRIBUTING.md`
-- a GitHub branch protection checklist in `docs/github-admin.md`
+Smoke checks after backend startup:
 
-## Maintenance Rule
+```powershell
+Invoke-RestMethod http://localhost:8000/health
+try {
+  Invoke-RestMethod http://localhost:8000/api/v1/puzzles
+} catch {
+  $_.Exception.Response.StatusCode.value__
+}
+```
 
-Treat this repository as a production-ready v1 baseline:
+The second command is expected to return `401` without an access token.
 
-- no direct pushes to `main`
-- no speculative architecture rewrites
-- no feature creep disguised as cleanup
-- prefer bug fixes, DevEx improvements, documentation clarity, and operational hardening
+## Troubleshooting
+
+- `uv` is missing: install it from <https://docs.astral.sh/uv/> or run backend checks through the existing virtual environment if present.
+- Docker cannot reach PostgreSQL: run `docker compose config`, then verify `.env` has `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, and `DOCKER_DATABASE_URL`.
+- frontend API calls fail in dev: check `VITE_API_PROXY_TARGET` and `VITE_WS_PROXY_TARGET`.
+- protected API returns `401`: log in first and send `Authorization: Bearer <access_token>`.
+- avatar upload fails: verify `STORAGE_DIR` exists and the file is PNG, JPEG, or WebP within backend limits.
+
+## CI
+
+Pull request CI runs backend compile/migrations/tests, frontend lint/UI consistency/build, and admin frontend typecheck/build. Keep local commands aligned with `.github/workflows/pr-ci.yml`.

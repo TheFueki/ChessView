@@ -145,6 +145,7 @@ def test_identity_auth_response_includes_role_for_separate_admin_service():
         verify_password=lambda _plain, _hashed: True,
         create_access_token=lambda user_id: f"access-{user_id}",
         create_refresh_token=lambda user_id: f"refresh-{user_id}",
+        create_password_reset_token=lambda user_id: f"reset-{user_id}",
         decode_token=lambda token: {"sub": token, "type": "refresh"},
     )
     user_id = uuid4()
@@ -903,6 +904,23 @@ def test_face_template_enrollment_and_live_video_sample_matching_are_determinist
         live_sample="camera-frame:bob:front-facing",
     )
     assert failed.status == "failed"
+
+
+def test_face_template_accepts_nearby_live_camera_frames_without_storing_raw_image():
+    first_frame = "data:image/jpeg;base64," + ("a" * 32_000)
+    next_frame = "data:image/jpeg;base64," + ("b" * 32_200)
+    different_size_frame = "data:image/jpeg;base64," + ("c" * 96_000)
+
+    template = FaceVerificationService.build_face_template(first_frame)
+
+    assert FaceVerificationService.verify_face_sample(
+        stored_template=template,
+        live_sample=next_frame,
+    ).status == "verified"
+    assert FaceVerificationService.verify_face_sample(
+        stored_template=template,
+        live_sample=different_size_frame,
+    ).status == "failed"
 
 
 def test_head_to_head_perspective_results_cover_colors_and_draws():

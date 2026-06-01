@@ -1,11 +1,14 @@
 import secrets
+from dataclasses import dataclass
 from uuid import UUID, uuid4
 from datetime import datetime
 
 from domains.identity.application.commands import (
+    CompletePasswordResetCommand,
     LoginUserCommand,
     RefreshTokenCommand,
     RegisterUserCommand,
+    RequestPasswordResetCommand,
     UpdateProfileCommand,
     OAuthUserCommand,
 )
@@ -17,6 +20,13 @@ from domains.identity.domain.exceptions import (
     UserNotFound,
 )
 from domains.identity.domain.repository import AbstractUserRepository
+
+
+@dataclass(frozen=True)
+class PasswordResetTicket:
+    email: str
+    token: str
+    reset_url: str
 
 
 class IdentityService:
@@ -32,6 +42,7 @@ class IdentityService:
         verify_password, 
         create_access_token,
         create_refresh_token, 
+        create_password_reset_token,
         decode_token,   
     ) -> None:
         self._repo = user_repo
@@ -39,6 +50,7 @@ class IdentityService:
         self._verify_password = verify_password
         self._create_access_token = create_access_token
         self._create_refresh_token = create_refresh_token
+        self._create_password_reset_token = create_password_reset_token
         self._decode_token = decode_token
 
     async def register(self, cmd: RegisterUserCommand) -> dict:
@@ -101,6 +113,37 @@ class IdentityService:
             raise InvalidCredentials()
 
         return self._build_token_pair(str(user_id))
+
+    async def request_password_reset(self, cmd: RequestPasswordResetCommand) -> PasswordResetTicket | None:
+        user = await self._repo.get_by_email(cmd.email)
+        if user is None:
+            return None
+
+        token = self._create_password_reset_token(str(user.id))
+        reset_token = f"reset:{token}"
+        reset_url = f"{cmd.frontend_url.rstrip('/')}/reset-password?token={reset_token}"
+        return PasswordResetTicket(email=user.email, token=reset_token, reset_url=reset_url)
+
+    async def complete_password_reset(self, cmd: CompletePasswordResetCommand) -> None:
+        token = cmd.token.removeprefix("reset:")
+        try:
+            payload = self._decode_token(token)
+        except Exception:
+            raise InvalidCredentials()
+
+        if payload.get("type") != "password_reset":
+            raise InvalidCredentials()
+
+        user_id = payload.get("sub")
+        if user_id is None:
+            raise InvalidCredentials()
+
+        user = await self._repo.get_by_id(UUID(str(user_id)))
+        if user is None:
+            raise UserNotFound()
+
+        user.password_hash = self._hash_password(cmd.password)
+        await self._repo.update(user)
 
     async def get_profile(self, user_id: UUID) -> User:
         user = await self._repo.get_by_id(user_id)

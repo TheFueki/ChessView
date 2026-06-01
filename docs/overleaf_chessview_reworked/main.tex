@@ -1,0 +1,193 @@
+\documentclass[14pt,a4paper]{extreport}
+
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T2A]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{cmap}
+  \usepackage{tempora}
+\else
+  \usepackage{fontspec}
+  \setmainfont{Times New Roman}
+  \setsansfont{Arial}
+  \setmonofont{Courier New}
+\fi
+\usepackage[russian]{babel}
+\usepackage[a4paper,left=30mm,top=20mm,right=10mm,bottom=20mm]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+\usepackage{indentfirst}
+\setlength{\parindent}{1.25cm}
+\setlength{\parskip}{0pt}
+\usepackage{ragged2e}
+\justifying
+\sloppy
+\emergencystretch=3em
+\usepackage{graphicx}
+\graphicspath{{figures/}}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{tocloft}
+\usepackage{chngcntr}
+\usepackage{xurl}
+\usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,fit}
+\usepackage{adjustbox}
+\usepackage{hyperref}
+\hypersetup{hidelinks,unicode=true}
+
+\counterwithin{figure}{chapter}
+\counterwithin{table}{chapter}
+\renewcommand{\thefigure}{\thechapter.\arabic{figure}}
+\renewcommand{\thetable}{\thechapter.\arabic{table}}
+\DeclareCaptionLabelSeparator{aitudot}{. }
+\captionsetup{font=normalsize,labelfont=normalfont,labelsep=aitudot}
+\captionsetup[table]{position=top,justification=raggedright,singlelinecheck=false,name=Таблица,margin={0cm,0cm}}
+\captionsetup[figure]{position=bottom,justification=centering,singlelinecheck=false,name=Рисунок}
+\setlength\LTleft{0pt}
+\setlength\LTright{0pt}
+
+\titleformat{\chapter}[block]{\normalfont\centering\fontsize{14pt}{21pt}\selectfont}{\thechapter}{1em}{\MakeUppercase}
+\titlespacing*{\chapter}{0pt}{0pt}{12pt}
+\titleformat{\section}[block]{\normalfont\centering\fontsize{14pt}{21pt}\selectfont}{\thesection}{1em}{}
+\titlespacing*{\section}{0pt}{12pt}{6pt}
+
+\newcommand{\unnumberedchapter}[1]{%
+  \clearpage
+  \phantomsection
+  \addcontentsline{toc}{chapter}{#1}
+  \begin{center}\fontsize{14pt}{21pt}\selectfont #1\end{center}\vspace{6pt}
+}
+\newcommand{\filledfield}[2]{\underline{\makebox[#1][l]{\hspace{0.15cm}#2}}}
+\newcommand{\blankfield}[1]{\underline{\makebox[#1][l]{}}}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\smallpngfigure}[3]{%
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.82\textwidth,height=0.30\textheight,keepaspectratio]{#1}
+\caption{#2}\label{#3}
+\end{figure}
+}
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  columns=fullflexible,
+  frame=single,
+  xleftmargin=0cm,
+  xrightmargin=0cm,
+  keepspaces=true
+}
+
+\renewcommand{\contentsname}{СОДЕРЖАНИЕ}
+\addto\captionsrussian{\renewcommand{\contentsname}{СОДЕРЖАНИЕ}}
+\renewcommand{\cfttoctitlefont}{\hfill\fontsize{14pt}{21pt}\selectfont}
+\renewcommand{\cftaftertoctitle}{\hfill\vspace{6pt}}
+\renewcommand{\cftchapfont}{\normalfont}
+\renewcommand{\cftchappagefont}{\normalfont}
+\renewcommand{\cftsecfont}{\normalfont}
+\renewcommand{\cftsecpagefont}{\normalfont}
+\renewcommand{\cftchapdotsep}{\cftdotsep}
+\setlength{\cftbeforechapskip}{2pt}
+\setlength{\cftbeforesecskip}{1pt}
+\setcounter{tocdepth}{2}
+\pagestyle{plain}
+
+\begin{document}
+\pagenumbering{arabic}
+
+\begin{titlepage}
+\thispagestyle{empty}
+\begin{center}
+Министерство просвещения Республики Казахстан\\[0.5cm]
+Astana IT University College\\[0.7cm]
+Специальность: 06130100 --- Программное обеспечение (по видам)
+
+\vfill
+{\bfseries ДИПЛОМНЫЙ ПРОЕКТ}\\[0.8cm]
+Тема: Разработка веб-приложения ChessView
+\vfill
+\begin{flushright}
+Студент: \filledfield{6cm}{Сакенов Ануар Сункарулы}\\[0.4cm]
+Группа: \filledfield{6cm}{ПО 2302}\\[0.4cm]
+Руководитель: \filledfield{6cm}{Мартынцов Николай Викторович}
+\end{flushright}
+\vfill
+Астана, 2026
+\end{center}
+\end{titlepage}
+
+\begin{titlepage}
+\thispagestyle{empty}
+\begin{center}
+Министерство просвещения Республики Казахстан\\
+Astana IT University College\\[1cm]
+\end{center}
+\begin{flushright}
+Допущен к защите\\
+Председатель ПЦК: \blankfield{7cm}\\
+Дата: \blankfield{7cm}
+\end{flushright}
+\vfill
+\begin{center}
+{\bfseries ДИПЛОМНЫЙ ПРОЕКТ}\\[0.5cm]
+на тему: «Разработка веб-приложения ChessView»\\[0.8cm]
+по специальности 06130100 --- Программное обеспечение (по видам)
+\end{center}
+\vfill
+\begin{flushright}
+Выполнил: \filledfield{6cm}{Сакенов Ануар Сункарулы}\\[0.4cm]
+Группа: \filledfield{6cm}{ПО 2302}\\[0.4cm]
+Руководитель: \filledfield{6cm}{Мартынцов Николай Викторович}
+\end{flushright}
+\vfill
+\begin{center}Астана, 2026\end{center}
+\end{titlepage}
+
+\begin{titlepage}
+\thispagestyle{empty}
+\begin{center}
+{\bfseries ЗАДАНИЕ}\\[0.5cm]
+на дипломный проект
+\end{center}
+
+Студент: \filledfield{8cm}{Сакенов Ануар Сункарулы}
+
+Группа: \filledfield{8cm}{ПО 2302}
+
+Тема дипломного проекта: «Разработка веб-приложения ChessView».
+
+Номер приказа: \blankfield{7cm}
+
+Дата выдачи задания: \blankfield{7cm}
+
+\vspace{0.5cm}
+Разработать веб-приложение ChessView для онлайн-взаимодействия шахматистов. В проекте необходимо реализовать регистрацию и авторизацию пользователей, профиль, рейтинги, live-партию, серверную проверку ходов, WebSocket-события, чат, анализ позиции, задачи, турниры, запланированные матчи, административную панель, базу данных PostgreSQL и воспроизводимый сценарий запуска.
+
+\vfill
+\begin{flushright}
+Руководитель: \blankfield{6cm}\\[0.8cm]
+Студент: \blankfield{6cm}
+\end{flushright}
+\end{titlepage}
+
+\clearpage
+\setcounter{page}{4}
+\tableofcontents
+
+\input{chapters/introduction.tex}
+\input{chapters/chapter1.tex}
+\input{chapters/chapter2.tex}
+\input{chapters/chapter3.tex}
+\input{chapters/conclusion.tex}
+\input{chapters/sources.tex}
+\input{chapters/review.tex}
+\input{chapters/review_external.tex}
+
+\end{document}

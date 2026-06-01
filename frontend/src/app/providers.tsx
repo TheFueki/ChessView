@@ -13,6 +13,7 @@ import { type ReactNode, useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useUserStore } from "@/entities/user";
 import { http } from "@/shared/api";
+import { I18nProvider } from "@/shared/i18n";
 import type { UserProfile } from "@/shared/types";
 
 const queryClient = new QueryClient({
@@ -77,7 +78,9 @@ function AuthBootstrap({ children }: ProvidersProps) {
 export function Providers({ children }: ProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthBootstrap>{children}</AuthBootstrap>
+      <I18nProvider>
+        <AuthBootstrap>{children}</AuthBootstrap>
+      </I18nProvider>
     </QueryClientProvider>
   );
 }

@@ -31,7 +31,20 @@ class LoginUserCommand:
 class RefreshTokenCommand:
     """Input for token refresh."""
     refresh_token: str
-    
+
+
+@dataclass(frozen=True)
+class RequestPasswordResetCommand:
+    email: str
+    frontend_url: str
+
+
+@dataclass(frozen=True)
+class CompletePasswordResetCommand:
+    token: str
+    password: str
+
+
 @dataclass(frozen=True)
 class UpdateProfileCommand:
     user_id: UUID

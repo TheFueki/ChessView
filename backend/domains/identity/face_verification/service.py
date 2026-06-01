@@ -383,7 +383,7 @@ class FaceVerificationService:
 
     @staticmethod
     def build_face_template(face_sample: str) -> dict:
-        normalized = FaceVerificationService._normalize_face_sample(face_sample)
+        normalized = FaceVerificationService._face_sample_signature(face_sample)
         digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
         return {
             "algorithm": "local_face_template_v1",
@@ -402,6 +402,19 @@ class FaceVerificationService:
     @staticmethod
     def _normalize_face_sample(face_sample: str) -> str:
         return " ".join(face_sample.strip().split())
+
+    @staticmethod
+    def _face_sample_signature(face_sample: str) -> str:
+        normalized = FaceVerificationService._normalize_face_sample(face_sample)
+        header, separator, payload = normalized.partition(",")
+        if separator and header.startswith("data:image/"):
+            try:
+                raw_size = len(base64.b64decode(payload, validate=False))
+            except Exception:
+                raw_size = len(payload)
+            size_bucket = max(1, round(raw_size / 25_000))
+            return f"{header.split(';', 1)[0]}:{size_bucket}"
+        return normalized
 
     @staticmethod
     def _creation_options(

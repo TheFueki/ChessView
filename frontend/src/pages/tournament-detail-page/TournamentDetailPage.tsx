@@ -8,13 +8,14 @@ import {
   ChevronLeft, 
   ExternalLink, 
   Play, 
-  History 
+  History,
+  UserPlus 
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router";
 import { http } from "@/shared/api";
-import type { PaymentIntentResponse, TournamentDetailResponse, TournamentPairingResponse } from "@/shared/types";
-import { Button, Card, Spinner } from "@/shared/ui";
+import type { PaymentIntentResponse, PlayerSummary, TournamentDetailResponse, TournamentPairingResponse } from "@/shared/types";
+import { Button, Card, Input, Spinner } from "@/shared/ui";
 import { AppShell } from "@/widgets/app-shell";
 
 import "../../pages-style/dashboard-page/dashboardpage.scss";
@@ -60,6 +61,8 @@ export default function TournamentDetailPage() {
   const { tournamentId } = useParams();
   const [actionError, setActionError] = useState<string | null>(null);
   const [entryPayment, setEntryPayment] = useState<PaymentIntentResponse | null>(null);
+  const [otbPlayerName, setOtbPlayerName] = useState("");
+  const [otbPlayerRating, setOtbPlayerRating] = useState("1200");
 
   const tournamentQuery = useQuery({
     queryKey: ["tournament", tournamentId],
@@ -125,6 +128,24 @@ export default function TournamentDetailPage() {
       ]);
     },
     onError: (error) => setActionError(error instanceof Error ? error.message : "Unable to start tournament."),
+  });
+
+  const addOtbPlayer = useMutation({
+    mutationFn: () =>
+      http.post<PlayerSummary>(`/tournaments/${tournamentId}/otb-players`, {
+        display_name: otbPlayerName.trim(),
+        seed_rating: Math.max(100, Math.min(3000, Math.round(Number(otbPlayerRating) || 1200))),
+      }),
+    onSuccess: async () => {
+      setActionError(null);
+      setOtbPlayerName("");
+      setOtbPlayerRating("1200");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["tournament", tournamentId] }),
+        queryClient.invalidateQueries({ queryKey: ["tournaments"] }),
+      ]);
+    },
+    onError: (error) => setActionError(error instanceof Error ? error.message : "Unable to add OTB player."),
   });
 
   const advanceTournament = useMutation({
@@ -304,6 +325,40 @@ export default function TournamentDetailPage() {
                 </div>
               </Card>
             )}
+
+            {tournament.viewer_is_owner && tournament.tournament_type === "otb" && isRegistrationOpen(tournament.status) ? (
+              <Card className="mb-8 border-white/[0.05] bg-white/[0.02] p-4 backdrop-blur-sm">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_170px_auto] lg:items-end">
+                  <div>
+                    <div className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-neutral-300">
+                      <UserPlus size={16} className="text-violet-400" />
+                      Add OTB entrant
+                    </div>
+                    <Input
+                      value={otbPlayerName}
+                      onChange={(event) => setOtbPlayerName(event.target.value)}
+                      placeholder="Player full name"
+                    />
+                  </div>
+                  <Input
+                    value={otbPlayerRating}
+                    onChange={(event) => setOtbPlayerRating(event.target.value)}
+                    placeholder="Seed rating"
+                    inputMode="numeric"
+                  />
+                  <Button
+                    onClick={() => addOtbPlayer.mutate()}
+                    disabled={addOtbPlayer.isPending || !otbPlayerName.trim()}
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    {addOtbPlayer.isPending ? "Adding..." : "Add player"}
+                  </Button>
+                </div>
+                <p className="mt-3 text-xs text-neutral-500">
+                  Creates a local OTB player profile and enters them into this tournament immediately.
+                </p>
+              </Card>
+            ) : null}
 
             <div className="grid gap-8 lg:grid-cols-[1fr_1.4fr]">
               <section className="space-y-4">

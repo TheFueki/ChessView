@@ -1,0 +1,1491 @@
+\chapter{ТЕХНИЧЕСКАЯ ЧАСТЬ}
+
+\section{Описание и структура ПО}
+
+ChessView построен как full-stack веб-приложение с тремя пользовательскими входами: основной frontend для игроков, admin-frontend для администратора и backend API как единая серверная точка. Backend взаимодействует с PostgreSQL через SQLAlchemy async и управляет миграциями через Alembic. Клиентская часть не подключается к базе данных напрямую, а работает только через REST API и WebSocket.
+
+Архитектура программного обеспечения показана на рисунке~\ref{fig:software-architecture}.
+
+\begin{figure}[H]
+\centering
+\begin{adjustbox}{max width=0.95\textwidth,max height=0.30\textheight}
+\begin{tikzpicture}[box/.style={draw, rounded corners=2pt, align=center, minimum width=34mm, minimum height=10mm, fill=gray!8}, arr/.style={-{Stealth[length=2mm]}, thick}]
+\node[box] (ui) {React SPA\\frontend/src};
+\node[box, below=11mm of ui] (admin) {React Admin\\admin-frontend/src};
+\node[box, right=22mm of ui] (api) {FastAPI\\REST routers};
+\node[box, below=11mm of api] (ws) {WebSocket\\dispatcher};
+\node[box, right=22mm of api] (domain) {Domain/Application\\services};
+\node[box, right=22mm of domain] (infra) {Infrastructure\\repositories};
+\node[box, right=22mm of infra] (db) {PostgreSQL\\schema};
+\draw[arr] (ui) -- node[above, font=\scriptsize]{HTTP} (api);
+\draw[arr] (ui) -- node[below, font=\scriptsize]{WS} (ws);
+\draw[arr] (admin) -- node[below, font=\scriptsize]{admin HTTP} (api);
+\draw[arr] (api) -- (domain);
+\draw[arr] (ws) -- (domain);
+\draw[arr] (domain) -- (infra);
+\draw[arr] (infra) -- (db);
+\end{tikzpicture}
+\end{adjustbox}
+\caption{Структура программного обеспечения ChessView}\label{fig:software-architecture}
+\end{figure}
+
+Backend имеет доменную структуру. Каждый крупный модуль расположен в каталоге \code{backend/domains}: identity, game, matchmaking, profiles, ratings, communication, tournaments, scheduled\_matches, puzzles, payments, rtc и admin. Внутри домена используются четыре слоя. \code{domain} содержит сущности, value objects, правила и исключения. \code{application} содержит команды и сервисы use case. \code{infrastructure} содержит SQLAlchemy-модели и репозитории. \code{presentation} содержит FastAPI routers, WebSocket handlers, Pydantic schemas и serializers.
+
+Frontend организован по feature-sliced принципу. Каталог \code{app} отвечает за providers, router и route guards. Каталог \code{pages} содержит страницы: lobby, game, analysis, puzzles, tournaments, profile, settings, history, leaderboard и другие. Каталог \code{widgets} содержит крупные интерфейсные блоки, например game layout, sidebar, matchmaking panel и video chat panel. Каталог \code{features} содержит отдельные пользовательские действия: join matchmaking, leave matchmaking, make move, resign game, connect RTC, send chat message и analyze position. Каталоги \code{entities} и \code{shared} содержат модели предметной области, API-клиенты, UI-примитивы и общие utilities.
+
+Структура основных модулей приведена в таблице~\ref{tab:software-modules}.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.16}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.24\linewidth}|>{\RaggedRight\arraybackslash}p{0.34\linewidth}|>{\RaggedRight\arraybackslash}p{0.34\linewidth}|}
+\caption{Основные программные модули ChessView}\label{tab:software-modules}\\
+\hline
+Модуль & Назначение & Ключевые файлы и каталоги\\ \hline
+\endfirsthead
+\hline
+Модуль & Назначение & Ключевые файлы и каталоги\\ \hline
+\endhead
+Identity & Регистрация, вход, refresh token, профиль, avatar upload, face/passkey flows & \code{backend/domains/identity}, \code{frontend/src/entities/user}\\ \hline
+Game & Создание партии, ходы, часы, reconnect, resign, draw, game over & \code{backend/domains/game}, \code{frontend/src/pages/game-page}\\ \hline
+Matchmaking & Очередь поиска соперника и создание партии & \code{backend/domains/matchmaking}, \code{frontend/src/widgets/matchmaking-panel}\\ \hline
+Profiles и ratings & Профили, leaderboard, head-to-head, применение рейтингов & \code{backend/domains/profiles}, \code{backend/domains/ratings}\\ \hline
+Communication & Чат внутри партии & \code{backend/domains/communication}, \code{frontend/src/features/send-chat-message}\\ \hline
+Tournaments & Турниры, участники, раунды, пары, standings & \code{backend/domains/tournaments}, \code{frontend/src/pages/tournaments-page}\\ \hline
+Scheduled matches & Приглашения, accept/decline/cancel/start/reschedule & \code{backend/domains/scheduled_matches}\\ \hline
+Puzzles & Каталог задач и учет попыток & \code{backend/domains/puzzles}, \code{frontend/src/pages/puzzle-page}\\ \hline
+Payments & Локальный платежный эмулятор & \code{backend/domains/payments}\\ \hline
+Admin & Управление пользователями, аудит, платежи, проверки личности & \code{backend/domains/admin}, \code{admin-frontend/src}\\ \hline
+\end{longtable}
+\normalsize
+
+
+
+Backend запускается из функции create_app. В ней по порядку подключаются middleware, статические файлы, обработчики исключений, routers, WebSocket endpoint и healthcheck. Такой порядок важен: сначала приложение получает общие правила обработки запросов, затем доменные маршруты, затем служебный endpoint проверки состояния. При старте lifespan выполняет init_db, который применяет миграции и подготавливает базовые данные. После этого запускается фоновый game monitor, отвечающий за контроль активных партий и таймаутов.
+
+Структура backend-домена показана на рисунке~\ref{fig:backend-layers}. Схема отражает направление зависимостей: presentation вызывает application, application использует domain и repository-интерфейсы, infrastructure реализует работу с БД. Domain-слой не должен импортировать FastAPI или SQLAlchemy, потому что правила партии и турнира должны оставаться независимыми от транспорта и хранения.
+
+\begin{figure}[H]
+\centering
+\begin{adjustbox}{max width=0.90\textwidth,max height=0.30\textheight}
+\begin{tikzpicture}[box/.style={draw, rounded corners=2pt, align=center, minimum width=36mm, minimum height=9mm, fill=gray!8}, arr/.style={-{Stealth[length=2mm]}, thick}]
+\node[box] (p) {presentation\\routers, handlers};
+\node[box, right=13mm of p] (a) {application\\services, commands};
+\node[box, right=13mm of a] (d) {domain\\entities, rules};
+\node[box, below=11mm of a] (i) {infrastructure\\models, repositories};
+\draw[arr] (p) -- (a);
+\draw[arr] (a) -- (d);
+\draw[arr] (a) -- (i);
+\end{tikzpicture}
+\end{adjustbox}
+\caption{Слои backend-домена}\label{fig:backend-layers}
+\end{figure}
+
+Назначение backend-доменов раскрыто в таблице~\ref{tab:backend-domains}. Таблица дополняет рисунок~\ref{fig:software-architecture}: рисунок показывает общую схему, а таблица фиксирует конкретные зоны ответственности.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.14}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.18\linewidth}|>{\RaggedRight\arraybackslash}p{0.36\linewidth}|>{\RaggedRight\arraybackslash}p{0.36\linewidth}|}
+\caption{Домены backend и их ответственность}\label{tab:backend-domains}\\
+\hline
+Домен & Ответственность & Примеры данных и операций\\ \hline
+\endfirsthead
+\hline
+Домен & Ответственность & Примеры данных и операций\\ \hline
+\endhead
+identity & Пользователи, вход, токены, профиль и verification & users, avatar upload, JWT, face/passkey sessions\\ \hline
+game & Партии, ходы, часы, результат, reconnect & games, moves, make_move, resign, draw, timeout\\ \hline
+matchmaking & Очередь поиска соперника & queue_join, queue_leave, match_found\\ \hline
+profiles & Публичные профили, leaderboard, поиск, сравнение & profile summary, head-to-head, player search\\ \hline
+ratings & Применение рейтингов после партии & rating before/after, speed ratings\\ \hline
+communication & Чат внутри игровой комнаты & chat_messages, chat_send, chat_message\\ \hline
+tournaments & Турниры, раунды, пары и standings & tournament_players, tournament_pairings, Swiss helpers\\ \hline
+scheduled_matches & Приглашения и запланированный старт игры & accept, decline, cancel, reschedule, start\\ \hline
+puzzles & Задачи и прогресс решения & puzzles, puzzle_attempts, solution_moves\\ \hline
+payments & Демонстрационный платежный эмулятор & payment_intents, payment_events, refund\\ \hline
+rtc & Передача WebRTC signaling между игроками & rtc_offer, rtc_answer, rtc_ice\\ \hline
+admin & Административные действия и аудит & users ban/unban, role, logs, payments\\ \hline
+\end{longtable}
+\normalsize
+
+Структура frontend описана в таблице~\ref{tab:frontend-structure}. Она нужна, чтобы показать не просто список страниц, а принцип разделения пользовательского интерфейса.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.14}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.18\linewidth}|>{\RaggedRight\arraybackslash}p{0.34\linewidth}|>{\RaggedRight\arraybackslash}p{0.38\linewidth}|}
+\caption{Структура пользовательского frontend}\label{tab:frontend-structure}\\
+\hline
+Слой & Назначение & Примеры файлов и каталогов\\ \hline
+\endfirsthead
+\hline
+Слой & Назначение & Примеры файлов и каталогов\\ \hline
+\endhead
+app & Провайдеры, маршруты, guards, обработка ошибок & App.tsx, router.tsx, providers.tsx, RouteErrorPage.tsx\\ \hline
+pages & Route-level экраны приложения & GamePage, AnalysisPage, PuzzlePage, ProfilePage, TournamentsPage\\ \hline
+widgets & Крупные составные блоки страниц & GameLayout, GameSidebar, MatchmakingPanel, HistoryTable\\ \hline
+features & Отдельные действия пользователя & join-matchmaking, make-move, resign-game, send-chat-message\\ \hline
+entities & Типы и состояние предметных сущностей & user, game, message, matchmaking, rtc-peer\\ \hline
+shared & Общие API-клиенты, UI, config и helpers & http.ts, ws.ts, Button, Card, chess.ts, config\\ \hline
+\end{longtable}
+\normalsize
+
+Поток обработки хода показан на рисунке~\ref{fig:move-flow}. На клиенте пользователь выбирает фигуру и клетку, frontend формирует UCI-ход и отправляет WebSocket event \code{move}. Backend проверяет токен, определяет обработчик события, вызывает GameService, проверяет ход через python-chess, сохраняет move и обновленную FEN. После этого всем участникам комнаты отправляется новое состояние.
+
+\begin{figure}[H]
+\centering
+\begin{adjustbox}{max width=0.95\textwidth,max height=0.30\textheight}
+\begin{tikzpicture}[step/.style={draw, rounded corners=2pt, align=center, minimum width=27mm, minimum height=9mm, fill=gray!8}, arr/.style={-{Stealth[length=2mm]}, thick}]
+\node[step] (a) {Frontend\\drag/drop};
+\node[step, right=10mm of a] (b) {WS event\\move};
+\node[step, right=10mm of b] (c) {Dispatcher\\ws\_entry.py};
+\node[step, right=10mm of c] (d) {GameService\\validation};
+\node[step, right=10mm of d] (e) {Repository\\save};
+\node[step, below=11mm of d] (f) {Broadcast\\game\_state};
+\draw[arr] (a) -- (b);
+\draw[arr] (b) -- (c);
+\draw[arr] (c) -- (d);
+\draw[arr] (d) -- (e);
+\draw[arr] (e) |- (f);
+\draw[arr] (f) -| (a);
+\end{tikzpicture}
+\end{adjustbox}
+\caption{Сценарий обработки шахматного хода}\label{fig:move-flow}
+\end{figure}
+
+
+
+Для большей детализации архитектуру можно рассматривать не как один общий блок, а как набор последовательных границ ответственности. Первая граница проходит между браузером и backend: браузер отображает состояние, собирает пользовательский ввод и отправляет команды, но не принимает окончательных решений о результате партии, турнирной сетке или платежном статусе. Вторая граница проходит между transport-слоем и application-слоем: REST router или WebSocket handler только принимает сообщение, валидирует формат и передает команду в сервис. Третья граница проходит между application-слоем и хранилищем: сервис формирует транзакцию, вызывает репозиторий и получает доменный результат, который затем преобразуется в DTO для клиента.
+
+Распределение ответственности между слоями показано в таблице~\ref{tab:architecture-responsibility}. Если router напрямую меняет SQLAlchemy-модель без сервиса, это нарушение выбранной структуры. Если frontend пытается самостоятельно пересчитать рейтинг, это нарушение серверной ответственности. Поэтому таблица фиксирует, что принимает каждый слой и какой результат он должен вернуть.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.16}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.19\linewidth}|>{\RaggedRight\arraybackslash}p{0.24\linewidth}|>{\RaggedRight\arraybackslash}p{0.24\linewidth}|>{\RaggedRight\arraybackslash}p{0.23\linewidth}|}
+\caption{Распределение ответственности в архитектуре ChessView}\label{tab:architecture-responsibility}\\
+\hline
+Слой & Входные данные & Основная ответственность & Результат работы\\ \hline
+\endfirsthead
+\hline
+Слой & Входные данные & Основная ответственность & Результат работы\\ \hline
+\endhead
+React pages & Route, query state, пользовательский ввод & Отрисовать экран, вызвать feature-действие, показать загрузку и ошибки & UI-состояние и событие пользователя\\ \hline
+Features & Нажатие кнопки, ход на доске, отправка формы & Собрать payload, вызвать HTTP или WebSocket-клиент, обновить локальное состояние & Команда в backend или локальное состояние\\ \hline
+API client & Endpoint, метод, body, access token & Добавить заголовки, выполнить запрос, обработать HTTP-ошибку и JSON-ответ & Типизированный response или исключение\\ \hline
+FastAPI router & HTTP-запрос, path/query/body параметры & Проверить схему запроса, извлечь текущего пользователя, вызвать use case & HTTP-ответ с DTO и статусом\\ \hline
+WebSocket handler & Envelope события, active connection, token & Проверить соединение, разобрать type, передать событие в диспетчер & Сообщение одному клиенту или комнате\\ \hline
+Application service & Команда use case, пользователь, репозитории & Выполнить бизнес-операцию, открыть транзакцию, применить доменные правила & Доменный результат и события для отправки\\ \hline
+Domain model & Сущности, value objects, текущая позиция, правила & Зафиксировать инварианты: допустимый ход, статус партии, роль пользователя & Валидное изменение состояния или доменная ошибка\\ \hline
+Repository & Объект запроса, транзакционная session & Выполнить SQLAlchemy-запросы и сохранить агрегат & Запись БД или набор записей\\ \hline
+PostgreSQL & SQL-запрос, constraints, индексы & Хранить согласованные данные и поддерживать связи между таблицами & Надежное состояние приложения\\ \hline
+\end{longtable}
+\normalsize
+
+Внутренние потоки данных зависят от типа сценария. Авторизация является коротким request-response сценарием. Live-партия является событийным сценарием. Турнир является смешанным сценарием: создание и вступление выполняются через REST, а переход к партии открывает live-канал. Анализ позиции является локальным сценарием: пользователь работает с доской и engine в браузере, а backend нужен только при загрузке сохраненной партии.
+
+Сводка потоков приведена в таблице~\ref{tab:data-flows}. Она отделяет реальные серверные изменения от клиентских учебных действий. Для ChessView это важно, потому что приложение объединяет соревновательные функции и обучающие функции.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.16}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.22\linewidth}|>{\RaggedRight\arraybackslash}p{0.24\linewidth}|>{\RaggedRight\arraybackslash}p{0.24\linewidth}|}
+\caption{Потоки данных в основных сценариях}\label{tab:data-flows}\\
+\hline
+Сценарий & Основной транспорт & Какие данные изменяются & Что видит пользователь\\ \hline
+\endfirsthead
+\hline
+Сценарий & Основной транспорт & Какие данные изменяются & Что видит пользователь\\ \hline
+\endhead
+Регистрация & REST & users, refresh_tokens, ratings & Созданный аккаунт и вход в приложение\\ \hline
+Вход & REST & refresh_tokens, last_seen_at & Открыт dashboard и защищенные маршруты\\ \hline
+Поиск соперника & WebSocket & matchmaking_queue, games при совпадении & Состояние очереди и переход к партии\\ \hline
+Ход в партии & WebSocket & moves, games, game_clocks & Обновленная доска и часы игроков\\ \hline
+Чат партии & WebSocket и БД & chat_messages & Новое сообщение в боковой панели\\ \hline
+Завершение партии & WebSocket и транзакция & games, ratings, rating_history & Итог партии и изменение рейтинга\\ \hline
+Анализ позиции & Локальный worker & Данные БД не изменяются & Оценка Stockfish и варианты ходов\\ \hline
+Решение задачи & REST & puzzle_attempts & Статус решения и прогресс\\ \hline
+Турнир & REST & tournaments, tournament_players, rounds, pairings & Таблица участников, раунды, пары\\ \hline
+Запланированный матч & REST & scheduled_matches, payment_intents & Приглашение, оплата, запуск партии\\ \hline
+Администрирование & REST admin API & users, audit_logs, payment_intents & Сводка, действия и журнал\\ \hline
+\end{longtable}
+\normalsize
+
+При проектировании структуры ПО отдельно учитывалась возможность локального запуска. Backend является модульным монолитом: код разделен по доменам, но выполняется в одном процессе FastAPI. Это упрощает запуск, миграции, отладку и демонстрацию, при этом не мешает выделить отдельный сервис позже. Frontend и admin-frontend разделены физически, чтобы обычный пользователь не видел административные пункты меню, а административная часть оставалась отдельной рабочей областью.
+
+\section{Описание и структура БД}
+
+База данных ChessView построена в PostgreSQL. Схема создается и обновляется миграциями Alembic. Основной принцип модели: отдельная таблица хранит отдельную сущность предметной области, а связи фиксируются внешними ключами. Это делает данные проверяемыми, уменьшает дублирование и позволяет строить запросы для профиля, истории, турниров и административной панели.
+
+
+Как показано на рисунке~\ref{fig:erd-users-games}, центральная часть модели данных связана с пользователями, партиями, ходами и чатом.
+
+\begin{figure}[H]
+\centering
+\begin{adjustbox}{max width=0.95\textwidth,max height=0.30\textheight}
+\begin{tikzpicture}[entity/.style={draw, rounded corners=2pt, align=left, minimum width=32mm, fill=gray!8}, rel/.style={-{Stealth[length=2mm]}, thick}]
+\node[entity] (users) {users\\id PK\\username\\email\\rating\\role};
+\node[entity, right=28mm of users] (games) {games\\id PK\\white\_id FK\\black\_id FK\\fen\\status};
+\node[entity, below=14mm of games] (moves) {moves\\id PK\\game\_id FK\\user\_id FK\\uci};
+\node[entity, above=14mm of games] (chat) {chat\_messages\\id PK\\game\_id FK\\user\_id FK\\content};
+\draw[rel] (users) -- node[above, font=\scriptsize]{1:N white/black} (games);
+\draw[rel] (games) -- node[right, font=\scriptsize]{1:N} (moves);
+\draw[rel] (users) |- node[pos=.25, left, font=\scriptsize]{1:N} (moves);
+\draw[rel] (games) -- node[right, font=\scriptsize]{1:N} (chat);
+\draw[rel] (users) |- node[pos=.25, left, font=\scriptsize]{1:N} (chat);
+\end{tikzpicture}
+\end{adjustbox}
+\caption{ERD пользовательских партий, ходов и сообщений}\label{fig:erd-users-games}
+\end{figure}
+
+Турнирная часть базы данных представлена на рисунке~\ref{fig:erd-tournaments}.
+
+\begin{figure}[H]
+\centering
+\begin{adjustbox}{max width=0.95\textwidth,max height=0.30\textheight}
+\begin{tikzpicture}[entity/.style={draw, rounded corners=2pt, align=left, minimum width=34mm, fill=gray!8}, rel/.style={-{Stealth[length=2mm]}, thick}]
+\node[entity] (t) {tournaments\\id PK\\owner\_id FK\\status\\current\_round};
+\node[entity, right=20mm of t] (tp) {tournament\_players\\tournament\_id PK/FK\\user\_id PK/FK\\score};
+\node[entity, below=13mm of t] (tr) {tournament\_rounds\\id PK\\tournament\_id FK\\round\_number};
+\node[entity, below=13mm of tp] (pair) {tournament\_pairings\\id PK\\tournament\_id FK\\white\_id FK\\black\_id FK\\game\_id FK};
+\draw[rel] (t) -- node[above, font=\scriptsize]{1:N} (tp);
+\draw[rel] (t) -- node[left, font=\scriptsize]{1:N} (tr);
+\draw[rel] (t) -- node[above, font=\scriptsize]{1:N} (pair);
+\end{tikzpicture}
+\end{adjustbox}
+\caption{ERD турнирных таблиц}\label{fig:erd-tournaments}
+\end{figure}
+
+Связь задач, попыток и запланированных матчей показана на рисунке~\ref{fig:erd-study-schedule}.
+
+\begin{figure}[H]
+\centering
+\begin{adjustbox}{max width=0.95\textwidth,max height=0.30\textheight}
+\begin{tikzpicture}[entity/.style={draw, rounded corners=2pt, align=left, minimum width=34mm, fill=gray!8}, rel/.style={-{Stealth[length=2mm]}, thick}]
+\node[entity] (p) {puzzles\\id PK\\fen\\solution\_moves\\source\_game\_id FK};
+\node[entity, right=22mm of p] (pa) {puzzle\_attempts\\puzzle\_id PK/FK\\user\_id PK/FK\\solved};
+\node[entity, below=15mm of p] (sm) {scheduled\_matches\\id PK\\creator\_user\_id FK\\invited\_user\_id FK\\game\_id FK};
+\node[entity, right=22mm of sm] (pi) {payment\_intents\\id PK\\user\_id FK\\scheduled\_match\_id FK\\status};
+\draw[rel] (p) -- node[above, font=\scriptsize]{1:N} (pa);
+\draw[rel] (sm) -- node[above, font=\scriptsize]{1:N} (pi);
+\end{tikzpicture}
+\end{adjustbox}
+\caption{ERD задач, попыток и запланированных матчей}\label{fig:erd-study-schedule}
+\end{figure}
+
+Административные и верификационные сущности выделены на рисунке~\ref{fig:erd-admin-identity}.
+
+\begin{figure}[H]
+\centering
+\begin{adjustbox}{max width=0.95\textwidth,max height=0.30\textheight}
+\begin{tikzpicture}[entity/.style={draw, rounded corners=2pt, align=left, minimum width=34mm, fill=gray!8}, rel/.style={-{Stealth[length=2mm]}, thick}]
+\node[entity] (u) {users\\id PK\\role\\banned\_at};
+\node[entity, right=18mm of u] (a) {admin\_audit\_logs\\id PK\\actor\_user\_id FK\\action\\target\_id};
+\node[entity, below=13mm of u] (fp) {face\_verification\_profiles\\id PK\\user\_id FK\\provider\\credential\_id};
+\node[entity, right=18mm of fp] (fs) {face\_verification\_sessions\\id PK\\user\_id FK\\status\\confidence};
+\node[entity, below=13mm of fs] (fe) {face\_verification\_events\\id PK\\session\_id FK\\event\_type};
+\node[entity, below=13mm of fp] (fc) {face\_verification\_challenges\\id PK\\user\_id FK\\session\_id FK\\challenge};
+\draw[rel] (u) -- node[above, font=\scriptsize]{1:N} (a);
+\draw[rel] (u) -- node[left, font=\scriptsize]{1:N} (fp);
+\draw[rel] (u) -- node[above, font=\scriptsize]{1:N} (fs);
+\draw[rel] (fs) -- node[right, font=\scriptsize]{1:N} (fe);
+\draw[rel] (u) -- node[left, font=\scriptsize]{1:N} (fc);
+\end{tikzpicture}
+\end{adjustbox}
+\caption{ERD административного журнала и проверки личности}\label{fig:erd-admin-identity}
+\end{figure}
+
+
+
+
+Назначение таблиц раскрыто в таблице~\ref{tab:db-tables}. Эта таблица идет перед перечнем полей, чтобы сначала объяснить смысл сущностей, а затем показать каждую колонку.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.14}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.24\linewidth}|>{\RaggedRight\arraybackslash}p{0.66\linewidth}|}
+\caption{Назначение таблиц базы данных ChessView}\label{tab:db-tables}\\
+\hline
+Таблица & Назначение\\ \hline
+\endfirsthead
+\hline
+Таблица & Назначение\\ \hline
+\endhead
+users & Хранит аккаунты, email, хеш пароля, рейтинги, роль, баланс, avatar path и статус блокировки\\ \hline
+games & Хранит партию, игроков, контроль времени, часы, FEN, PGN, статус, результат и рейтинги до/после\\ \hline
+moves & Хранит каждый полуход партии, автора хода, UCI-нотацию и FEN после хода\\ \hline
+chat_messages & Хранит сообщения игрового чата с привязкой к партии и автору\\ \hline
+puzzles & Хранит шахматные задачи, стартовую позицию, решение, рейтинг сложности и темы\\ \hline
+puzzle_attempts & Хранит прогресс пользователя по конкретной задаче: попытки, solved и последний результат\\ \hline
+tournaments & Хранит турнир, организатора, контроль времени, статус, тип и количество раундов\\ \hline
+tournament_players & Связывает пользователя с турниром и хранит seed rating, очки и статус участия\\ \hline
+tournament_rounds & Хранит созданные раунды турнира\\ \hline
+tournament_pairings & Хранит пары игроков по раундам и связь пары с созданной партией\\ \hline
+scheduled_matches & Хранит приглашения и расписания матчей, связь с турниром, парой и созданной игрой\\ \hline
+payment_intents & Хранит платежное намерение эмулятора, сумму, валюту, статус и связанный сценарий\\ \hline
+payment_events & Хранит события жизненного цикла платежного намерения\\ \hline
+admin_audit_logs & Хранит журнал административных действий: actor, action, target и payload\\ \hline
+face_verification_profiles & Хранит постоянный профиль проверки личности, passkey или face template\\ \hline
+face_verification_sessions & Хранит отдельную сессию проверки личности и ее результат\\ \hline
+face_verification_events & Хранит события внутри verification-сессии\\ \hline
+face_verification_challenges & Хранит challenge для enrollment или verification\\ \hline
+\end{longtable}
+\normalsize
+
+Полный перечень полей базы данных разбит на отдельные таблицы. Такой формат читается лучше, чем одна сводная таблица на несколько страниц: каждая таблица ниже соответствует одной сущности БД, имеет собственную подпись и показывает поля, типы, ограничения и назначение колонок. Поля с пометкой FK указывают на внешние ключи. Поля с пометкой PK являются первичными ключами. В некоторых сущностях используется составной первичный ключ: например, puzzle\_attempts идентифицируется парой puzzle\_id и user\_id, а tournament\_players идентифицируется парой tournament\_id и user\_id. Это предотвращает дублирование участия пользователя в одном турнире или нескольких записей прогресса по одной задаче.
+
+Таблица \code{users} хранит учетные записи пользователей, роли, рейтинг по умолчанию и публичные данные профиля. Ее поля приведены в таблице~\ref{tab:db-fields-users}.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.13}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.17\linewidth}|>{\RaggedRight\arraybackslash}p{0.23\linewidth}|>{\RaggedRight\arraybackslash}p{0.30\linewidth}|}
+\caption{Поля таблицы users}\label{tab:db-fields-users}\\
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endfirsthead
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endhead
+\code{id} & UUID & PK & Уникальный идентификатор пользователя.\\ \hline
+\code{username} & varchar(32) & UNIQUE, NOT NULL & Логин пользователя, отображается в профиле и партиях.\\ \hline
+\code{email} & varchar(255) & UNIQUE, NOT NULL & Адрес электронной почты для входа и идентификации аккаунта.\\ \hline
+\code{password} & varchar(255) & NOT NULL & Хеш пароля, открытый пароль в БД не хранится.\\ \hline
+\code{rating} & integer & NOT NULL & Базовый рейтинг пользователя.\\ \hline
+\code{bullet_rating} & integer & NOT NULL & Рейтинг для bullet-контролей времени.\\ \hline
+\code{blitz_rating} & integer & NOT NULL & Рейтинг для blitz-контролей времени.\\ \hline
+\code{rapid_rating} & integer & NOT NULL & Рейтинг для rapid-контролей времени.\\ \hline
+\code{classical_rating} & integer & NOT NULL & Рейтинг для classical-контролей времени.\\ \hline
+\code{coins} & integer & NOT NULL & Локальный баланс для демонстрационного платежного эмулятора.\\ \hline
+\code{bio} & varchar(160) & NULL & Краткое описание профиля.\\ \hline
+\code{avatar_path} & varchar(255) & NULL & Путь к загруженному аватару в локальном хранилище.\\ \hline
+\code{role} & varchar(20) & NOT NULL & Роль пользователя: user или admin.\\ \hline
+\code{banned_at} & timestamptz & NULL & Дата блокировки аккаунта администратором.\\ \hline
+\code{created_at} & timestamptz & NOT NULL & Дата создания аккаунта.\\ \hline
+\end{longtable}
+\normalsize
+
+Таблица \code{games} хранит партии, участников, состояние доски, результат и параметры часов. Ее поля приведены в таблице~\ref{tab:db-fields-games}.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.13}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.17\linewidth}|>{\RaggedRight\arraybackslash}p{0.23\linewidth}|>{\RaggedRight\arraybackslash}p{0.30\linewidth}|}
+\caption{Поля таблицы games}\label{tab:db-fields-games}\\
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endfirsthead
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endhead
+\code{id} & UUID & PK & Идентификатор партии.\\ \hline
+\code{white_id} & UUID & FK users.id & Пользователь, играющий белыми.\\ \hline
+\code{black_id} & UUID & FK users.id & Пользователь, играющий черными.\\ \hline
+\code{time_control_name} & varchar(20) & NOT NULL & Человеко-читаемое имя контроля времени, например 5+0.\\ \hline
+\code{initial_time_ms} & integer & NOT NULL & Начальное время каждого игрока в миллисекундах.\\ \hline
+\code{increment_ms} & integer & NOT NULL & Добавка за ход в миллисекундах.\\ \hline
+\code{white_time_ms} & integer & NOT NULL & Оставшееся время белых.\\ \hline
+\code{black_time_ms} & integer & NOT NULL & Оставшееся время черных.\\ \hline
+\code{last_clock_started_at} & timestamptz & NULL & Момент последнего запуска активных часов.\\ \hline
+\code{disconnected_player_id} & UUID & FK users.id, NULL & Игрок, потерявший соединение.\\ \hline
+\code{disconnect_grace_deadline_at} & timestamptz & NULL & Время окончания grace-периода для reconnect.\\ \hline
+\code{rated} & boolean & NOT NULL & Признак рейтинговой партии.\\ \hline
+\code{white_rating_before} & integer & NOT NULL & Рейтинг белых до партии.\\ \hline
+\code{black_rating_before} & integer & NOT NULL & Рейтинг черных до партии.\\ \hline
+\code{white_rating_after} & integer & NULL & Рейтинг белых после применения результата.\\ \hline
+\code{black_rating_after} & integer & NULL & Рейтинг черных после применения результата.\\ \hline
+\code{status} & varchar(20) & NOT NULL & Состояние партии: active, finished, aborted и т.п.\\ \hline
+\code{result} & varchar(10) & NULL & Результат в шахматной нотации: 1-0, 0-1, 1/2-1/2.\\ \hline
+\code{fen} & text & NOT NULL & Текущая позиция в формате FEN.\\ \hline
+\code{pgn} & text & NULL & PGN завершенной партии или накопленная запись партии.\\ \hline
+\code{started_at} & timestamptz & NOT NULL & Дата начала партии.\\ \hline
+\code{ended_at} & timestamptz & NULL & Дата завершения партии.\\ \hline
+\code{termination_reason} & varchar(40) & NULL & Причина завершения: checkmate, timeout, resignation и др.\\ \hline
+\code{rating_applied_at} & timestamptz & NULL & Дата применения рейтингового изменения.\\ \hline
+\end{longtable}
+\normalsize
+
+Таблица \code{moves} хранит последовательность полуходов внутри партии. Ее поля приведены в таблице~\ref{tab:db-fields-moves}.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.13}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.17\linewidth}|>{\RaggedRight\arraybackslash}p{0.23\linewidth}|>{\RaggedRight\arraybackslash}p{0.30\linewidth}|}
+\caption{Поля таблицы moves}\label{tab:db-fields-moves}\\
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endfirsthead
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endhead
+\code{id} & integer & PK & Порядковый идентификатор хода.\\ \hline
+\code{game_id} & UUID & FK games.id & Партия, к которой относится ход.\\ \hline
+\code{user_id} & UUID & FK users.id & Игрок, сделавший ход.\\ \hline
+\code{uci} & varchar(5) & NOT NULL & Ход в формате UCI, например e2e4.\\ \hline
+\code{fen_after} & text & NOT NULL & Позиция после выполнения хода.\\ \hline
+\code{move_number} & integer & NOT NULL & Номер полухода в партии.\\ \hline
+\code{created_at} & timestamptz & NOT NULL & Дата фиксации хода.\\ \hline
+\end{longtable}
+\normalsize
+
+Таблица \code{chat_messages} хранит сообщения игроков внутри конкретной партии. Ее поля приведены в таблице~\ref{tab:db-fields-chat-messages}.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.13}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.17\linewidth}|>{\RaggedRight\arraybackslash}p{0.23\linewidth}|>{\RaggedRight\arraybackslash}p{0.30\linewidth}|}
+\caption{Поля таблицы chat\_messages}\label{tab:db-fields-chat-messages}\\
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endfirsthead
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endhead
+\code{id} & integer & PK & Идентификатор сообщения.\\ \hline
+\code{game_id} & UUID & FK games.id & Партия, внутри которой отправлено сообщение.\\ \hline
+\code{user_id} & UUID & FK users.id & Автор сообщения.\\ \hline
+\code{content} & varchar(500) & NOT NULL & Текст сообщения.\\ \hline
+\code{created_at} & timestamptz & NOT NULL & Дата отправки сообщения.\\ \hline
+\end{longtable}
+\normalsize
+
+Таблица \code{puzzles} хранит шахматные задачи, начальную позицию и решение. Ее поля приведены в таблице~\ref{tab:db-fields-puzzles}.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.13}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.17\linewidth}|>{\RaggedRight\arraybackslash}p{0.23\linewidth}|>{\RaggedRight\arraybackslash}p{0.30\linewidth}|}
+\caption{Поля таблицы puzzles}\label{tab:db-fields-puzzles}\\
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endfirsthead
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endhead
+\code{id} & UUID & PK & Идентификатор шахматной задачи.\\ \hline
+\code{fen} & text & NOT NULL & Стартовая позиция задачи.\\ \hline
+\code{solution_moves} & json & NOT NULL & Последовательность правильных ходов.\\ \hline
+\code{rating} & integer & NOT NULL & Сложность задачи.\\ \hline
+\code{themes} & json & NOT NULL & Темы задачи: mate, fork, endgame и т.п.\\ \hline
+\code{source_game_id} & UUID & FK games.id, NULL & Партия-источник, если задача получена из партии.\\ \hline
+\code{created_at} & timestamptz & NOT NULL & Дата добавления задачи.\\ \hline
+\end{longtable}
+\normalsize
+
+Таблица \code{puzzle_attempts} хранит персональный прогресс пользователя по задачам. Ее поля приведены в таблице~\ref{tab:db-fields-puzzle-attempts}.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.13}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.17\linewidth}|>{\RaggedRight\arraybackslash}p{0.23\linewidth}|>{\RaggedRight\arraybackslash}p{0.30\linewidth}|}
+\caption{Поля таблицы puzzle\_attempts}\label{tab:db-fields-puzzle-attempts}\\
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endfirsthead
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endhead
+\code{puzzle_id} & UUID & PK, FK puzzles.id & Задача.\\ \hline
+\code{user_id} & UUID & PK, FK users.id & Пользователь, решающий задачу.\\ \hline
+\code{attempts_count} & integer & NOT NULL & Количество попыток.\\ \hline
+\code{solved} & boolean & NOT NULL & Флаг успешного решения.\\ \hline
+\code{last_result} & varchar(20) & NULL & Последний результат попытки.\\ \hline
+\code{last_attempted_at} & timestamptz & NULL & Дата последней попытки.\\ \hline
+\end{longtable}
+\normalsize
+
+Таблица \code{tournaments} хранит турнирные события, регламент и общий статус проведения. Ее поля приведены в таблице~\ref{tab:db-fields-tournaments}.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.13}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.17\linewidth}|>{\RaggedRight\arraybackslash}p{0.23\linewidth}|>{\RaggedRight\arraybackslash}p{0.30\linewidth}|}
+\caption{Поля таблицы tournaments}\label{tab:db-fields-tournaments}\\
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endfirsthead
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endhead
+\code{id} & UUID & PK & Идентификатор турнира.\\ \hline
+\code{owner_id} & UUID & FK users.id & Организатор турнира.\\ \hline
+\code{name} & varchar(120) & NOT NULL & Название турнира.\\ \hline
+\code{time_control_name} & varchar(20) & NOT NULL & Контроль времени.\\ \hline
+\code{initial_time_ms} & integer & NOT NULL & Начальное время партии.\\ \hline
+\code{increment_ms} & integer & NOT NULL & Добавка за ход.\\ \hline
+\code{status} & varchar(20) & NOT NULL & Статус турнира.\\ \hline
+\code{tournament_type} & varchar(20) & NOT NULL & Тип турнира, например swiss.\\ \hline
+\code{entry_fee_cents} & integer & NOT NULL & Вступительный взнос для платежного сценария.\\ \hline
+\code{current_round} & integer & NOT NULL & Текущий раунд.\\ \hline
+\code{total_rounds} & integer & NOT NULL & Общее количество раундов.\\ \hline
+\code{created_at} & timestamptz & NOT NULL & Дата создания турнира.\\ \hline
+\code{started_at} & timestamptz & NULL & Дата старта турнира.\\ \hline
+\code{finished_at} & timestamptz & NULL & Дата завершения турнира.\\ \hline
+\end{longtable}
+\normalsize
+
+Таблица \code{tournament_players} хранит участие пользователей в турнирах и их очки. Ее поля приведены в таблице~\ref{tab:db-fields-tournament-players}.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.13}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.17\linewidth}|>{\RaggedRight\arraybackslash}p{0.23\linewidth}|>{\RaggedRight\arraybackslash}p{0.30\linewidth}|}
+\caption{Поля таблицы tournament\_players}\label{tab:db-fields-tournament-players}\\
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endfirsthead
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endhead
+\code{tournament_id} & UUID & PK, FK tournaments.id & Турнир.\\ \hline
+\code{user_id} & UUID & PK, FK users.id & Участник.\\ \hline
+\code{seed_rating} & integer & NOT NULL & Рейтинг участника на момент регистрации.\\ \hline
+\code{score} & float & NOT NULL & Текущие очки участника.\\ \hline
+\code{status} & varchar(20) & NOT NULL & Статус участия: active, withdrawn и др.\\ \hline
+\code{joined_at} & timestamptz & NOT NULL & Дата регистрации в турнире.\\ \hline
+\code{withdrawn_at} & timestamptz & NULL & Дата снятия с турнира.\\ \hline
+\end{longtable}
+\normalsize
+
+Таблица \code{tournament_rounds} хранит раунды турнира и порядок их проведения. Ее поля приведены в таблице~\ref{tab:db-fields-tournament-rounds}.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.13}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.17\linewidth}|>{\RaggedRight\arraybackslash}p{0.23\linewidth}|>{\RaggedRight\arraybackslash}p{0.30\linewidth}|}
+\caption{Поля таблицы tournament\_rounds}\label{tab:db-fields-tournament-rounds}\\
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endfirsthead
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endhead
+\code{id} & integer & PK & Идентификатор раунда.\\ \hline
+\code{tournament_id} & UUID & FK tournaments.id & Турнир.\\ \hline
+\code{round_number} & integer & NOT NULL & Номер раунда.\\ \hline
+\code{created_at} & timestamptz & NOT NULL & Дата генерации раунда.\\ \hline
+\end{longtable}
+\normalsize
+
+Таблица \code{tournament_pairings} хранит пары игроков внутри раунда и связанные партии. Ее поля приведены в таблице~\ref{tab:db-fields-tournament-pairings}.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.13}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.17\linewidth}|>{\RaggedRight\arraybackslash}p{0.23\linewidth}|>{\RaggedRight\arraybackslash}p{0.30\linewidth}|}
+\caption{Поля таблицы tournament\_pairings}\label{tab:db-fields-tournament-pairings}\\
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endfirsthead
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endhead
+\code{id} & integer & PK & Идентификатор пары.\\ \hline
+\code{tournament_id} & UUID & FK tournaments.id & Турнир.\\ \hline
+\code{round_number} & integer & NOT NULL & Номер раунда.\\ \hline
+\code{white_id} & UUID & FK users.id & Игрок белыми.\\ \hline
+\code{black_id} & UUID & FK users.id, NULL & Игрок черными; NULL допускает bye.\\ \hline
+\code{game_id} & UUID & UNIQUE, FK games.id, NULL & Партия, созданная для пары.\\ \hline
+\code{result} & varchar(10) & NULL & Результат пары.\\ \hline
+\code{created_at} & timestamptz & NOT NULL & Дата создания пары.\\ \hline
+\end{longtable}
+\normalsize
+
+Таблица \code{scheduled_matches} хранит приглашенные матчи, дату, статус и параметры оплаты. Ее поля приведены в таблице~\ref{tab:db-fields-scheduled-matches}.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.13}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.17\linewidth}|>{\RaggedRight\arraybackslash}p{0.23\linewidth}|>{\RaggedRight\arraybackslash}p{0.30\linewidth}|}
+\caption{Поля таблицы scheduled\_matches}\label{tab:db-fields-scheduled-matches}\\
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endfirsthead
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endhead
+\code{id} & UUID & PK & Идентификатор запланированного матча.\\ \hline
+\code{tournament_id} & UUID & FK tournaments.id, NULL & Связанный турнир.\\ \hline
+\code{round_id} & integer & NULL & Связанный раунд.\\ \hline
+\code{pairing_id} & integer & NULL & Связанная турнирная пара.\\ \hline
+\code{white_player_id} & UUID & FK users.id, NULL & Игрок белыми.\\ \hline
+\code{black_player_id} & UUID & FK users.id, NULL & Игрок черными.\\ \hline
+\code{creator_user_id} & UUID & FK users.id & Создатель приглашения.\\ \hline
+\code{invited_user_id} & UUID & FK users.id, NULL & Приглашенный пользователь.\\ \hline
+\code{starts_at} & timestamptz & NOT NULL & Плановое время начала.\\ \hline
+\code{expires_at} & timestamptz & NULL & Срок действия приглашения.\\ \hline
+\code{status} & varchar(30) & NOT NULL & Статус матча.\\ \hline
+\code{game_id} & UUID & FK games.id, NULL & Созданная партия.\\ \hline
+\code{metadata} & json & NOT NULL & Дополнительные параметры сценария.\\ \hline
+\code{created_at} & timestamptz & NOT NULL & Дата создания записи.\\ \hline
+\code{updated_at} & timestamptz & NULL & Дата последнего изменения.\\ \hline
+\end{longtable}
+\normalsize
+
+Таблица \code{payment_intents} хранит платежные намерения и текущий статус эмулятора платежей. Ее поля приведены в таблице~\ref{tab:db-fields-payment-intents}.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.13}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.17\linewidth}|>{\RaggedRight\arraybackslash}p{0.23\linewidth}|>{\RaggedRight\arraybackslash}p{0.30\linewidth}|}
+\caption{Поля таблицы payment\_intents}\label{tab:db-fields-payment-intents}\\
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endfirsthead
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endhead
+\code{id} & UUID & PK & Идентификатор платежного намерения.\\ \hline
+\code{user_id} & UUID & FK users.id & Пользователь, инициировавший платеж.\\ \hline
+\code{tournament_id} & UUID & FK tournaments.id, NULL & Турнирный платеж.\\ \hline
+\code{scheduled_match_id} & UUID & FK scheduled_matches.id, NULL & Платеж для запланированного матча.\\ \hline
+\code{amount_cents} & integer & NOT NULL & Сумма в минимальных единицах валюты.\\ \hline
+\code{currency} & varchar(3) & NOT NULL & Код валюты.\\ \hline
+\code{status} & varchar(20) & NOT NULL & Статус платежа.\\ \hline
+\code{scenario} & varchar(20) & NULL & Сценарий использования платежа.\\ \hline
+\code{reserved_until} & timestamptz & NULL & Срок резервирования средств.\\ \hline
+\code{metadata} & json & NOT NULL & Дополнительные параметры платежа.\\ \hline
+\code{created_at} & timestamptz & NOT NULL & Дата создания.\\ \hline
+\code{updated_at} & timestamptz & NULL & Дата изменения.\\ \hline
+\end{longtable}
+\normalsize
+
+Таблица \code{payment_events} хранит историю событий платежного эмулятора. Ее поля приведены в таблице~\ref{tab:db-fields-payment-events}.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.13}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.17\linewidth}|>{\RaggedRight\arraybackslash}p{0.23\linewidth}|>{\RaggedRight\arraybackslash}p{0.30\linewidth}|}
+\caption{Поля таблицы payment\_events}\label{tab:db-fields-payment-events}\\
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endfirsthead
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endhead
+\code{id} & integer & PK & Идентификатор события платежа.\\ \hline
+\code{payment_intent_id} & UUID & FK payment_intents.id & Связанное платежное намерение.\\ \hline
+\code{type} & varchar(40) & NOT NULL & Тип события.\\ \hline
+\code{payload} & json & NOT NULL & Содержимое события.\\ \hline
+\code{created_at} & timestamptz & NOT NULL & Дата события.\\ \hline
+\end{longtable}
+\normalsize
+
+Таблица \code{admin_audit_logs} хранит журнал административных действий. Ее поля приведены в таблице~\ref{tab:db-fields-admin-audit-logs}.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.13}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.17\linewidth}|>{\RaggedRight\arraybackslash}p{0.23\linewidth}|>{\RaggedRight\arraybackslash}p{0.30\linewidth}|}
+\caption{Поля таблицы admin\_audit\_logs}\label{tab:db-fields-admin-audit-logs}\\
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endfirsthead
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endhead
+\code{id} & UUID & PK & Идентификатор записи журнала.\\ \hline
+\code{actor_user_id} & UUID & FK users.id & Администратор, выполнивший действие.\\ \hline
+\code{action} & varchar(80) & NOT NULL & Название административного действия.\\ \hline
+\code{target_type} & varchar(80) & NOT NULL & Тип объекта воздействия.\\ \hline
+\code{target_id} & varchar(120) & NOT NULL & Идентификатор объекта воздействия.\\ \hline
+\code{payload} & json & NOT NULL & Контекст действия.\\ \hline
+\code{created_at} & timestamptz & NOT NULL & Дата действия.\\ \hline
+\end{longtable}
+\normalsize
+
+Таблица \code{face_verification_profiles} хранит профили проверки лица и связанные устройства. Ее поля приведены в таблице~\ref{tab:db-fields-face-verification-profiles}.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.13}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.17\linewidth}|>{\RaggedRight\arraybackslash}p{0.23\linewidth}|>{\RaggedRight\arraybackslash}p{0.30\linewidth}|}
+\caption{Поля таблицы face\_verification\_profiles}\label{tab:db-fields-face-verification-profiles}\\
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endfirsthead
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endhead
+\code{id} & UUID & PK & Идентификатор профиля проверки.\\ \hline
+\code{user_id} & UUID & FK users.id & Владелец профиля.\\ \hline
+\code{provider} & varchar(40) & NOT NULL & Провайдер проверки.\\ \hline
+\code{status} & varchar(30) & NOT NULL & Статус профиля.\\ \hline
+\code{device_label} & varchar(120) & NULL & Название устройства или ключа.\\ \hline
+\code{credential_id} & varchar(255) & NULL & Идентификатор passkey.\\ \hline
+\code{credential_public_key} & json & NULL & Публичный ключ passkey.\\ \hline
+\code{face_template} & json & NULL & Локальный шаблон лица для демонстрационного сценария.\\ \hline
+\code{consented_at} & timestamptz & NOT NULL & Дата согласия пользователя.\\ \hline
+\code{created_at} & timestamptz & NOT NULL & Дата создания профиля.\\ \hline
+\code{updated_at} & timestamptz & NULL & Дата изменения профиля.\\ \hline
+\end{longtable}
+\normalsize
+
+Таблица \code{face_verification_sessions} хранит сессии проверки лица в профиле или партии. Ее поля приведены в таблице~\ref{tab:db-fields-face-verification-sessions}.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.13}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.17\linewidth}|>{\RaggedRight\arraybackslash}p{0.23\linewidth}|>{\RaggedRight\arraybackslash}p{0.30\linewidth}|}
+\caption{Поля таблицы face\_verification\_sessions}\label{tab:db-fields-face-verification-sessions}\\
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endfirsthead
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endhead
+\code{id} & UUID & PK & Идентификатор сессии проверки.\\ \hline
+\code{user_id} & UUID & FK users.id & Проверяемый пользователь.\\ \hline
+\code{game_id} & UUID & FK games.id, NULL & Связанная партия.\\ \hline
+\code{tournament_id} & UUID & FK tournaments.id, NULL & Связанный турнир.\\ \hline
+\code{scheduled_match_id} & UUID & FK scheduled_matches.id, NULL & Связанный запланированный матч.\\ \hline
+\code{status} & varchar(30) & NOT NULL & Статус сессии.\\ \hline
+\code{confidence} & float & NULL & Уровень уверенности проверки.\\ \hline
+\code{reason} & varchar(240) & NULL & Причина отказа или пояснение результата.\\ \hline
+\code{provider} & varchar(40) & NOT NULL & Провайдер проверки.\\ \hline
+\code{created_at} & timestamptz & NOT NULL & Дата начала сессии.\\ \hline
+\code{completed_at} & timestamptz & NULL & Дата завершения сессии.\\ \hline
+\end{longtable}
+\normalsize
+
+Таблица \code{face_verification_events} хранит события, возникающие во время проверки лица. Ее поля приведены в таблице~\ref{tab:db-fields-face-verification-events}.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.13}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.17\linewidth}|>{\RaggedRight\arraybackslash}p{0.23\linewidth}|>{\RaggedRight\arraybackslash}p{0.30\linewidth}|}
+\caption{Поля таблицы face\_verification\_events}\label{tab:db-fields-face-verification-events}\\
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endfirsthead
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endhead
+\code{id} & integer & PK & Идентификатор события.\\ \hline
+\code{session_id} & UUID & FK face_verification_sessions.id & Сессия проверки.\\ \hline
+\code{event_type} & varchar(40) & NOT NULL & Тип события проверки.\\ \hline
+\code{payload} & json & NOT NULL & Данные события.\\ \hline
+\code{created_at} & timestamptz & NOT NULL & Дата события.\\ \hline
+\end{longtable}
+\normalsize
+
+Таблица \code{face_verification_challenges} хранит одноразовые challenge-запросы для проверки личности. Ее поля приведены в таблице~\ref{tab:db-fields-face-verification-challenges}.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.13}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.17\linewidth}|>{\RaggedRight\arraybackslash}p{0.23\linewidth}|>{\RaggedRight\arraybackslash}p{0.30\linewidth}|}
+\caption{Поля таблицы face\_verification\_challenges}\label{tab:db-fields-face-verification-challenges}\\
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endfirsthead
+\hline
+Поле & Тип & Ключи/ограничения & Назначение\\ \hline
+\endhead
+\code{id} & UUID & PK & Идентификатор challenge.\\ \hline
+\code{user_id} & UUID & FK users.id & Пользователь.\\ \hline
+\code{session_id} & UUID & FK face_verification_sessions.id, NULL & Связанная сессия.\\ \hline
+\code{purpose} & varchar(40) & NOT NULL & Назначение challenge: enrollment или verification.\\ \hline
+\code{challenge} & varchar(255) & NOT NULL & Случайная challenge-строка.\\ \hline
+\code{payload} & json & NOT NULL & Данные для проверки.\\ \hline
+\code{consumed_at} & timestamptz & NULL & Дата использования challenge.\\ \hline
+\code{created_at} & timestamptz & NOT NULL & Дата создания challenge.\\ \hline
+\end{longtable}
+\normalsize
+
+Связь пользовательских сценариев с таблицами БД приведена в таблице~\ref{tab:db-scenario-map}. Эта таблица показывает, какие данные реально читаются или изменяются при работе приложения.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.14}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.22\linewidth}|>{\RaggedRight\arraybackslash}p{0.30\linewidth}|>{\RaggedRight\arraybackslash}p{0.38\linewidth}|}
+\caption{Связь сценариев приложения с таблицами базы данных}\label{tab:db-scenario-map}\\
+\hline
+Сценарий & Основные таблицы & Что происходит с данными\\ \hline
+\endfirsthead
+\hline
+Сценарий & Основные таблицы & Что происходит с данными\\ \hline
+\endhead
+Регистрация & users & Создается пользователь, сохраняются email, username, password hash, rating и created_at\\ \hline
+Вход & users & Пользователь находится по email, проверяется password hash, формируются токены\\ \hline
+Загрузка профиля & users, games & Читаются данные пользователя, история партий и рейтинговые значения\\ \hline
+Поиск соперника & users, games & Из users берется рейтинг, после подбора создается запись games\\ \hline
+Ход в партии & games, moves & Проверяется текущая FEN, создается move, обновляется FEN и clock-поля в games\\ \hline
+Сдача партии & games, users & Обновляется result, status, ended_at, termination_reason и рейтинговые поля\\ \hline
+Чат партии & chat_messages, games, users & Проверяется участие в комнате, создается сообщение и рассылается событие\\ \hline
+Решение задачи & puzzles, puzzle_attempts & Читается solution_moves, обновляется attempts_count, solved и last_result\\ \hline
+Создание турнира & tournaments & Создается турнир с owner_id, контролем времени, статусом и total_rounds\\ \hline
+Вступление в турнир & tournaments, tournament_players, users & Создается запись участника с seed_rating и score\\ \hline
+Генерация раунда & tournament_rounds, tournament_pairings & Создается раунд и пары игроков\\ \hline
+Запланированный матч & scheduled_matches, games & Создается приглашение, затем при старте может быть создана партия\\ \hline
+Платежный сценарий & payment_intents, payment_events, users & Создается intent, фиксируются события, изменяется статус и демонстрационный баланс\\ \hline
+Блокировка пользователя & users, admin_audit_logs & У пользователя заполняется banned_at, действие записывается в audit log\\ \hline
+Проверка личности & face_verification_profiles, face_verification_sessions, face_verification_events & Создается профиль или сессия проверки, события фиксируют ход проверки\\ \hline
+\end{longtable}
+\normalsize
+
+
+
+В базе данных каждая таблица относится к одному прикладному блоку, но сценарии почти всегда используют несколько таблиц одновременно. Например, завершение партии затрагивает \code{games}, \code{moves}, \code{ratings} и \code{rating_history}; вступление в турнир затрагивает \code{tournaments}, \code{tournament_players} и при платном входе \code{payment_intents}; проверка личности может затрагивать \code{face_verification_profiles}, \code{face_verification_sessions} и запись в \code{audit_logs}. Поэтому ERD разделен на несколько рисунков, а не показан одним крупным полотном.
+
+Дополнительные правила целостности данных приведены в таблице~\ref{tab:db-integrity}. Они описывают не только наличие таблиц, но и то, какие ошибки должна предотвращать база данных или серверный слой перед записью. Для шахматного приложения это критично: если допустить сохранение хода после завершения партии, история станет недостоверной.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.16}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.22\linewidth}|>{\RaggedRight\arraybackslash}p{0.32\linewidth}|>{\RaggedRight\arraybackslash}p{0.36\linewidth}|}
+\caption{Правила целостности базы данных}\label{tab:db-integrity}\\
+\hline
+Группа данных & Ограничение & Практический смысл\\ \hline
+\endfirsthead
+\hline
+Группа данных & Ограничение & Практический смысл\\ \hline
+\endhead
+Пользователи & Уникальные username и email & Один логин не может принадлежать нескольким аккаунтам\\ \hline
+Refresh tokens & Связь token с user и сроком действия & Сервер может отзывать конкретную сессию без удаления аккаунта\\ \hline
+Партии & white_player_id и black_player_id ссылаются на users & В партии всегда известны участники и цвет\\ \hline
+Ходы & game_id ссылается на games, ply_number уникален внутри партии & Хронология партии не содержит повторяющихся номеров полуходов\\ \hline
+Чат & message хранит game_id и sender_id & Сообщение относится к конкретной партии и конкретному автору\\ \hline
+Рейтинги & user_id и rating_type образуют уникальную пару & У пользователя нет двух blitz-рейтингов одновременно\\ \hline
+Турниры & creator_id ссылается на users & У каждого турнира есть ответственный создатель\\ \hline
+Участники турнира & tournament_id и user_id образуют уникальную пару & Пользователь не может вступить в один турнир дважды\\ \hline
+Задачи & fen и solution_moves обязательны & Задача всегда имеет начальную позицию и ожидаемое решение\\ \hline
+Платежи & payment_intent связан с пользователем и назначением & Платежный эмулятор не существует отдельно от бизнес-сценария\\ \hline
+Аудит & actor_id может быть NULL, action обязателен & Системное действие можно записать даже без конкретного администратора\\ \hline
+\end{longtable}
+\normalsize
+
+При выборе типов данных использовался принцип минимальной достаточности. Идентификаторы хранятся как UUID, временные поля хранятся как timestamp с учетом часового пояса, денежные значения платежного эмулятора хранятся целыми числами в минимальных единицах, шахматная позиция хранится как FEN, а ход как UCI-строка. Эти форматы компактны, читаемы и поддерживаются chess-библиотеками [13].
+
+Сводка индексации приведена в таблице~\ref{tab:db-indexes}. Таблица показывает проектное решение, которое должно быть отражено в миграционных файлах Alembic.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.16}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.27\linewidth}|>{\RaggedRight\arraybackslash}p{0.43\linewidth}|}
+\caption{Индексы и быстрые выборки}\label{tab:db-indexes}\\
+\hline
+Таблица & Поля индекса & Для какого запроса используется\\ \hline
+\endfirsthead
+\hline
+Таблица & Поля индекса & Для какого запроса используется\\ \hline
+\endhead
+users & email, username & Вход, регистрация, поиск игрока\\ \hline
+games & white_player_id, black_player_id, created_at & История партий и профиль пользователя\\ \hline
+moves & game_id, ply_number & Восстановление партии в правильном порядке\\ \hline
+chat_messages & game_id, created_at & Загрузка чата конкретной партии\\ \hline
+ratings & user_id, rating_type & Показ рейтинга пользователя по контролю времени\\ \hline
+rating_history & rating_id, created_at & График изменения рейтинга\\ \hline
+tournaments & status, starts_at & Список открытых и будущих турниров\\ \hline
+tournament_players & tournament_id, score & Standings внутри турнира\\ \hline
+scheduled_matches & white_player_id, black_player_id, scheduled_for & Календарь приглашенных матчей\\ \hline
+puzzle_attempts & user_id, puzzle_id & Прогресс пользователя по задачам\\ \hline
+payment_intents & user_id, status & История платежей и админ-сводка\\ \hline
+audit_logs & created_at, actor_id & Просмотр административных действий\\ \hline
+\end{longtable}
+\normalsize
+
+\section{Описание и структура АПИ}
+
+API ChessView разделено на REST API и WebSocket API. REST API используется для операций запрос-ответ: регистрация, вход, получение профиля, список игр, задачи, турниры, платежи, администрирование. WebSocket API используется для событий, где важна быстрая доставка и двусторонняя связь: очередь, ход, чат, предложение ничьей и RTC signaling. Протокол WebSocket описан в RFC 6455 и подходит для постоянного двустороннего канала между браузером и сервером [17].
+
+
+
+API проектировалось по принципу разделения операций. Если операция изменяет состояние и должна быть сохранена, она проходит через backend service и repository. Если операция только получает данные, router вызывает соответствующий read-сценарий. Если операция относится к live-партии, она выносится в WebSocket, чтобы сервер мог отправить ответ обоим игрокам без ожидания нового HTTP-запроса.
+
+REST API использует JWT-аутентификацию. После входа клиент получает access token и refresh token. Access token передается в заголовке Authorization. Это соответствует распространенной схеме Bearer token, описанной в RFC 7519 для JWT [18]. Внутри backend зависимость current user извлекает пользователя из токена и передает его в router или service. Для admin API дополнительно проверяется роль admin.
+
+Основные REST endpoints приведены в таблице~\ref{tab:rest-api}. Все защищенные endpoints требуют заголовок \code{Authorization: Bearer <access_token>}.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.13\linewidth}|>{\RaggedRight\arraybackslash}p{0.34\linewidth}|>{\RaggedRight\arraybackslash}p{0.43\linewidth}|}
+\caption{Основные REST endpoints ChessView}\label{tab:rest-api}\\
+\hline
+Метод & Endpoint & Назначение\\ \hline
+\endfirsthead
+\hline
+Метод & Endpoint & Назначение\\ \hline
+\endhead
+POST & \code{/api/v1/identity/register} & Регистрация пользователя и выдача токенов\\ \hline
+POST & \code{/api/v1/identity/login} & Вход пользователя\\ \hline
+POST & \code{/api/v1/identity/refresh} & Обновление access token\\ \hline
+GET & \code{/api/v1/identity/me} & Получение текущего пользователя\\ \hline
+PUT & \code{/api/v1/identity/profile} & Обновление профиля\\ \hline
+POST & \code{/api/v1/identity/me/avatar} & Загрузка аватара\\ \hline
+GET & \code{/api/v1/profiles/me} & Расширенный профиль текущего пользователя\\ \hline
+GET & \code{/api/v1/profiles/leaderboard} & Таблица лидеров\\ \hline
+GET & \code{/api/v1/profiles/search} & Поиск игроков\\ \hline
+GET & \code{/api/v1/games} & История партий\\ \hline
+GET & \code{/api/v1/games/{game_id}} & Детали партии\\ \hline
+GET & \code{/api/v1/chat/{game_id}/messages} & История сообщений партии\\ \hline
+GET & \code{/api/v1/puzzles} & Список задач\\ \hline
+GET & \code{/api/v1/puzzles/random} & Случайная задача\\ \hline
+POST & \code{/api/v1/puzzles/{puzzle_id}/attempts} & Отправка попытки решения задачи\\ \hline
+GET & \code{/api/v1/tournaments} & Список турниров\\ \hline
+POST & \code{/api/v1/tournaments} & Создание турнира\\ \hline
+POST & \code{/api/v1/tournaments/{id}/join} & Регистрация в турнире\\ \hline
+GET & \code{/api/v1/tournaments/{id}/standings} & Турнирная таблица\\ \hline
+POST & \code{/api/v1/tournaments/{id}/rounds/generate-swiss} & Генерация Swiss-раунда\\ \hline
+GET & \code{/api/v1/scheduled-matches/me} & Запланированные матчи пользователя\\ \hline
+POST & \code{/api/v1/scheduled-matches} & Создание приглашения на матч\\ \hline
+POST & \code{/api/v1/scheduled-matches/{id}/start} & Старт запланированного матча\\ \hline
+GET & \code{/api/v1/payments/{payment_id}} & Получение платежного намерения\\ \hline
+POST & \code{/api/v1/payments/emulator/{payment_id}/simulate} & Симуляция платежного события\\ \hline
+GET & \code{/api/v1/admin/users} & Список пользователей для администратора\\ \hline
+POST & \code{/api/v1/admin/users/{user_id}/ban} & Блокировка пользователя\\ \hline
+GET & \code{/api/v1/admin/logs} & Журнал административных действий\\ \hline
+\end{longtable}
+\normalsize
+
+
+
+Структура WebSocket envelope приведена в таблице~\ref{tab:ws-envelope}. Она показывает, какие поля есть в каждом WebSocket-сообщении независимо от конкретного события.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.14}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.50\linewidth}|}
+\caption{Структура WebSocket envelope}\label{tab:ws-envelope}\\
+\hline
+Поле & Тип & Назначение\\ \hline
+\endfirsthead
+\hline
+Поле & Тип & Назначение\\ \hline
+\endhead
+type & string & Тип события и ключ выбора обработчика\\ \hline
+payload & object & Данные события, например uci для move или content для chat_send\\ \hline
+game_id & string или null & Идентификатор партии для событий игровой комнаты\\ \hline
+timestamp & string & Время формирования сообщения\\ \hline
+\end{longtable}
+\normalsize
+
+WebSocket-сообщения имеют единый envelope: \code{type}, \code{payload}, \code{game_id}, \code{timestamp}. Это позволяет диспетчеру не знать формат каждого доменного события заранее, а выбирать обработчик по полю \code{type}. Основные события указаны в таблице~\ref{tab:ws-api}.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.18\linewidth}|>{\RaggedRight\arraybackslash}p{0.18\linewidth}|>{\RaggedRight\arraybackslash}p{0.54\linewidth}|}
+\caption{Основные WebSocket-события ChessView}\label{tab:ws-api}\\
+\hline
+Событие & Направление & Назначение\\ \hline
+\endfirsthead
+\hline
+Событие & Направление & Назначение\\ \hline
+\endhead
+\code{queue_join} & client to server & Вход пользователя в очередь поиска соперника\\ \hline
+\code{queue_leave} & client to server & Выход из очереди\\ \hline
+\code{queue_joined} & server to client & Подтверждение входа в очередь\\ \hline
+\code{match_found} & server to client & Уведомление о найденной партии\\ \hline
+\code{move} & client to server & Отправка UCI-хода\\ \hline
+\code{game_state} & server to client & Актуальное состояние партии\\ \hline
+\code{game_over} & server to client & Завершение партии и результат\\ \hline
+\code{resign} & client to server & Сдача партии\\ \hline
+\code{draw_offer} & client to server & Предложение ничьей\\ \hline
+\code{draw_accept} & client to server & Принятие ничьей\\ \hline
+\code{draw_decline} & client to server & Отклонение ничьей\\ \hline
+\code{chat_send} & client to server & Отправка сообщения в чат партии\\ \hline
+\code{chat_message} & server to client & Рассылка сообщения участникам комнаты\\ \hline
+\code{rtc_offer} & client to server & Передача WebRTC offer сопернику\\ \hline
+\code{rtc_answer} & client to server & Передача WebRTC answer сопернику\\ \hline
+\code{rtc_ice} & client to server & Передача ICE candidate\\ \hline
+\code{error} & server to client & Ошибка обработки события\\ \hline
+\end{longtable}
+\normalsize
+
+
+
+Маршрутизация WebSocket-события показана на рисунке~\ref{fig:ws-dispatch}. Клиент подключается к /ws с access token. Backend проверяет токен, регистрирует соединение, разбирает JSON, создает WSEnvelope и вызывает обработчик по полю type.
+
+\begin{figure}[H]
+\centering
+\begin{adjustbox}{max width=0.95\textwidth,max height=0.30\textheight}
+\begin{tikzpicture}[box/.style={draw, rounded corners=2pt, align=center, minimum width=30mm, minimum height=9mm, fill=gray!8}, arr/.style={-{Stealth[length=2mm]}, thick}]
+\node[box] (c) {Client};
+\node[box, right=13mm of c] (auth) {JWT check};
+\node[box, right=13mm of auth] (env) {Envelope};
+\node[box, right=13mm of env] (dispatch) {Dispatcher};
+\node[box, below=10mm of dispatch] (h) {Handler};
+\node[box, left=13mm of h] (m) {Manager};
+\draw[arr] (c) -- (auth);
+\draw[arr] (auth) -- (env);
+\draw[arr] (env) -- (dispatch);
+\draw[arr] (dispatch) -- (h);
+\draw[arr] (h) -- (m);
+\draw[arr] (m) -| (c);
+\end{tikzpicture}
+\end{adjustbox}
+\caption{Маршрутизация WebSocket-событий}\label{fig:ws-dispatch}
+\end{figure}
+
+
+
+Жизненный цикл REST-запроса приведен в таблице~\ref{tab:rest-lifecycle}. Он одинаков для большинства защищенных endpoints и помогает понять, где выполняется проверка доступа.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.14}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.12\linewidth}|>{\RaggedRight\arraybackslash}p{0.28\linewidth}|>{\RaggedRight\arraybackslash}p{0.50\linewidth}|}
+\caption{Жизненный цикл REST-запроса}\label{tab:rest-lifecycle}\\
+\hline
+Шаг & Участник & Действие\\ \hline
+\endfirsthead
+\hline
+Шаг & Участник & Действие\\ \hline
+\endhead
+1 & Frontend & Формирует HTTP-запрос и добавляет Bearer token, если endpoint защищен\\ \hline
+2 & FastAPI router & Принимает запрос, валидирует path/query/body параметры через Pydantic-схемы\\ \hline
+3 & Dependency layer & Извлекает текущего пользователя из access token или возвращает 401\\ \hline
+4 & Application service & Выполняет сценарий: регистрация, создание турнира, вступление, обновление профиля\\ \hline
+5 & Repository & Читает или изменяет PostgreSQL через SQLAlchemy async session\\ \hline
+6 & Transaction boundary & Фиксирует изменения или откатывает операцию при исключении\\ \hline
+7 & Serializer/schema & Возвращает клиенту структурированный JSON-ответ\\ \hline
+8 & Frontend & Обновляет состояние страницы или показывает ошибку\\ \hline
+\end{longtable}
+\normalsize
+
+Жизненный цикл WebSocket-события отличается от REST-запроса. Он приведен в таблице~\ref{tab:ws-lifecycle}. Главное отличие состоит в том, что результат часто отправляется не только отправителю, но и всем участникам игровой комнаты.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.14}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.12\linewidth}|>{\RaggedRight\arraybackslash}p{0.28\linewidth}|>{\RaggedRight\arraybackslash}p{0.50\linewidth}|}
+\caption{Жизненный цикл WebSocket-события}\label{tab:ws-lifecycle}\\
+\hline
+Шаг & Участник & Действие\\ \hline
+\endfirsthead
+\hline
+Шаг & Участник & Действие\\ \hline
+\endhead
+1 & Client & Открывает /ws?token=<access_token>\\ \hline
+2 & ws_endpoint & Проверяет JWT и регистрирует соединение в manager\\ \hline
+3 & Client & Отправляет envelope с type, payload, game_id и timestamp\\ \hline
+4 & Dispatcher & Находит handler по type\\ \hline
+5 & Handler & Проверяет game_id, user_id и payload\\ \hline
+6 & Application service & Выполняет доменное действие, например make_move или resign\\ \hline
+7 & Repository & Сохраняет изменения в games, moves или chat_messages\\ \hline
+8 & WS manager & Отправляет game_state, game_over, chat_message или error нужным пользователям\\ \hline
+\end{longtable}
+\normalsize
+
+
+
+REST API использует единый подход к ошибкам. Клиенту важно получить не только код HTTP, но и понятное поле \code{detail}, чтобы показать пользователю корректное сообщение. Ошибка входа должна отличаться от ошибки сети, запрет административного действия должен отличаться от отсутствия объекта, а неверный ход должен возвращаться как доменная ошибка партии. Форматы ответов приведены в таблице~\ref{tab:api-response-format}.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.16}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.18\linewidth}|>{\RaggedRight\arraybackslash}p{0.30\linewidth}|>{\RaggedRight\arraybackslash}p{0.42\linewidth}|}
+\caption{Форматы ответов REST API}\label{tab:api-response-format}\\
+\hline
+Ситуация & Формат ответа & Назначение\\ \hline
+\endfirsthead
+\hline
+Ситуация & Формат ответа & Назначение\\ \hline
+\endhead
+Успешное получение объекта & JSON DTO с полями ресурса & Клиент напрямую отображает данные на странице\\ \hline
+Успешное создание & JSON DTO и статус 201 или 200 & Клиент добавляет объект в список или переходит к деталям\\ \hline
+Успешное удаление & 204 No Content или DTO обновленного состояния & Клиент удаляет элемент из локального списка\\ \hline
+Ошибка авторизации & \code{detail}, HTTP 401 & Клиент очищает сессию и отправляет пользователя на вход\\ \hline
+Недостаточно прав & \code{detail}, HTTP 403 & Интерфейс показывает запрет действия\\ \hline
+Объект не найден & \code{detail}, HTTP 404 & Страница может показать пустое состояние\\ \hline
+Конфликт состояния & \code{detail}, HTTP 409 & Используется при повторном вступлении, закрытом турнире или завершенной партии\\ \hline
+Ошибка валидации & Список ошибок полей, HTTP 422 & Форма подсвечивает некорректные данные\\ \hline
+\end{longtable}
+\normalsize
+
+Для списков используется два подхода. Небольшие справочники, например список открытых турниров, могут возвращаться массивом. Большие и растущие списки, например история партий, поиск игроков или журнал аудита, должны возвращаться постранично. Постраничный ответ содержит элементы, общее количество, текущую страницу и размер страницы.
+
+WebSocket API отличается от REST API тем, что одно входящее событие может породить несколько исходящих событий. Например, ход игрока возвращает отправителю подтверждение, сопернику обновленную позицию, а при мате дополнительно отправляет game_over. Поэтому обработчик события формирует доменное событие и передает его connection manager, который знает, какие соединения относятся к комнате партии. Такое разделение показано ранее на рисунке~\ref{fig:ws-dispatch}.
+
+С точки зрения безопасности API придерживается нескольких ограничений. Access token передается только в заголовке Authorization или при установке WebSocket-соединения. Refresh token не используется для обычных игровых команд. Административные endpoints требуют не только валидный token, но и роль admin. Все операции, меняющие состояние партии, дополнительно сверяют участника партии с текущим пользователем.
+
+\section{Функциональность клиента}
+
+Пользовательский клиент ChessView реализован как React SPA. Главная страница знакомит пользователя с платформой и ведет к авторизации. Интерфейс главной страницы приведен на рисунке~\ref{fig:home}.
+
+\smallpngfigure{01_home.png}{Главная страница ChessView}{fig:home}
+
+Авторизация включает регистрацию, вход и сохранение токенов. После успешного входа пользователь перенаправляется на внутренние страницы. Форма входа показана на рисунке~\ref{fig:login}.
+
+\smallpngfigure{02_login.png}{Форма входа пользователя}{fig:login}
+
+После входа пользователь попадает на dashboard. Эта страница собирает ключевые действия: перейти в лобби, открыть анализ, задачи, турниры, профиль и историю. Dashboard показан на рисунке~\ref{fig:dashboard}.
+
+\smallpngfigure{03_dashboard.png}{Панель пользователя после авторизации}{fig:dashboard}
+
+Лобби и matchmaking отвечают за поиск соперника. Пользователь выбирает контроль времени и входит в очередь. При нахождении пары backend создает игру и отправляет событие \code{match_found}. Интерфейс поиска соперника показан на рисунке~\ref{fig:matchmaking}.
+
+\smallpngfigure{04_matchmaking.png}{Интерфейс поиска соперника}{fig:matchmaking}
+
+Игровая страница отображает шахматную доску, часы, информацию об игроках, историю ходов, чат и управляющие действия. Клиент не завершает партию самостоятельно, а ждет подтверждение сервера. Это важно для корректной работы рейтинга, reconnect и tournament sync.
+
+
+Игровой экран является центральной частью пользовательского приложения. На нем объединены шахматная доска, часы, список ходов, чат, видеоблок и управляющие действия. Важно, что клиент не завершает партию самостоятельно и не записывает ход в историю без подтверждения сервера. Пользователь видит выбранный ход сразу как намерение, но окончательное состояние приходит в событии game_state. Экран live-партии показан на рисунке~\ref{fig:live-game-ui}.
+
+\smallpngfigure{21_live_game.png}{Экран live-партии}{fig:live-game-ui}
+
+В live-партии есть несколько типов пользовательских команд. Ход меняет позицию, сообщение меняет чат, предложение ничьей создает переговорное состояние, сдача завершает партию, а reconnect восстанавливает состояние после разрыва связи. Эти команды не равны по последствиям: ход влияет на FEN и clocks, сообщение влияет только на chat_messages, сдача влияет на result и rating_history. Поэтому backend обрабатывает их разными сервисными методами, даже если транспорт один и тот же.
+
+Видеосвязь в партии показана на рисунке~\ref{fig:video-chat-ui}. Этот блок не является обязательным для шахматных правил, но он расширяет приложение до формата онлайн-соревнования с визуальным контактом игроков. RTC-соединение отделено от логики ходов: если камера недоступна, пользователь может продолжить партию, но интерфейс должен показать статус ошибки и не блокировать доску.
+
+\smallpngfigure{22_video_chat.png}{Видеосвязь и статус RTC в партии}{fig:video-chat-ui}
+
+Команды live-партии приведены в таблице~\ref{tab:live-game-commands}. Таблица показывает, какое действие выполняет пользователь, какое событие уходит на backend и какие данные изменяются после успешной обработки.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.16}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.18\linewidth}|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.24\linewidth}|>{\RaggedRight\arraybackslash}p{0.28\linewidth}|}
+\caption{Команды live-партии}\label{tab:live-game-commands}\\
+\hline
+Действие & Событие & Изменяемые данные & Что получает пользователь\\ \hline
+\endfirsthead
+\hline
+Действие & Событие & Изменяемые данные & Что получает пользователь\\ \hline
+\endhead
+Сделать ход & move & games, moves, clocks & Новую FEN, SAN/UCI хода, очередь следующего хода\\ \hline
+Отправить сообщение & chat_message & chat_messages & Сообщение в панели чата у обоих игроков\\ \hline
+Предложить ничью & draw_offer & games или временное состояние комнаты & Уведомление сопернику и статус ожидания\\ \hline
+Принять ничью & draw_accept & games, ratings, rating_history & Завершение партии с результатом draw\\ \hline
+Сдаться & resign & games, ratings, rating_history & Завершение партии с поражением пользователя\\ \hline
+Поставить паузу & pause_request & games или room state & Запрос на паузу и состояние ожидания\\ \hline
+Восстановить соединение & reconnect & Данные БД не меняются & Актуальное состояние партии, часов и чата\\ \hline
+Отправить RTC offer & rtc_offer & Данные партии не меняются & Сигнальное сообщение второму участнику\\ \hline
+\end{longtable}
+\normalsize
+
+Страница анализа предназначена для работы с FEN, PGN, доской и локальным Stockfish. Анализ выполняется в браузере и не влияет на серверную проверку live-партии. Рабочая область анализа показана на рисунке~\ref{fig:analysis}.
+
+\smallpngfigure{05_analysis.png}{Рабочая область анализа позиции}{fig:analysis}
+
+Раздел задач позволяет получить задачу, выполнять ходы и отправлять попытки. Backend хранит решение и статистику попыток, а frontend отвечает за визуальное взаимодействие с доской. Раздел задач показан на рисунке~\ref{fig:puzzles}.
+
+\smallpngfigure{06_puzzles.png}{Раздел шахматных задач}{fig:puzzles}
+
+Турнирный интерфейс позволяет просматривать турниры, вступать в них, видеть standings и переходить к деталям турнира. Раздел турниров представлен на рисунке~\ref{fig:tournaments-ui}.
+
+\smallpngfigure{07_tournaments.png}{Раздел турниров ChessView}{fig:tournaments-ui}
+
+Профиль пользователя содержит публичную информацию, рейтинг, историю и статистику. Интерфейс профиля показан на рисунке~\ref{fig:profile-ui}.
+
+\smallpngfigure{08_profile.png}{Профиль пользователя ChessView}{fig:profile-ui}
+
+
+
+Функциональность клиента удобнее описывать как пользовательскую инструкцию. Основные действия приведены в таблице~\ref{tab:user-scenarios}. Каждая строка показывает, что делает пользователь, какой экран используется и какое изменение происходит в системе.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.22\linewidth}|>{\RaggedRight\arraybackslash}p{0.26\linewidth}|>{\RaggedRight\arraybackslash}p{0.42\linewidth}|}
+\caption{Пользовательские сценарии клиента}\label{tab:user-scenarios}\\
+\hline
+Действие пользователя & Экран & Результат\\ \hline
+\endfirsthead
+\hline
+Действие пользователя & Экран & Результат\\ \hline
+\endhead
+Зарегистрироваться & Register/Login & Создается запись в users, пользователь получает JWT-токены\\ \hline
+Войти & Login & Клиент сохраняет session и открывает protected routes\\ \hline
+Открыть dashboard & Dashboard & Пользователь видит основные разделы приложения\\ \hline
+Найти соперника & Lobby/Matchmaking & Клиент отправляет queue_join, backend создает game при подборе пары\\ \hline
+Сделать ход & Game page & Клиент отправляет move, сервер проверяет ход и возвращает game_state\\ \hline
+Написать в чат & Game page & Сообщение сохраняется в chat_messages и рассылается участникам комнаты\\ \hline
+Сдаться & Game page & Клиент отправляет resign, backend завершает партию и применяет результат\\ \hline
+Открыть анализ & Analysis page & Пользователь вводит FEN/PGN и запускает локальный Stockfish\\ \hline
+Решить задачу & Puzzle page & Клиент отправляет попытку, backend обновляет puzzle_attempts\\ \hline
+Вступить в турнир & Tournaments page & Пользователь добавляется в tournament_players\\ \hline
+Открыть профиль & Profile page & Пользователь видит рейтинг, историю и публичные данные\\ \hline
+Сравнить игроков & Compare page & Клиент получает head-to-head данные и показывает сравнение\\ \hline
+\end{longtable}
+\normalsize
+
+При работе с live-партией пользователь должен выполнить последовательность действий. Сначала он входит в систему, затем открывает лобби, выбирает контроль времени и входит в очередь. После события match_found приложение открывает страницу партии. Пользователь делает ход на доске, но окончательное обновление позиции приходит от сервера. Если ход запрещен, сервер возвращает error, и клиент не должен считать позицию измененной.
+
+Для анализа позиции пользователь открывает страницу анализа, вводит FEN или PGN, при необходимости редактирует доску и запускает engine. Этот сценарий не требует изменения games или moves, потому что анализ является учебной функцией. Это разделение важно: Stockfish помогает изучать позицию, но не участвует в принятии серверного решения по live-партии.
+
+Для задач пользователь открывает раздел puzzles, получает задачу, делает ход и отправляет попытку. Backend сравнивает ход с solution_moves и обновляет состояние попытки. Если задача решена, поле solved становится true. Если попытка неверная, увеличивается attempts_count и сохраняется last_result. Такой подход позволяет пользователю возвращаться к задачам и видеть прогресс.
+
+
+
+Дополнительные пользовательские экраны показаны отдельно, чтобы не ссылаться на несколько рисунков сразу. Сравнение игроков показано на рисунке~\ref{fig:compare-ui}. Этот экран использует profile API и head-to-head данные.
+
+\smallpngfigure{09_compare_players.png}{Сравнение игроков}{fig:compare-ui}
+
+Интерфейс магазина показан на рисунке~\ref{fig:shop-ui}. Он демонстрирует wallet-сценарий и локальное состояние инвентаря.
+
+\smallpngfigure{10_shop.png}{Интерфейс магазина и баланса}{fig:shop-ui}
+
+Интерфейс клубов показан на рисунке~\ref{fig:clubs-ui}. Этот раздел является демонстрационной UI-поверхностью и показывает, как платформа может расширяться социальными функциями.
+
+\smallpngfigure{11_clubs.png}{Интерфейс клубов}{fig:clubs-ui}
+
+OTB-менеджер показан на рисунке~\ref{fig:otb-ui}. Он демонстрирует организационные сценарии для очных мероприятий.
+
+\smallpngfigure{12_otb_manager.png}{OTB-менеджер ChessView}{fig:otb-ui}
+
+
+
+История партий является одним из основных экранов после завершения игры. Пользователь открывает список партий, видит соперника, дату, контроль времени, результат и изменение рейтинга. Из этого экрана он может перейти к разбору партии или открыть сохраненную позицию в анализаторе. Интерфейс истории показан на рисунке~\ref{fig:history-ui}.
+
+\smallpngfigure{13_history.png}{История партий пользователя}{fig:history-ui}
+
+Таблица лидеров помогает пользователю оценивать прогресс не только по личному профилю, но и относительно других игроков. В интерфейсе рейтинг разделен по контролям времени, потому что blitz, rapid и bullet отражают разные навыки. Экран таблицы лидеров показан на рисунке~\ref{fig:leaderboard-ui}.
+
+\smallpngfigure{14_leaderboard.png}{Таблица лидеров ChessView}{fig:leaderboard-ui}
+
+Настройки профиля позволяют пользователю изменить публичные данные, аватар, описание, параметры приватности и способы подтверждения личности. Этот экран важен для полноты приложения, потому что пользователь должен управлять не только партиями, но и своим аккаунтом. Настройки профиля показаны на рисунке~\ref{fig:settings-ui}.
+
+\smallpngfigure{15_settings.png}{Настройки профиля пользователя}{fig:settings-ui}
+
+Запланированные матчи используются, когда партия создается не через случайный matchmaking, а через приглашение конкретного игрока. Пользователь выбирает соперника, дату, контроль времени и при необходимости оплачивает взнос через платежный эмулятор. Экран запланированных матчей показан на рисунке~\ref{fig:scheduled-ui}.
+
+\smallpngfigure{16_scheduled_matches.png}{Запланированные матчи пользователя}{fig:scheduled-ui}
+
+Разбор партии используется после завершения игры. Пользователь просматривает ходы, оценку позиции, классификацию ошибок и может открыть выбранную позицию в анализаторе. В отличие от live-партии, разбор не изменяет состояние \code{games}; он читает сохраненные \code{moves} и строит учебное представление. Экран разбора партии показан на рисунке~\ref{fig:game-review-ui}.
+
+\smallpngfigure{17_game_review.png}{Разбор завершенной партии}{fig:game-review-ui}
+
+Детальная страница турнира показывает регламент, статус, количество участников, standings, раунды и пары. Пользователь может вступить в турнир, оплатить вступительный взнос, выйти до начала или открыть партию раунда. Экран турнира показан на рисунке~\ref{fig:tournament-detail-ui}.
+
+\smallpngfigure{18_tournament_detail.png}{Детальная страница турнира}{fig:tournament-detail-ui}
+
+Чтобы пользовательская часть была описана как инструкция, важно указать не только наличие страниц, но и состояния каждой страницы. Состояния клиента приведены в таблице~\ref{tab:client-screen-states}. Они используются при отрисовке интерфейса и помогают избежать ситуации, когда страница показывает пустую область без объяснения.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.16}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.18\linewidth}|>{\RaggedRight\arraybackslash}p{0.22\linewidth}|>{\RaggedRight\arraybackslash}p{0.24\linewidth}|>{\RaggedRight\arraybackslash}p{0.26\linewidth}|}
+\caption{Состояния клиентских экранов}\label{tab:client-screen-states}\\
+\hline
+Экран & Основное состояние & Пустое состояние & Ошибка или ограничение\\ \hline
+\endfirsthead
+\hline
+Экран & Основное состояние & Пустое состояние & Ошибка или ограничение\\ \hline
+\endhead
+Dashboard & Показаны карточки разделов и последние данные & Нет завершенных партий или турниров & Ошибка загрузки профиля\\ \hline
+Lobby & Пользователь выбирает контроль времени & Нет активного поиска & Потеря WebSocket-соединения\\ \hline
+Game page & Доска, часы, чат, видеоблок & Партия еще не загружена & Ход отклонен сервером\\ \hline
+Analysis & Доска, FEN/PGN, engine output & Позиция не введена & Некорректный FEN или PGN\\ \hline
+Puzzles & Задача, список, прогресс & Каталог задач пуст & Ошибка отправки попытки\\ \hline
+History & Таблица партий & Пользователь еще не сыграл партии & Ошибка получения истории\\ \hline
+Leaderboard & Список игроков и фильтр контроля & Нет данных по выбранной категории & Ошибка рейтингового API\\ \hline
+Tournaments & Карточки турниров & Нет открытых турниров & Турнир закрыт для вступления\\ \hline
+Scheduled matches & Приглашения и форма создания & Нет запланированных матчей & Нельзя начать матч до подтверждения\\ \hline
+Settings & Формы профиля и безопасности & Нет подключенных способов проверки & Ошибка сохранения профиля\\ \hline
+\end{longtable}
+\normalsize
+
+Пользовательская инструкция должна учитывать обычный рабочий путь. Новый пользователь сначала открывает главную страницу, затем регистрируется или входит в систему. После входа он попадает в защищенную область и выбирает действие: быстро сыграть партию, изучить позицию, решить задачу, открыть турнир или изменить профиль. Если пользователь хочет просто сыграть, оптимальный путь состоит из dashboard, lobby, matchmaking и game page. Если он хочет изучать шахматы, путь состоит из history, game review, analysis и puzzles. Если он участвует в соревновании, путь состоит из tournaments, tournament detail, scheduled matches и game page.
+
+Каждый экран использует одинаковую логику авторизации. Если access token отсутствует, protected route отправляет пользователя на страницу входа. Если token есть, frontend делает запрос \code{/identity/me} и восстанавливает пользователя. При ошибке авторизации состояние очищается, чтобы интерфейс не показывал устаревшие данные. Для пользователя это выглядит просто: либо он находится внутри приложения, либо видит форму входа.
+
+В live-партии пользователь не должен видеть внутренние сущности БД, но интерфейс обязан отражать их состояние. Если \code{games.status} равен \code{active}, доска доступна для хода; если статус \code{finished}, действия хода скрываются, а пользователь видит итог. Если \code{game_clocks} указывает, что время вышло, сервер завершает партию и отправляет событие game_over. Если в \code{chat_messages} появляется новое сообщение, боковая панель обновляется без перезагрузки страницы.
+
+Для профиля и рейтинга интерфейс делает акцент на объяснимых числах. Пользователь видит текущий рейтинг, историю изменения, последние партии и публичные данные. Сравнение игроков строится на head-to-head данных и показывает не только общий счет, но и последние очные партии. Поэтому пользователь может понять, где он сильнее или слабее конкретного соперника.
+
+
+Платежный эмулятор используется в сценариях, где нужно показать бизнес-операцию без подключения настоящего платежного провайдера. Для дипломного проекта этого достаточно: система создает payment intent, привязывает его к пользователю и назначению, а затем переводит его в success, failed или refunded. Экран платежного эмулятора показан на рисунке~\ref{fig:payment-emulator-ui}.
+
+\smallpngfigure{23_payment_emulator.png}{Платежный эмулятор ChessView}{fig:payment-emulator-ui}
+
+Проверка личности объединяет два разных механизма: passkey как криптографическое подтверждение устройства и face verification как визуальное подтверждение пользователя. Эти механизмы не заменяют пароль полностью, но повышают доверие к матчам, где важна честность участия. Экран проверки личности показан на рисунке~\ref{fig:identity-verification-ui}.
+
+\smallpngfigure{24_identity_verification.png}{Проверка личности пользователя}{fig:identity-verification-ui}
+
+Дополнительные клиентские процессы приведены в таблице~\ref{tab:extended-client-processes}. Она связывает интерфейс, backend-операцию и таблицы базы данных. Такой формат удобен для защиты диплома: по каждой строке можно объяснить, что видит пользователь и что реально происходит внутри системы.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.16}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.26\linewidth}|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.24\linewidth}|}
+\caption{Расширенные процессы клиента}\label{tab:extended-client-processes}\\
+\hline
+Процесс & Действия пользователя & API или событие & Таблицы и состояние\\ \hline
+\endfirsthead
+\hline
+Процесс & Действия пользователя & API или событие & Таблицы и состояние\\ \hline
+\endhead
+История партии & Открыть History и выбрать запись & GET games, GET game detail & games, moves, ratings\\ \hline
+Разбор партии & Переключать ходы и смотреть оценку & GET game detail, локальный анализ & games, moves, локальный state\\ \hline
+Турнирный взнос & Открыть турнир и оплатить вход & POST entry-payment, POST emulator simulate & payment_intents, tournament_players\\ \hline
+Запланированный матч & Создать приглашение и дождаться ответа & POST scheduled-matches, accept/decline & scheduled_matches, payment_intents\\ \hline
+Видеосвязь & Включить камеру и микрофон & rtc_offer, rtc_answer, rtc_candidate & RTC state без изменения games\\ \hline
+Passkey & Добавить устройство в настройках & POST enrollment challenge и verify & passkey_credentials\\ \hline
+Face verification & Сделать снимок и отправить сессию & POST face verification session & face_verification_profiles, sessions\\ \hline
+Покупка предмета & Выбрать item и подтвердить покупку & Локальный shop state или payment API & inventory/wallet state\\ \hline
+\end{longtable}
+\normalsize
+
+Пользовательские процессы специально разделены на игровые, учебные, турнирные, платежные и профильные. Это уменьшает путаницу в интерфейсе. Игровые действия должны быть быстрыми и находиться рядом с доской. Учебные действия должны давать пользователю время изучить позицию и не мешать истории live-партий. Турнирные действия должны показывать статус участия и оплату. Профильные действия должны быть доступны отдельно, чтобы пользователь мог управлять аккаунтом без риска случайно изменить ход партии или турнир.
+
+Подробная пользовательская инструкция приведена в таблице~\ref{tab:user-manual}. Она описывает не внутренние компоненты, а порядок действий пользователя в интерфейсе.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.14}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.08\linewidth}|>{\RaggedRight\arraybackslash}p{0.24\linewidth}|>{\RaggedRight\arraybackslash}p{0.28\linewidth}|>{\RaggedRight\arraybackslash}p{0.30\linewidth}|}
+\caption{Инструкция пользователя ChessView}\label{tab:user-manual}\\
+\hline
+Шаг & Где выполнить & Действие & Ожидаемый результат\\ \hline
+\endfirsthead
+\hline
+Шаг & Где выполнить & Действие & Ожидаемый результат\\ \hline
+\endhead
+1 & Главная страница & Открыть приложение & Пользователь видит входные действия и описание платформы\\ \hline
+2 & Страница регистрации & Ввести username, email и пароль & Создается аккаунт и открывается защищенная область\\ \hline
+3 & Страница входа & Ввести email и пароль & Клиент получает токены и сохраняет сессию\\ \hline
+4 & Dashboard & Выбрать раздел Lobby & Открывается поиск соперника\\ \hline
+5 & Lobby & Выбрать контроль времени & Пользователь готовит параметры партии\\ \hline
+6 & Lobby & Нажать вход в очередь & Клиент отправляет queue_join\\ \hline
+7 & Lobby & Дождаться match_found & Открывается страница партии\\ \hline
+8 & Game page & Сделать ход на доске & Backend проверяет ход и рассылает game_state\\ \hline
+9 & Game page & Написать сообщение & Сообщение появляется у участников партии\\ \hline
+10 & Game page & Предложить ничью & Соперник получает draw_offered\\ \hline
+11 & Game page & Сдаться & Партия завершается с результатом в пользу соперника\\ \hline
+12 & History & Открыть завершенную партию & Пользователь видит сохраненные ходы и результат\\ \hline
+13 & Analysis & Вставить FEN или PGN & Позиция загружается в рабочую область\\ \hline
+14 & Analysis & Запустить анализ & Stockfish показывает оценку позиции локально в браузере\\ \hline
+15 & Puzzles & Открыть задачу & Показывается позиция и ожидается ход пользователя\\ \hline
+16 & Puzzles & Сделать попытку & Backend обновляет прогресс решения\\ \hline
+17 & Tournaments & Открыть список турниров & Пользователь видит доступные турниры\\ \hline
+18 & Tournaments & Вступить в турнир & Создается запись tournament_players\\ \hline
+19 & Profile & Открыть профиль & Пользователь видит рейтинг, аватар, статистику и историю\\ \hline
+20 & Settings & Изменить данные профиля & Backend сохраняет обновленный bio или avatar\\ \hline
+\end{longtable}
+\normalsize
+
+\section{Функциональность админ панели}
+
+Административная панель является отдельным React/Vite-приложением. Она не смешана с пользовательским frontend, что снижает риск случайного отображения административных функций обычным пользователям. Вход выполняется через общий endpoint \code{/api/v1/identity/login}, но после входа дополнительно проверяется роль \code{admin}. Если роль не равна \code{admin}, интерфейс не предоставляет доступ к рабочей области администратора.
+
+Админ-панель использует admin API с префиксом \code{/api/v1/admin}. Основные функции: просмотр пользователей, изменение профиля пользователя, блокировка и разблокировка, изменение роли, просмотр audit logs, просмотр платежных намерений, refund в платежном эмуляторе и просмотр сессий проверки личности.
+
+
+
+Внешний вид административной сводки показан на рисунке~\ref{fig:admin-dashboard-ui}. Этот экран предназначен для быстрого понимания состояния системы: сколько пользователей зарегистрировано, сколько партий активно, есть ли платежные события и сколько ручных действий требует внимания администратора.
+
+\smallpngfigure{19_admin_dashboard.png}{Сводка административной панели}{fig:admin-dashboard-ui}
+
+Управление пользователями показано на рисунке~\ref{fig:admin-users-ui}. На этом экране администратор ищет аккаунт, видит email, роль, рейтинг и состояние блокировки. Любое действие администратора должно фиксироваться в журнале аудита, чтобы позже можно было понять, кто изменил состояние учетной записи.
+
+\smallpngfigure{20_admin_users.png}{Управление пользователями в административной панели}{fig:admin-users-ui}
+
+Административная панель работает как инструкция оператора. Сначала администратор входит через отдельную форму. Затем backend возвращает user с ролью admin. Если роль не подходит, приложение показывает экран запрета и не открывает рабочую область. После входа администратор выбирает раздел: пользователи, аудит, платежи или проверки личности. Действия администратора не выполняются только на клиенте: каждое изменение отправляется на backend, где заново проверяется роль и создается запись audit log.
+
+Типовые административные операции приведены в таблице~\ref{tab:admin-operator-actions}. Эта таблица отличается от таблицы функций тем, что описывает последовательность действий оператора и результат, который должен появиться в системе.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.16}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.30\linewidth}|>{\RaggedRight\arraybackslash}p{0.40\linewidth}|}
+\caption{Операции администратора и результат в системе}\label{tab:admin-operator-actions}\\
+\hline
+Операция & Действия администратора & Что изменяется в системе\\ \hline
+\endfirsthead
+\hline
+Операция & Действия администратора & Что изменяется в системе\\ \hline
+\endhead
+Поиск пользователя & Ввести username или email, открыть найденный аккаунт & Backend возвращает профиль и служебные поля пользователя\\ \hline
+Блокировка пользователя & Нажать ban и подтвердить действие & В users заполняется banned_at, в audit_logs создается запись\\ \hline
+Разблокировка & Открыть заблокированный аккаунт и нажать unban & banned_at очищается, действие попадает в audit_logs\\ \hline
+Изменение роли & Выбрать роль user или admin & role обновляется только после серверной проверки прав\\ \hline
+Просмотр аудита & Открыть журнал действий, отфильтровать по actor или action & Администратор видит историю операций без изменения данных\\ \hline
+Просмотр платежа & Открыть payment intent и статус эмулятора & Отображается назначение платежа, пользователь и состояние\\ \hline
+Возврат платежа & Выбрать refund для допустимого платежа & payment_intents получает статус refunded, создается audit log\\ \hline
+Просмотр проверки личности & Открыть face verification sessions & Администратор видит статус проверки и связанные игры\\ \hline
+\end{longtable}
+\normalsize
+
+Раздел пользователей должен быть особенно осторожным. Нельзя полагаться на то, что кнопка скрыта в интерфейсе: пользователь может отправить HTTP-запрос вручную. Поэтому backend должен проверять роль на каждом admin endpoint. Если роль не admin, сервер возвращает HTTP 403. Если пользователь найден, но действие невозможно, например повторная блокировка уже заблокированного аккаунта, сервер должен вернуть конфликт состояния. Такой подход делает административную часть устойчивой к ошибкам интерфейса.
+
+Журнал аудита нужен не для красоты, а для восстановления последовательности событий. Если пользователь пожаловался на блокировку или изменение роли, администратор может найти запись по user_id, actor_id и времени. Запись должна содержать действие, объект, старые и новые значения там, где это допустимо, а также техническое время операции. В дипломном проекте это показывает зрелость административного сценария: управление системой не сводится к кнопкам, а оставляет след действий.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.16}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.24\linewidth}|>{\RaggedRight\arraybackslash}p{0.32\linewidth}|>{\RaggedRight\arraybackslash}p{0.34\linewidth}|}
+\caption{Функции административной панели}\label{tab:admin-functions}\\
+\hline
+Функция & API & Назначение\\ \hline
+\endfirsthead
+\hline
+Функция & API & Назначение\\ \hline
+\endhead
+Просмотр пользователей & \code{GET /api/v1/admin/users} & Контроль аккаунтов, ролей, рейтингов и статусов\\ \hline
+Редактирование пользователя & \code{PATCH /api/v1/admin/users/{user_id}} & Исправление данных пользователя\\ \hline
+Блокировка & \code{POST /api/v1/admin/users/{user_id}/ban} & Ограничение доступа нарушителю\\ \hline
+Разблокировка & \code{POST /api/v1/admin/users/{user_id}/unban} & Восстановление доступа\\ \hline
+Смена роли & \code{POST /api/v1/admin/users/{user_id}/role} & Назначение или снятие роли администратора\\ \hline
+Журнал действий & \code{GET /api/v1/admin/logs} & Проверка истории административных операций\\ \hline
+Платежи & \code{GET /api/v1/admin/payments} & Просмотр платежных намерений эмулятора\\ \hline
+Refund & \code{POST /api/v1/admin/payments/{payment_id}/refund} & Возврат средств в демонстрационном сценарии\\ \hline
+Проверки личности & \code{GET /api/v1/admin/face-verification/sessions} & Просмотр сессий face/passkey verification\\ \hline
+\end{longtable}
+\normalsize
+
+Административные действия фиксируются в таблице \code{admin_audit_logs}. Это нужно для прозрачности: если администратор заблокировал пользователя или изменил роль, в системе остается запись с actor, action, target и payload. Такой журнал особенно важен в системах, где есть управление доступом и платежные сценарии.
+
+
+
+
+Сценарий блокировки пользователя выполняется последовательно. Администратор открывает список пользователей, выбирает аккаунт, отправляет ban-запрос, backend проверяет роль текущего пользователя, заполняет banned_at у целевого пользователя и записывает действие в admin_audit_logs. Разблокировка выполняется аналогично, но очищает banned_at. Благодаря audit log можно восстановить, кто выполнил действие и к какому объекту оно относилось.
+
+Сценарий смены роли выделен отдельно от обычного редактирования профиля. Роль admin открывает доступ к пользователям, платежам и журналам, поэтому изменение роли должно фиксироваться как самостоятельное административное действие. В таблице~\ref{tab:admin-functions} это действие вынесено в отдельную строку.
+
+Сценарий платежного контроля относится к демонстрационному эмулятору. Администратор может просмотреть payment_intents, увидеть status, amount_cents, currency, scenario и связанные metadata. Refund не выполняет реальную банковскую операцию, но меняет состояние payment intent и добавляет событие в payment_events. Для дипломного проекта этого достаточно, чтобы показать структуру платежной подсистемы без обработки реальных платежных данных.
+
+Обработка административного действия показана на рисунке~\ref{fig:admin-flow}. Внутри схемы нет заголовка, название вынесено в подпись.
+
+\begin{figure}[H]
+\centering
+\begin{adjustbox}{max width=0.95\textwidth,max height=0.30\textheight}
+\begin{tikzpicture}[box/.style={draw, rounded corners=2pt, align=center, minimum width=31mm, minimum height=9mm, fill=gray!8}, arr/.style={-{Stealth[length=2mm]}, thick}]
+\node[box] (a) {Admin browser};
+\node[box, right=13mm of a] (f) {admin-frontend};
+\node[box, right=13mm of f] (api) {admin router};
+\node[box, right=13mm of api] (svc) {admin service};
+\node[box, below=10mm of svc] (log) {audit log};
+\node[box, right=13mm of svc] (db) {PostgreSQL};
+\draw[arr] (a) -- (f);
+\draw[arr] (f) -- node[above, font=\scriptsize]{Bearer token} (api);
+\draw[arr] (api) -- (svc);
+\draw[arr] (svc) -- (db);
+\draw[arr] (svc) -- (log);
+\draw[arr] (log) -- (db);
+\end{tikzpicture}
+\end{adjustbox}
+\caption{Обработка административного действия}\label{fig:admin-flow}
+\end{figure}
+
+
+
+Подробная инструкция администратора приведена в таблице~\ref{tab:admin-manual}. Она показывает порядок действий, который можно использовать во время демонстрации админ-панели.
+
+\noindent\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.14}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.08\linewidth}|>{\RaggedRight\arraybackslash}p{0.24\linewidth}|>{\RaggedRight\arraybackslash}p{0.28\linewidth}|>{\RaggedRight\arraybackslash}p{0.30\linewidth}|}
+\caption{Инструкция администратора ChessView}\label{tab:admin-manual}\\
+\hline
+Шаг & Где выполнить & Действие & Ожидаемый результат\\ \hline
+\endfirsthead
+\hline
+Шаг & Где выполнить & Действие & Ожидаемый результат\\ \hline
+\endhead
+1 & Admin login & Войти под аккаунтом с role=admin & Открывается рабочая область администратора\\ \hline
+2 & Admin users & Открыть список пользователей & Загружается таблица пользователей\\ \hline
+3 & Admin users & Найти нужный аккаунт & Администратор видит email, role и banned_at\\ \hline
+4 & Admin users & Заблокировать пользователя & У пользователя появляется banned_at\\ \hline
+5 & Admin logs & Открыть журнал & Появляется запись о блокировке\\ \hline
+6 & Admin users & Разблокировать пользователя & banned_at очищается\\ \hline
+7 & Admin users & Изменить роль & Роль пользователя меняется на user или admin\\ \hline
+8 & Admin payments & Открыть платежи & Отображаются payment_intents\\ \hline
+9 & Admin payments & Выполнить refund & Создается payment event и меняется статус intent\\ \hline
+10 & Verification sessions & Открыть список проверок & Администратор видит status, confidence и reason\\ \hline
+11 & Admin logs & Проверить audit trail & Все значимые действия имеют actor, action, target и payload\\ \hline
+\end{longtable}
+\normalsize

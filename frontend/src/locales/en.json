@@ -1,0 +1,139 @@
+{
+  "common": {
+    "brand": "ChessView",
+    "language": "Language",
+    "languages": {
+      "en": "English",
+      "ru": "Русский",
+      "kk": "Қазақша"
+    },
+    "settings": "Settings",
+    "logout": "Logout",
+    "rapid": "rapid"
+  },
+  "shell": {
+    "tagline": "Chess platform",
+    "openNavigation": "Open navigation",
+    "closeNavigation": "Close navigation",
+    "groups": {
+      "main": "Main",
+      "improve": "Improve",
+      "community": "Community"
+    },
+    "nav": {
+      "home": "Home",
+      "play": "Play",
+      "tournaments": "Tournaments",
+      "matches": "Matches",
+      "otb": "OTB manager",
+      "study": "Study",
+      "puzzles": "Puzzles",
+      "history": "History",
+      "leaderboards": "Leaderboards",
+      "compare": "Compare",
+      "market": "Market"
+    }
+  },
+  "auth": {
+    "titles": {
+      "login": "Welcome Back",
+      "register": "Create Account",
+      "forgot": "Reset Password",
+      "reset": "Set New Password"
+    },
+    "subtitles": {
+      "default": "Continue with Google or email",
+      "forgot": "Enter your email and we'll send a password reset link.",
+      "reset": "Paste the reset token link value and choose a new password."
+    },
+    "hero": {
+      "loginStart": "Elevate Your",
+      "loginAccent": "Game",
+      "registerStart": "Master The",
+      "registerAccent": "Board",
+      "description": "Play online, join tournaments, review your games, and improve your rating.",
+      "back": "Back to site"
+    },
+    "highlights": {
+      "boardTitle": "Return to the Board",
+      "boardDescription": "Jump back into live games, reviews, and tournaments.",
+      "matchesTitle": "Fair Live Matches",
+      "matchesDescription": "Play rated games and join organized events.",
+      "profileTitle": "One Chess Profile",
+      "profileDescription": "Keep ratings, history, and community activity together."
+    },
+    "fields": {
+      "username": "Username",
+      "email": "Email Address",
+      "password": "Password",
+      "newPassword": "New password",
+      "resetToken": "Reset Token"
+    },
+    "placeholders": {
+      "username": "Username",
+      "email": "name@example.com",
+      "password": "Password",
+      "newPassword": "New password",
+      "resetToken": "Paste token from reset link"
+    },
+    "actions": {
+      "google": "Continue with Google",
+      "divider": "Or use email",
+      "processing": "Processing...",
+      "signIn": "Sign In",
+      "getStarted": "Get Started",
+      "sendReset": "Send Reset Link",
+      "resetPassword": "Reset Password",
+      "forgot": "Forgot password?",
+      "create": "New player? Create an account",
+      "login": "Already have an account? Sign in"
+    },
+    "errors": {
+      "authFailed": "Authentication failed",
+      "oauthFailed": "Social Auth Failed",
+      "oauthSession": "OAuth session initialization failed"
+    }
+  },
+  "landing": {
+    "nav": {
+      "features": "Features",
+      "login": "Login",
+      "register": "Register"
+    },
+    "hero": {
+      "kicker": "Online chess platform",
+      "description": "Play chess online, join tournaments, improve your rating, and review your games with a focused dark interface built around the board.",
+      "start": "Start Playing",
+      "login": "Login",
+      "discord": "Join Discord"
+    },
+    "features": {
+      "playTitle": "Play Online",
+      "playDescription": "Challenge other players in rated and casual games with server-authoritative rules.",
+      "tournamentsTitle": "Join Tournaments",
+      "tournamentsDescription": "Compete in Swiss events, track standings, and review every pairing afterwards.",
+      "reviewTitle": "Review Games",
+      "reviewDescription": "Use analysis boards, move history, and tactical puzzles to sharpen your play.",
+      "communityTitle": "Chess Community",
+      "communityDescription": "Find opponents, join the Discord community, and follow other players.",
+      "heading": "Everything points back to chess.",
+      "summary": "Games, tournaments, profiles, ratings, puzzles, and reviews stay close to the board."
+    },
+    "preview": {
+      "blitz": "Blitz 5+3",
+      "challenge": "Challenge ready",
+      "rating": "Rating",
+      "improve": "Improve every game"
+    },
+    "discord": {
+      "heading": "Join the Discord community.",
+      "description": "Find opponents, discuss tournaments, share feedback, and follow what is coming next.",
+      "action": "Join Discord"
+    },
+    "footer": {
+      "terms": "Terms",
+      "privacy": "Privacy",
+      "contact": "Contact"
+    }
+  }
+}

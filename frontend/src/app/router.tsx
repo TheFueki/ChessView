@@ -128,6 +128,28 @@ const router = createBrowserRouter([
     ),
   },
   {
+    path: "/forgot-password",
+    errorElement: routeErrorElement,
+    element: (
+      <SuspenseWrapper>
+        <RedirectIfAuthenticated>
+          <AuthPage />
+        </RedirectIfAuthenticated>
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: "/reset-password",
+    errorElement: routeErrorElement,
+    element: (
+      <SuspenseWrapper>
+        <RedirectIfAuthenticated>
+          <AuthPage />
+        </RedirectIfAuthenticated>
+      </SuspenseWrapper>
+    ),
+  },
+  {
     path: "/compare",
     errorElement: routeErrorElement,
     element: (

@@ -2,7 +2,7 @@
 Communication REST API router.
 
 Provides read-only endpoint for chat message history.
-Mounted under /api/games prefix via app/main.py.
+Mounted under /api/v1/chat prefix via app/main.py.
 """
 
 from uuid import UUID

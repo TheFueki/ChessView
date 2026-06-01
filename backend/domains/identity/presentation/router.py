@@ -2,6 +2,8 @@ import httpx
 import logging
 import aiofiles
 import re
+import smtplib
+from email.message import EmailMessage
 from pathlib import Path
 from urllib.parse import urlencode, urlparse
 from uuid import UUID, uuid4
@@ -14,9 +16,11 @@ from app.config import settings
 
 from app.dependencies import get_current_user_id, get_db
 from domains.identity.application.commands import (
+    CompletePasswordResetCommand,
     LoginUserCommand,
     RefreshTokenCommand,
     RegisterUserCommand,
+    RequestPasswordResetCommand,
     UpdateProfileCommand,
     OAuthUserCommand,
 )
@@ -49,11 +53,15 @@ from domains.identity.presentation.schemas import (
     RegisterRequest,
     TokenResponse,
     UserProfileResponse,
+    PasswordResetCompleteRequest,
+    PasswordResetRequest,
+    PasswordResetRequestResponse,
     UpdateProfileRequest,
 )
 from domains.game.presentation.identity_verification import broadcast_identity_verification_forfeit
 from infrastructure.security import (
     create_access_token,
+    create_password_reset_token,
     create_refresh_token,
     decode_token,
     hash_password,
@@ -77,8 +85,9 @@ def _safe_redirect_target(value: str | None) -> str:
     if not value:
         return fallback
     parsed = urlparse(value)
-    allowed = urlparse(settings.FRONTEND_URL)
-    if parsed.scheme in {"http", "https"} and parsed.netloc == allowed.netloc:
+    allowed_netlocs = {urlparse(settings.FRONTEND_URL).netloc}
+    allowed_netlocs.update(urlparse(origin).netloc for origin in settings.cors_origins if origin)
+    if parsed.scheme in {"http", "https"} and parsed.netloc in allowed_netlocs:
         return value
     if value.startswith("/"):
         return f"{settings.FRONTEND_URL.rstrip('/')}{value}"
@@ -97,8 +106,33 @@ def _build_service(session: AsyncSession) -> IdentityService:
         verify_password=verify_password,
         create_access_token=create_access_token,
         create_refresh_token=create_refresh_token,
+        create_password_reset_token=create_password_reset_token,
         decode_token=decode_token,
     )
+
+
+def _send_password_reset_email(email: str, reset_url: str) -> None:
+    if not settings.SMTP_HOST:
+        logger.warning("LOCAL SMTP password reset link for %s: %s", email, reset_url)
+        return
+
+    message = EmailMessage()
+    message["Subject"] = "Reset your ChessView password"
+    message["From"] = settings.SMTP_FROM_EMAIL
+    message["To"] = email
+    message.set_content(
+        "Open this link to reset your ChessView password:\n\n"
+        f"{reset_url}\n\n"
+        "This link expires in 30 minutes."
+    )
+
+    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as smtp:
+        if settings.SMTP_USE_TLS:
+            smtp.starttls()
+        if settings.SMTP_USERNAME:
+            smtp.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+        smtp.send_message(message)
+
 
 def _serialize_user_profile(user) -> UserProfileResponse:
     avatar_url = f"/media/avatars/{user.avatar_path}" if user.avatar_path else None
@@ -154,6 +188,33 @@ async def refresh(body: RefreshRequest, session: AsyncSession = Depends(get_db))
         return await service.refresh(RefreshTokenCommand(refresh_token=body.refresh_token))
     except (InvalidCredentials, Exception):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired refresh token")
+
+
+@router.post("/password-reset/request", response_model=PasswordResetRequestResponse)
+async def request_password_reset(body: PasswordResetRequest, session: AsyncSession = Depends(get_db)):
+    service = _build_service(session)
+    ticket = await service.request_password_reset(
+        RequestPasswordResetCommand(email=str(body.email), frontend_url=settings.FRONTEND_URL)
+    )
+    if ticket is not None:
+        _send_password_reset_email(ticket.email, ticket.reset_url)
+    return PasswordResetRequestResponse(
+        detail="If that email exists, a password reset link has been sent."
+    )
+
+
+@router.post("/password-reset/complete", response_model=PasswordResetRequestResponse)
+async def complete_password_reset(body: PasswordResetCompleteRequest, session: AsyncSession = Depends(get_db)):
+    service = _build_service(session)
+    try:
+        await service.complete_password_reset(
+            CompletePasswordResetCommand(token=body.token, password=body.password)
+        )
+    except InvalidCredentials:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset token")
+    except UserNotFound:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return PasswordResetRequestResponse(detail="Password has been reset.")
 
 @router.get("/me", response_model=UserProfileResponse)
 async def get_me(

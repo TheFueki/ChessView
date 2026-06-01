@@ -88,18 +88,44 @@ class StubUser:
     def __init__(self, user_id, username, rating):
         self.id = user_id
         self.username = username
+        self.email = f"{username}@example.test"
+        self.password_hash = "hash"
         self.rating = rating
+        self.bio = None
+        self.avatar_path = None
+        self.role = "user"
+        self.banned_at = None
+        self.created_at = None
 
 
 class InMemoryUserRepository:
     def __init__(self, users):
         self.users = {user.id: user for user in users}
 
+    async def create(self, user):
+        self.users[user.id] = user
+        return user
+
     async def get_by_id(self, user_id):
         return self.users.get(user_id)
 
+    async def get_by_email(self, email):
+        return next((user for user in self.users.values() if user.email == email), None)
+
+    async def get_by_username(self, username):
+        return next((user for user in self.users.values() if user.username == username), None)
+
     async def get_by_ids(self, user_ids):
         return {user_id: self.users[user_id] for user_id in user_ids if user_id in self.users}
+
+    async def update(self, user):
+        self.users[user.id] = user
+        return user
+
+    async def update_many(self, users):
+        for user in users:
+            self.users[user.id] = user
+        return users
 
 
 class InMemoryGameRepository:
@@ -178,8 +204,36 @@ async def test_start_tournament_creates_round_one_pairings_and_bye():
     assert started.current_round == 1
     assert len(round_one_pairings) == 2
     assert sum(1 for pairing in round_one_pairings if pairing.black_id is None) == 1
-    assert all(pairing.game_id is None for pairing in round_one_pairings if pairing.black_id is not None)
+    assert all(pairing.game_id is not None for pairing in round_one_pairings if pairing.black_id is not None)
+    assert len(game_repo.games) == 1
     assert any(player.score == 1.0 for player in players)
+
+
+@pytest.mark.asyncio
+async def test_owner_can_add_otb_player_without_self_registration():
+    owner = StubUser(uuid4(), "owner", 1500)
+    tournament_repo = InMemoryTournamentRepository()
+    user_repo = InMemoryUserRepository([owner])
+    game_repo = InMemoryGameRepository()
+    game_service = StubGameService(game_repo)
+    service = TournamentService(tournament_repo, user_repo, game_repo, game_service)
+
+    tournament = await service.create_tournament(owner.id, "City OTB Swiss", "15+10", tournament_type="otb")
+
+    created_player = await service.add_otb_player(
+        tournament.id,
+        owner.id,
+        display_name="Nadia Petrova",
+        seed_rating=1725,
+    )
+    players = await tournament_repo.list_players(tournament.id)
+    created_user = await user_repo.get_by_id(created_player.user_id)
+
+    assert created_user is not None
+    assert created_user.username == "NadiaPetrova"
+    assert created_user.email.endswith("@otb.chessview.local")
+    assert created_user.rating == 1725
+    assert created_player in players
 
 
 @pytest.mark.asyncio

@@ -28,6 +28,15 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174"
     FIRST_ADMIN_EMAIL: str | None = None
+    SEED_ADMIN_EMAIL: str = "admin@chessview.app"
+    SEED_ADMIN_USERNAME: str = "admin"
+    SEED_ADMIN_PASSWORD: str = "admin123"
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = "no-reply@chessview.local"
+    SMTP_USE_TLS: bool = True
 
     @property
     def resolved_storage_dir(self) -> Path:

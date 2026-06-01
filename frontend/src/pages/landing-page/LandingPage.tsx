@@ -1,50 +1,53 @@
 import { motion } from "framer-motion";
 import { Brain, Crown, Github, Swords, Trophy, Users } from "lucide-react";
 import { Link, useNavigate } from "react-router";
+import { LanguageSwitcher, useI18n } from "@/shared/i18n";
 import logoImage from "../../assets/logo.jpeg";
 import "../../pages-style/landing-page/landingpage.scss";
 
 const DISCORD_URL = "https://discord.gg/4KA39UEEc4";
-const GITHUB_URL = "https://github.com/an8kk/ChessView";
+const GITHUB_URL = "https://github.com/thefueki/chessview";
 
 const features = [
   {
     icon: Swords,
-    title: "Play Online",
-    description: "Challenge other players in rated and casual games with server-authoritative rules.",
+    titleKey: "landing.features.playTitle",
+    descriptionKey: "landing.features.playDescription",
   },
   {
     icon: Trophy,
-    title: "Join Tournaments",
-    description: "Compete in Swiss events, track standings, and review every pairing afterwards.",
+    titleKey: "landing.features.tournamentsTitle",
+    descriptionKey: "landing.features.tournamentsDescription",
   },
   {
     icon: Brain,
-    title: "Review Games",
-    description: "Use analysis boards, move history, and tactical puzzles to sharpen your play.",
+    titleKey: "landing.features.reviewTitle",
+    descriptionKey: "landing.features.reviewDescription",
   },
   {
     icon: Users,
-    title: "Chess Community",
-    description: "Find opponents, join the Discord community, and follow other players.",
+    titleKey: "landing.features.communityTitle",
+    descriptionKey: "landing.features.communityDescription",
   },
 ];
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const { t } = useI18n();
 
   return (
     <div className="landing-wrapper">
       <nav className="landing-nav">
         <button className="landing-brand" onClick={() => navigate("/")}>
           <img src={logoImage} alt="ChessView" />
-          <span>ChessView</span>
+          <span>{t("common.brand")}</span>
         </button>
         <div className="landing-links">
-          <a href="#features">Features</a>
+          <a href="#features">{t("landing.nav.features")}</a>
           <a href={DISCORD_URL} target="_blank" rel="noreferrer noopener">Discord</a>
-          <Link to="/login">Login</Link>
-          <Link className="register-link" to="/register">Register</Link>
+          <Link to="/login">{t("landing.nav.login")}</Link>
+          <Link className="register-link" to="/register">{t("landing.nav.register")}</Link>
+          <LanguageSwitcher compact />
         </div>
       </nav>
 
@@ -58,18 +61,17 @@ export default function LandingPage() {
           >
             <div className="hero-kicker">
               <Crown size={16} />
-              Online chess platform
+              {t("landing.hero.kicker")}
             </div>
-            <h1>ChessView</h1>
+            <h1>{t("common.brand")}</h1>
             <p>
-              Play chess online, join tournaments, improve your rating, and review your games with a focused dark
-              interface built around the board.
+              {t("landing.hero.description")}
             </p>
             <div className="hero-actions">
-              <button className="primary-action" onClick={() => navigate("/register")}>Start Playing</button>
-              <button className="secondary-action" onClick={() => navigate("/login")}>Login</button>
+              <button className="primary-action" onClick={() => navigate("/register")}>{t("landing.hero.start")}</button>
+              <button className="secondary-action" onClick={() => navigate("/login")}>{t("landing.hero.login")}</button>
               <a className="secondary-action" href={DISCORD_URL} target="_blank" rel="noreferrer noopener">
-                Join Discord
+                {t("landing.hero.discord")}
               </a>
             </div>
           </motion.div>
@@ -91,12 +93,12 @@ export default function LandingPage() {
             </div>
             <div className="preview-panel">
               <div>
-                <span>Blitz 5+3</span>
-                <strong>Challenge ready</strong>
+                <span>{t("landing.preview.blitz")}</span>
+                <strong>{t("landing.preview.challenge")}</strong>
               </div>
               <div>
-                <span>Rating</span>
-                <strong>Improve every game</strong>
+                <span>{t("landing.preview.rating")}</span>
+                <strong>{t("landing.preview.improve")}</strong>
               </div>
             </div>
           </motion.div>
@@ -104,15 +106,15 @@ export default function LandingPage() {
 
         <section id="features" className="features-section">
           <div className="section-heading">
-            <h2>Everything points back to chess.</h2>
-            <p>Games, tournaments, profiles, ratings, puzzles, and reviews stay close to the board.</p>
+            <h2>{t("landing.features.heading")}</h2>
+            <p>{t("landing.features.summary")}</p>
           </div>
           <div className="features-grid">
             {features.map((feature) => (
-              <article key={feature.title} className="feature-card">
+              <article key={feature.titleKey} className="feature-card">
                 <feature.icon size={22} />
-                <h3>{feature.title}</h3>
-                <p>{feature.description}</p>
+                <h3>{t(feature.titleKey)}</h3>
+                <p>{t(feature.descriptionKey)}</p>
               </article>
             ))}
           </div>
@@ -120,17 +122,17 @@ export default function LandingPage() {
 
         <section className="discord-section">
           <div>
-            <h2>Join the Discord community.</h2>
-            <p>Find opponents, discuss tournaments, share feedback, and follow what is coming next.</p>
+            <h2>{t("landing.discord.heading")}</h2>
+            <p>{t("landing.discord.description")}</p>
           </div>
-          <a href={DISCORD_URL} target="_blank" rel="noreferrer noopener">Join Discord</a>
+          <a href={DISCORD_URL} target="_blank" rel="noreferrer noopener">{t("landing.discord.action")}</a>
         </section>
       </main>
 
       <footer className="landing-footer">
         <div className="footer-brand">
           <img src={logoImage} alt="" />
-          <span>ChessView</span>
+          <span>{t("common.brand")}</span>
         </div>
         <nav>
           <a href={DISCORD_URL} target="_blank" rel="noreferrer noopener">Discord</a>
@@ -138,9 +140,9 @@ export default function LandingPage() {
             <Github size={16} />
             GitHub
           </a>
-          <a href="/terms">Terms</a>
-          <a href="/privacy">Privacy</a>
-          <a href="mailto:contact@chessview.cc">Contact</a>
+          <a href="/terms">{t("landing.footer.terms")}</a>
+          <a href="/privacy">{t("landing.footer.privacy")}</a>
+          <a href="mailto:contact@chessview.cc">{t("landing.footer.contact")}</a>
         </nav>
       </footer>
     </div>

@@ -21,6 +21,11 @@ class TournamentPatchRequest(BaseModel):
     total_rounds: int | None = Field(None, ge=1)
 
 
+class OTBPlayerCreateRequest(BaseModel):
+    display_name: str = Field(min_length=1, max_length=32)
+    seed_rating: int = Field(default=1200, ge=100, le=3000)
+
+
 class TournamentPlayerResponse(BaseModel):
     id: str
     username: str

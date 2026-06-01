@@ -20,6 +20,7 @@ import { NavLink, useLocation, useNavigate } from "react-router";
 import { useMatchmakingStore } from "@/entities/matchmaking";
 import { useUserStore } from "@/entities/user";
 import { wsClient } from "@/shared/api";
+import { LanguageSwitcher, useI18n } from "@/shared/i18n";
 import { beginLogoutRedirect } from "@/shared/lib/authRedirect";
 import { Avatar, Button } from "@/shared/ui";
 import logoImage from "../../assets/logo.jpeg";
@@ -35,29 +36,29 @@ interface AppShellProps {
 
 const navGroups = [
   {
-    label: "Main",
+    labelKey: "shell.groups.main",
     items: [
-      { to: "/", label: "Home", icon: LayoutGrid },
-      { to: "/lobby", label: "Play", icon: Swords },
-      { to: "/tournaments", label: "Tournaments", icon: Trophy },
-      { to: "/scheduled-matches", label: "Matches", icon: CalendarClock },
-      { to: "/otb", label: "OTB manager", icon: ClipboardList },
+      { to: "/", labelKey: "shell.nav.home", icon: LayoutGrid },
+      { to: "/lobby", labelKey: "shell.nav.play", icon: Swords },
+      { to: "/tournaments", labelKey: "shell.nav.tournaments", icon: Trophy },
+      { to: "/scheduled-matches", labelKey: "shell.nav.matches", icon: CalendarClock },
+      { to: "/otb", labelKey: "shell.nav.otb", icon: ClipboardList },
     ],
   },
   {
-    label: "Improve",
+    labelKey: "shell.groups.improve",
     items: [
-      { to: "/analysis", label: "Study", icon: BarChart3 },
-      { to: "/puzzles", label: "Puzzles", icon: Brain },
-      { to: "/history", label: "History", icon: History },
+      { to: "/analysis", labelKey: "shell.nav.study", icon: BarChart3 },
+      { to: "/puzzles", labelKey: "shell.nav.puzzles", icon: Brain },
+      { to: "/history", labelKey: "shell.nav.history", icon: History },
     ],
   },
   {
-    label: "Community",
+    labelKey: "shell.groups.community",
     items: [
-      { to: "/leaderboard", label: "Leaderboards", icon: Medal },
-      { to: "/compare", label: "Compare", icon: Swords },
-      { to: "/shop", label: "Market", icon: ShoppingBag },
+      { to: "/leaderboard", labelKey: "shell.nav.leaderboards", icon: Medal },
+      { to: "/compare", labelKey: "shell.nav.compare", icon: Swords },
+      { to: "/shop", labelKey: "shell.nav.market", icon: ShoppingBag },
     ],
   },
 ];
@@ -77,6 +78,7 @@ export function AppShell({
   const user = useUserStore((state) => state.user);
   const logout = useUserStore((state) => state.logout);
   const resetMatchmaking = useMatchmakingStore((state) => state.reset);
+  const { t } = useI18n();
 
   const handleLogout = () => {
     setIsNavOpen(false);
@@ -93,8 +95,8 @@ export function AppShell({
     <button onClick={() => navigate("/")} className="flex items-center gap-3 text-left transition hover:opacity-85">
       <img src={logoImage} alt="ChessView" className="h-11 w-11 rounded-md border border-neutral-800 object-cover" />
       <div>
-        <div className="text-sm font-semibold text-neutral-100">ChessView</div>
-        <div className="text-xs text-neutral-500">Chess platform</div>
+        <div className="text-sm font-semibold text-neutral-100">{t("common.brand")}</div>
+        <div className="text-xs text-neutral-500">{t("shell.tagline")}</div>
       </div>
     </button>
   );
@@ -102,8 +104,8 @@ export function AppShell({
   const navigation = (
     <nav className="grid gap-5">
       {navGroups.map((group) => (
-        <div key={group.label} className="grid gap-2">
-          <div className="px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-600">{group.label}</div>
+        <div key={group.labelKey} className="grid gap-2">
+          <div className="px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-600">{t(group.labelKey)}</div>
           <div className="grid gap-1">
             {group.items.map((item) => (
               <NavLink
@@ -119,7 +121,7 @@ export function AppShell({
                 }
               >
                 <item.icon className="h-4 w-4" />
-                {item.label}
+                {t(item.labelKey)}
               </NavLink>
             ))}
           </div>
@@ -140,9 +142,10 @@ export function AppShell({
         <Avatar username={user.username} avatarUrl={user.avatar_url} size="sm" />
         <div className="min-w-0 text-left">
           <div className="truncate text-sm font-medium text-neutral-100">{user.username}</div>
-          <div className="text-xs tabular-nums text-neutral-500">{user.rating} rapid</div>
+          <div className="text-xs tabular-nums text-neutral-500">{user.rating} {t("common.rapid")}</div>
         </div>
       </button>
+      <LanguageSwitcher />
       <div className="grid grid-cols-2 gap-2">
         <Button
           variant="secondary"
@@ -153,11 +156,11 @@ export function AppShell({
           }}
         >
           <Settings className="h-4 w-4" />
-          Settings
+          {t("common.settings")}
         </Button>
         <Button variant="secondary" size="sm" onClick={handleLogout}>
           <LogOut className="h-4 w-4" />
-          Logout
+          {t("common.logout")}
         </Button>
       </div>
     </div>
@@ -174,7 +177,7 @@ export function AppShell({
       <header className="sticky top-0 z-30 border-b border-neutral-800 bg-neutral-950/95 backdrop-blur lg:hidden">
         <div className="flex items-center justify-between px-4 py-3">
           {brand}
-          <Button variant="secondary" size="sm" onClick={() => setIsNavOpen(true)} aria-label="Open navigation">
+          <Button variant="secondary" size="sm" onClick={() => setIsNavOpen(true)} aria-label={t("shell.openNavigation")}>
             <Menu className="h-4 w-4" />
           </Button>
         </div>
@@ -185,7 +188,7 @@ export function AppShell({
           <div className="flex h-full w-[min(22rem,calc(100vw-2rem))] flex-col border-r border-neutral-800 bg-neutral-950 px-5 py-5 shadow-2xl">
             <div className="flex items-center justify-between pb-5">
               {brand}
-              <Button variant="secondary" size="sm" onClick={() => setIsNavOpen(false)} aria-label="Close navigation">
+              <Button variant="secondary" size="sm" onClick={() => setIsNavOpen(false)} aria-label={t("shell.closeNavigation")}>
                 <X className="h-4 w-4" />
               </Button>
             </div>

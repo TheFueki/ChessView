@@ -6,6 +6,8 @@ Thumbs.db
 *.swp
 *.swo
 *.suo
+~$*
+**/~$*
 
 # Environment files
 .env.local
@@ -54,3 +56,14 @@ backend/.git-backup/
 .codegraph/
 defense_artifacts/
 docs/diploma/
+
+# Local Codex/browser artifacts
+.codex-chrome-profile-docshots/
+.codex-video/
+outputs/
+
+# Generated demo captures
+docs/*.avi
+docs/*_demo*.mp4
+docs/smooth_test_*.mp4
+docs/smooth_test_*.webm

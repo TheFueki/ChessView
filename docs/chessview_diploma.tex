@@ -1,0 +1,691 @@
+\documentclass[14pt,a4paper]{extreport}
+
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T2A]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{cmap}
+  \usepackage{tempora}
+\else
+  \usepackage{fontspec}
+  \setmainfont{Times New Roman}
+  \setsansfont{Arial}
+  \setmonofont{Courier New}
+\fi
+\usepackage[russian]{babel}
+\usepackage[a4paper,left=30mm,top=20mm,right=10mm,bottom=20mm]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+\usepackage{indentfirst}
+\setlength{\parindent}{1.25cm}
+\setlength{\parskip}{0pt}
+\usepackage{ragged2e}
+\justifying
+\sloppy
+\emergencystretch=3em
+\usepackage{caption}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{tocloft}
+\usepackage{chngcntr}
+\usepackage{xurl}
+\usepackage{listings}
+\usepackage{hyperref}
+\hypersetup{hidelinks,unicode=true}
+
+\counterwithin{figure}{chapter}
+\counterwithin{table}{chapter}
+\renewcommand{\thefigure}{\thechapter.\arabic{figure}}
+\renewcommand{\thetable}{\thechapter.\arabic{table}}
+\DeclareCaptionLabelSeparator{aitudot}{ --- }
+\captionsetup{font=normalsize,labelfont=normalfont,labelsep=aitudot}
+\captionsetup[table]{position=top,justification=raggedright,singlelinecheck=false,name=Таблица,margin={1.25cm,0cm}}
+\captionsetup[figure]{position=bottom,justification=centering,singlelinecheck=false,name=Рисунок}
+
+\titleformat{\chapter}[block]{\normalfont\centering\fontsize{14pt}{21pt}\selectfont}{\thechapter}{1em}{\MakeUppercase}
+\titlespacing*{\chapter}{0pt}{0pt}{12pt}
+\titleformat{\section}[block]{\normalfont\centering\fontsize{14pt}{21pt}\selectfont}{\thesection}{1em}{}
+\titlespacing*{\section}{0pt}{12pt}{6pt}
+
+\newcommand{\unnumberedchapter}[1]{%
+  \clearpage
+  \phantomsection
+  \addcontentsline{toc}{chapter}{#1}
+  \begin{center}\fontsize{14pt}{21pt}\selectfont #1\end{center}\vspace{6pt}
+}
+\newcommand{\appsection}[1]{%
+  \clearpage
+  \phantomsection
+  \addcontentsline{toc}{section}{#1}
+  \begin{flushright}#1\end{flushright}
+  \vspace{6pt}
+}
+\newcommand{\filledfield}[2]{\underline{\makebox[#1][l]{\hspace{0.15cm}#2}}}
+\newcommand{\blankfield}[1]{\underline{\makebox[#1][l]{}}}
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  columns=fullflexible,
+  frame=single,
+  xleftmargin=1.25cm,
+  keepspaces=true
+}
+
+\renewcommand{\contentsname}{СОДЕРЖАНИЕ}
+\addto\captionsrussian{\renewcommand{\contentsname}{СОДЕРЖАНИЕ}}
+\renewcommand{\cfttoctitlefont}{\hfill\fontsize{14pt}{21pt}\selectfont}
+\renewcommand{\cftaftertoctitle}{\hfill\vspace{6pt}}
+\renewcommand{\cftchapfont}{\normalfont}
+\renewcommand{\cftchappagefont}{\normalfont}
+\renewcommand{\cftsecfont}{\normalfont}
+\renewcommand{\cftsecpagefont}{\normalfont}
+\renewcommand{\cftchapdotsep}{\cftdotsep}
+\setlength{\cftbeforechapskip}{2pt}
+\setlength{\cftbeforesecskip}{1pt}
+\setcounter{tocdepth}{2}
+\pagestyle{plain}
+
+\begin{document}
+\pagenumbering{arabic}
+
+\begin{titlepage}
+\thispagestyle{empty}
+\begin{center}
+Министерство просвещения Республики Казахстан\\[0.5cm]
+Astana IT University College\\[0.7cm]
+Специальность: 06130100 --- Программное обеспечение (по видам)
+
+\vfill
+{\bfseries ДИПЛОМНЫЙ ПРОЕКТ}\\[0.8cm]
+Тема: Разработка веб-приложения ChessView
+\vfill
+\begin{flushright}
+Студент: \filledfield{6cm}{Сакенов Ануар Сункарулы}\\[0.4cm]
+Группа: \filledfield{6cm}{ПО 2302}\\[0.4cm]
+Руководитель: \filledfield{6cm}{Мартынцов Николай Викторович}
+\end{flushright}
+\vfill
+Астана, 2026
+\end{center}
+\end{titlepage}
+
+\begin{titlepage}
+\thispagestyle{empty}
+\begin{center}
+Министерство просвещения Республики Казахстан\\
+Astana IT University College\\[1cm]
+\end{center}
+\begin{flushright}
+Допущен к защите\\
+Председатель ПЦК: \blankfield{7cm}\\
+Дата: \blankfield{7cm}
+\end{flushright}
+\vfill
+\begin{center}
+{\bfseries ДИПЛОМНЫЙ ПРОЕКТ}\\[0.5cm]
+на тему: «Разработка веб-приложения ChessView»\\[0.8cm]
+по специальности 06130100 --- Программное обеспечение (по видам)
+\end{center}
+\vfill
+\begin{flushright}
+Выполнил: \filledfield{6cm}{Сакенов Ануар Сункарулы}\\[0.4cm]
+Группа: \filledfield{6cm}{ПО 2302}\\[0.4cm]
+Руководитель: \filledfield{6cm}{Мартынцов Николай Викторович}
+\end{flushright}
+\vfill
+\begin{center}Астана, 2026\end{center}
+\end{titlepage}
+
+\begin{titlepage}
+\thispagestyle{empty}
+\begin{center}
+{\bfseries ЗАДАНИЕ}\\[0.5cm]
+на дипломный проект
+\end{center}
+Студент: \filledfield{8cm}{Сакенов Ануар Сункарулы}
+
+Группа: \filledfield{8cm}{ПО 2302}
+
+Тема дипломного проекта: «Разработка веб-приложения ChessView».
+
+Номер приказа: \blankfield{7cm}
+
+Дата выдачи задания: \blankfield{7cm}
+
+\vspace{0.5cm}
+Задание: разработать веб-приложение ChessView для шахматного онлайн-взаимодействия пользователей, включающее авторизацию, профиль, live-партию, серверную проверку ходов, WebSocket-события, историю партий, анализ позиций, задачи, турниры и документацию по запуску.
+
+\vfill
+\begin{flushright}
+Руководитель: \blankfield{6cm}\\[0.8cm]
+Студент: \blankfield{6cm}
+\end{flushright}
+\end{titlepage}
+
+\clearpage
+\setcounter{page}{4}
+\tableofcontents
+
+\unnumberedchapter{ВВЕДЕНИЕ}
+
+Актуальность дипломного проекта ChessView связана с тем, что шахматные онлайн-сервисы объединяют несколько важных для разработки программного обеспечения задач: регистрацию пользователей, хранение профилей, проверку правил предметной области, работу с базой данных, обмен событиями в реальном времени и удобный интерфейс для анализа партий. Такая предметная область позволяет показать не только отдельную страницу с шахматной доской, но и полноценное full-stack приложение учебного уровня.
+
+Практическая значимость проекта состоит в создании расширяемой шахматной платформы, пригодной для демонстрации ключевых механизмов современной веб-разработки. В проекте реализованы клиентская часть на React и TypeScript, backend на FastAPI, хранение данных в PostgreSQL, миграции Alembic, REST API, WebSocket endpoint, серверная проверка ходов через python-chess, локальный анализ позиций с использованием Stockfish worker, задачи, турниры и административный интерфейс.
+
+Целью дипломного проекта является разработка веб-приложения ChessView, предназначенного для организации шахматного онлайн-взаимодействия пользователей, ведения профилей, проведения live-партий, анализа позиций и демонстрации связанных учебных модулей платформы.
+
+Для достижения цели были определены следующие задачи: изучить особенности шахматных веб-платформ; рассмотреть аналоги Chess.com, Lichess и Tornelo; определить функциональные и нефункциональные требования; выбрать стек технологий; спроектировать архитектуру приложения; реализовать backend, frontend и базу данных; реализовать WebSocket-сценарии live-игры; подготовить документацию запуска и проверки; описать ограничения текущей реализации.
+
+Объектом разработки является шахматное веб-приложение. Предметом разработки являются программные модули ChessView, обеспечивающие авторизацию, игровой процесс, хранение данных, real-time события, анализ позиций, задачи, турниры и расширенные пользовательские сценарии. Результатом работы является репозиторий ChessView по адресу \url{https://github.com/thefueki/chessview}, документация и пояснительная записка.
+
+\chapter{ОСНОВНАЯ ЧАСТЬ}
+
+\section{Общие понятия веб-приложений и шахматных онлайн-платформ}
+
+Веб-приложение представляет собой программную систему, с которой пользователь работает через браузер. В отличие от статического сайта, веб-приложение содержит состояние, пользовательские действия, сетевой обмен и бизнес-логику. Для ChessView это означает наличие frontend-интерфейса, backend API, WebSocket-канала и базы данных.
+
+Шахматная онлайн-платформа предъявляет дополнительные требования. Она должна корректно отображать доску, соблюдать правила игры, хранить историю ходов, учитывать контроль времени и синхронизировать состояние между двумя игроками. В ChessView live-партия построена по server-authoritative модели: клиент отправляет ход, но окончательное изменение состояния выполняется на сервере.
+
+REST API используется для операций типа запрос-ответ: регистрация, вход, загрузка профиля, история партий, задачи и турниры. WebSocket используется для событий, где важна быстрая доставка: матчмейкинг, ход, состояние партии, чат и WebRTC signaling. Такое разделение упрощает архитектуру и соответствует фактической структуре проекта.
+
+\section{Обзор существующих решений}
+
+При анализе аналогов важно учитывать масштаб. Chess.com и Lichess являются зрелыми массовыми платформами, а Tornelo ориентирован на организацию турниров. ChessView не позиционируется как конкурент этим сервисам. Его назначение --- учебная full-stack реализация ключевых механизмов шахматной платформы.
+
+\begin{center}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.25}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.14\linewidth}|>{\RaggedRight\arraybackslash}p{0.20\linewidth}|>{\RaggedRight\arraybackslash}p{0.24\linewidth}|>{\RaggedRight\arraybackslash}p{0.26\linewidth}|}
+\caption{Сравнение аналогов и ChessView}\label{tab:analogues}\\
+\hline
+Решение & Назначение & Характерные функции & Что учтено в ChessView\\ \hline
+\endfirsthead
+\hline
+Решение & Назначение & Характерные функции & Что учтено в ChessView\\ \hline
+\endhead
+Chess.com & Массовая шахматная платформа & Игра, рейтинги, задачи, обучение, турниры, профиль & Связь игры, профиля, истории, задач и рейтингов\\ \hline
+Lichess & Бесплатная шахматная платформа & Быстрый доступ к игре, анализ, задачи, турниры & Разделение live-игры и анализа, локальная работа с позициями\\ \hline
+Tornelo & Турнирная платформа & Регистрация, паринги, расписания, OTB-сценарии & Турнирный модуль, Swiss helpers, OTB tournament type\\ \hline
+ChessView & Учебное full-stack приложение & Auth, live game, WebSocket, анализ, задачи, турниры, admin & Демонстрация архитектуры и ключевых механизмов без заявления о промышленном масштабе\\ \hline
+\end{longtable}
+\end{center}
+
+\section{Требования к ChessView}
+
+Функциональные требования приведены в таблице~\ref{tab:functional}.
+
+\begin{center}
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.25}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.08\linewidth}|>{\RaggedRight\arraybackslash}p{0.28\linewidth}|>{\RaggedRight\arraybackslash}p{0.46\linewidth}|>{\RaggedRight\arraybackslash}p{0.10\linewidth}|}
+\caption{Функциональные требования}\label{tab:functional}\\
+\hline
+Код & Требование & Описание & Статус\\ \hline
+\endfirsthead
+\hline
+Код & Требование & Описание & Статус\\ \hline
+\endhead
+F1 & Авторизация & Регистрация, вход, refresh token, текущий пользователь, protected routes & Реализовано\\ \hline
+F2 & Профиль & Рейтинг, статистика, аватар, история, leaderboard, сравнение игроков & Реализовано\\ \hline
+F3 & Матчмейкинг & Очередь через WebSocket и создание партии с контролем времени & Реализовано, in-memory\\ \hline
+F4 & Live-партия & Ходы, часы, результат, reconnect, timeout, resign/draw & Реализовано\\ \hline
+F5 & Анализ & FEN/PGN, board editor, локальный Stockfish worker & Реализовано\\ \hline
+F6 & Задачи & Каталог задач и учет попыток пользователя & Реализовано\\ \hline
+F7 & Турниры & Создание, участие, standings, Swiss helpers, round progression & Реализовано\\ \hline
+F8 & Расширенные модули & Shop, clubs, OTB, scheduled matches, admin, verification & Частично: часть модулей демонстрационная\\ \hline
+\end{longtable}
+\end{center}
+
+Нефункциональные требования приведены в таблице~\ref{tab:nonfunctional}.
+
+\begin{center}
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.25}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.08\linewidth}|>{\RaggedRight\arraybackslash}p{0.30\linewidth}|>{\RaggedRight\arraybackslash}p{0.42\linewidth}|>{\RaggedRight\arraybackslash}p{0.12\linewidth}|}
+\caption{Нефункциональные требования}\label{tab:nonfunctional}\\
+\hline
+Код & Требование & Описание & Проверка\\ \hline
+\endfirsthead
+\hline
+Код & Требование & Описание & Проверка\\ \hline
+\endhead
+N1 & Разделение слоев & Отдельные frontend, backend, admin frontend и PostgreSQL & Структура репозитория\\ \hline
+N2 & Серверная проверка ходов & Клиент не определяет итоговое состояние live-партии & `backend/domains/game/domain/moves.py`\\ \hline
+N3 & Миграции & Схема базы управляется Alembic & `backend/alembic/versions`\\ \hline
+N4 & Поддерживаемость & Домены backend и feature-sliced структура frontend & Структура директорий\\ \hline
+N5 & Защита API & Protected endpoints требуют JWT & HTTP 401 без токена\\ \hline
+N6 & Воспроизводимый запуск & Docker Compose и split dev workflow & README, `docker-compose.yml`\\ \hline
+\end{longtable}
+\end{center}
+
+\section{Обоснование технологий}
+
+React и TypeScript выбраны для компонентного интерфейса с типизированными API-ответами. Vite обеспечивает быстрый dev server и сборку. TanStack Query используется для server state, Zustand --- для локального состояния пользователя, матчмейкинга и UI.
+
+FastAPI выбран для typed REST API, зависимостей и WebSocket support. SQLAlchemy async и PostgreSQL обеспечивают реляционное хранение пользователей, партий, ходов, задач, турниров и платежных записей. Alembic используется для версионирования схемы. Python-chess применяется на backend для проверки ходов, а chess.js и Stockfish worker используются на frontend для анализа и учебных сценариев.
+
+\chapter{ТЕХНИЧЕСКАЯ ЧАСТЬ}
+
+\section{Архитектура проекта}
+
+Архитектура ChessView отражает фактическую структуру репозитория: `backend`, `frontend`, `admin-frontend`, `docs`, `docker-compose.yml`, `justfile`. Общая схема приведена на рисунке~\ref{fig:architecture}.
+
+\begin{figure}[h]
+\centering
+\fbox{\begin{minipage}{0.86\textwidth}
+\centering
+Browser / React + Vite frontend\\
+$\downarrow$ REST `/api/v1/*` \quad $\downarrow$ WebSocket `/ws?token=...`\\
+FastAPI backend\\
+$\downarrow$ SQLAlchemy async / Alembic\\
+PostgreSQL\\[0.3cm]
+Admin browser $\rightarrow$ admin-frontend $\rightarrow$ `/api/v1/admin/*`
+\end{minipage}}
+\caption{Общая архитектура ChessView}\label{fig:architecture}
+\end{figure}
+
+Backend организован по доменам: identity, game, matchmaking, profiles, ratings, communication, tournaments, scheduled\_matches, puzzles, payments, rtc и admin. Во многих доменах используется разделение на domain, application, infrastructure и presentation. Frontend организован по слоям app, pages, widgets, features, entities и shared.
+
+\section{База данных и миграции}
+
+Схема базы данных управляется Alembic. В репозитории присутствуют миграции `0001_baseline.py`--`0008_face_templates.py`. Логическая схема основных сущностей приведена на рисунке~\ref{fig:erd}.
+
+\begin{figure}[h]
+\centering
+\fbox{\begin{minipage}{0.90\textwidth}
+\centering
+users $\rightarrow$ games $\rightarrow$ moves\\
+games $\rightarrow$ chat\_messages\\
+users $\rightarrow$ puzzle\_attempts $\leftarrow$ puzzles\\
+tournaments $\rightarrow$ tournament\_players, tournament\_rounds, tournament\_pairings\\
+scheduled\_matches $\rightarrow$ games\\
+users $\rightarrow$ payment\_intents $\rightarrow$ payment\_events\\
+users $\rightarrow$ face\_verification\_profiles, face\_verification\_sessions
+\end{minipage}}
+\caption{Логическая схема основных сущностей базы данных}\label{fig:erd}
+\end{figure}
+
+\section{REST API и WebSocket}
+
+REST API регистрируется под префиксом `/api/v1`. Основные endpoints приведены в таблице~\ref{tab:api}.
+
+\begin{center}
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.25}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.14\linewidth}|>{\RaggedRight\arraybackslash}p{0.34\linewidth}|>{\RaggedRight\arraybackslash}p{0.34\linewidth}|>{\RaggedRight\arraybackslash}p{0.10\linewidth}|}
+\caption{Основные REST endpoints}\label{tab:api}\\
+\hline
+Метод & Endpoint & Назначение & Доступ\\ \hline
+\endfirsthead
+\hline
+Метод & Endpoint & Назначение & Доступ\\ \hline
+\endhead
+POST & `/api/v1/identity/register` & Регистрация пользователя & Public\\ \hline
+POST & `/api/v1/identity/login` & Получение токенов & Public\\ \hline
+GET & `/api/v1/identity/me` & Текущий пользователь & Auth\\ \hline
+GET & `/api/v1/profiles/me` & Профиль текущего пользователя & Auth\\ \hline
+GET & `/api/v1/games` & История партий & Auth\\ \hline
+GET & `/api/v1/puzzles` & Список задач & Auth\\ \hline
+POST & `/api/v1/tournaments` & Создание турнира & Auth\\ \hline
+GET & `/api/v1/scheduled-matches/me` & Запланированные матчи & Auth\\ \hline
+GET & `/api/v1/admin/users` & Список пользователей для администратора & Admin\\ \hline
+\end{longtable}
+\end{center}
+
+WebSocket endpoint находится по адресу `/ws?token=<access_token>`. Основные события приведены в таблице~\ref{tab:ws}.
+
+\begin{center}
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.25}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.22\linewidth}|>{\RaggedRight\arraybackslash}p{0.22\linewidth}|>{\RaggedRight\arraybackslash}p{0.42\linewidth}|}
+\caption{Основные WebSocket-события}\label{tab:ws}\\
+\hline
+Событие & Направление & Назначение\\ \hline
+\endfirsthead
+\hline
+Событие & Направление & Назначение\\ \hline
+\endhead
+`queue\_join` & Клиент $\rightarrow$ сервер & Вход в очередь с выбранным контролем времени\\ \hline
+`queue\_leave` & Клиент $\rightarrow$ сервер & Выход из очереди\\ \hline
+`match\_found` & Сервер $\rightarrow$ клиент & Найдена пара и создана партия\\ \hline
+`move` & Клиент $\rightarrow$ сервер & Отправка UCI-хода на проверку\\ \hline
+`game\_state` & Сервер $\rightarrow$ клиент & Рассылка актуального состояния партии\\ \hline
+`game\_over` & Сервер $\rightarrow$ клиент & Завершение партии\\ \hline
+`chat\_send` / `chat\_message` & Оба направления & Чат партии\\ \hline
+`rtc\_offer`, `rtc\_answer`, `rtc\_ice` & Оба направления & WebRTC signaling\\ \hline
+\end{longtable}
+\end{center}
+
+\section{Игровой процесс}
+
+Критическая логика live-партии находится на backend. Файл `backend/domains/game/domain/moves.py` создает шахматную доску из FEN, определяет ожидаемого игрока, разбирает UCI-ход, проверяет `board.legal_moves`, обновляет часы и сохраняет новый FEN. Такой подход снижает риск, что клиент изменит состояние партии произвольно.
+
+Контроль времени реализован в доменной модели игры. При ходе создается clock snapshot, затем активному игроку начисляется increment. Фоновый монитор активных игр находится в `backend/domains/game/presentation/runtime.py`; он проверяет таймауты и disconnect grace. Эта реализация подходит для одного backend-процесса, но требует отдельной координации при горизонтальном масштабировании.
+
+\section{Модули приложения}
+
+Статус основных модулей приведен в таблице~\ref{tab:modules}.
+
+\begin{center}
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.25}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.18\linewidth}|>{\RaggedRight\arraybackslash}p{0.40\linewidth}|>{\RaggedRight\arraybackslash}p{0.28\linewidth}|}
+\caption{Функциональные модули ChessView}\label{tab:modules}\\
+\hline
+Модуль & Фактическая реализация & Статус\\ \hline
+\endfirsthead
+\hline
+Модуль & Фактическая реализация & Статус\\ \hline
+\endhead
+Авторизация & Identity router, JWT, password hashing, protected routes & Реализовано\\ \hline
+Профили & Profile endpoints, leaderboard, search, head-to-head & Реализовано\\ \hline
+Матчмейкинг & WebSocket queue, time controls, game creation & Реализовано, in-memory\\ \hline
+Live game & Server-authoritative moves, clocks, reconnect, timeout, chat, RTC signaling & Реализовано\\ \hline
+Анализ & Local Stockfish worker, FEN/PGN, board editor & Реализовано на frontend\\ \hline
+Задачи & Puzzle catalog and attempts & Реализовано\\ \hline
+Турниры & Lifecycle, standings, Swiss helpers, OTB type & Реализовано в базовом виде\\ \hline
+Scheduled matches & Invite/accept/decline/cancel/start lifecycle & Реализовано\\ \hline
+Payments & Payment intent emulator and coin debit/refund helpers & Эмулятор\\ \hline
+Admin & Separate admin frontend and `/api/v1/admin/*` endpoints & Базовый admin scenario\\ \hline
+Shop & Local inventory in browser, profile coins display & Демонстрационный UI\\ \hline
+Clubs & Local-state club cards and create/search UI & Демонстрационный UI\\ \hline
+Verification & Local face/passkey models, sessions, challenges & Архитектурная основа\\ \hline
+\end{longtable}
+\end{center}
+
+\section{Проверка работоспособности}
+
+Проверка проекта должна быть основана на фактически запускаемых командах. Сводная таблица приведена в таблице~\ref{tab:verification}. В графе фактического результата необходимо указывать результат последнего локального запуска.
+
+\begin{center}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.20}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.19\linewidth}|>{\RaggedRight\arraybackslash}p{0.12\linewidth}|>{\RaggedRight\arraybackslash}p{0.28\linewidth}|>{\RaggedRight\arraybackslash}p{0.18\linewidth}|>{\RaggedRight\arraybackslash}p{0.13\linewidth}|}
+\caption{План проверки проекта}\label{tab:verification}\\
+\hline
+Проверка & Тип & Команда или сценарий & Ожидаемый результат & Доказательство\\ \hline
+\endfirsthead
+\hline
+Проверка & Тип & Команда или сценарий & Ожидаемый результат & Доказательство\\ \hline
+\endhead
+Backend compile & Авто & `python -m compileall app domains infrastructure shared tests` & Exit code 0 & terminal output\\ \hline
+Backend tests & Авто & `pytest tests` & Tests passed & pytest summary\\ \hline
+Migrations apply & Авто & `alembic upgrade head` & Current schema applied & Alembic output\\ \hline
+Migration drift & Авто & `alembic check` & No new upgrade operations & Alembic output\\ \hline
+Healthcheck & Smoke & `GET /health` & JSON status ok, version 1.0.1 & HTTP response\\ \hline
+Protected API & Smoke & `GET /api/v1/puzzles` without token & HTTP 401 & HTTP status\\ \hline
+Frontend lint & Авто & `yarn lint` & Exit code 0 & ESLint output\\ \hline
+Frontend build & Авто & `yarn build` & TypeScript and Vite build complete & build output\\ \hline
+Admin build & Авто & `yarn typecheck`, `yarn build` & Exit code 0 & terminal output\\ \hline
+Docker config & Static & `docker compose config` & Valid Compose file & command output\\ \hline
+Manual route check & Ручная & login/register, lobby, game, history, analysis & Pages open without critical errors & screenshots or demo\\ \hline
+WebSocket check & Ручная & two sessions, `queue_join`, `move` & match and move events delivered & browser/devtools\\ \hline
+\end{longtable}
+\end{center}
+
+В текущей версии корректно говорить о базовой функциональной проверке и регрессионных проверках. Нагрузочное тестирование, промышленная отказоустойчивость и проверка горизонтального масштабирования не заявляются, если они отдельно не проводились.
+
+\section{Ограничения текущей реализации}
+
+Ограничения не снижают ценность проекта, а показывают границы текущей инженерной версии. ChessView рассчитан на локальный или single-instance запуск. Matchmaking queue, WebSocket rooms и game monitor находятся в памяти backend-процесса. Uploaded media хранится локально. Для горизонтального масштабирования потребуются Redis/pub-sub, распределенная координация фонового монитора и object storage.
+
+Платежный модуль является эмулятором и не интегрирован с реальным платежным провайдером. Shop и Clubs являются демонстрационными UI-модулями. Face/passkey verification содержит локальную архитектурную основу, но не является сертифицированной проверкой личности. WebSocket token в query string удобен для SPA-сценария, но требует дополнительной оценки безопасности для более строгих окружений.
+
+\chapter{ОХРАНА ТРУДА}
+
+\section{Требования безопасности при работе с вычислительной техникой}
+
+Работа над программным проектом связана с длительным использованием персонального компьютера, монитора, клавиатуры, мыши и сетевого оборудования. Перед началом работы необходимо убедиться в исправности кабелей, блока питания, розеток и корпуса устройства. Запрещается работать с оборудованием, имеющим признаки перегрева, повреждения проводов или нестабильного питания.
+
+При возникновении запаха гари, искрения, необычного шума или перегрева оборудование следует выключить безопасным способом и сообщить ответственному лицу. Самостоятельный ремонт электрической части без соответствующей квалификации недопустим.
+
+\section{Организация рабочего места}
+
+Рабочее место программиста должно обеспечивать устойчивую посадку, удобное положение рук и нормальный обзор монитора. Монитор рекомендуется располагать на расстоянии около 50--70 см от глаз, верхняя часть экрана должна находиться примерно на уровне глаз. Клавиатура и мышь должны находиться на одной высоте, чтобы снизить нагрузку на кисти.
+
+Освещение должно быть равномерным, без сильных бликов на экране. При длительной работе необходимо делать короткие перерывы, менять позу, выполнять разминку для кистей, шеи и плеч, а также переводить взгляд на удаленные объекты.
+
+\section{Вредные факторы и профилактика}
+
+\begin{center}
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.25}
+\begin{longtable}{|>{\RaggedRight\arraybackslash}p{0.24\linewidth}|>{\RaggedRight\arraybackslash}p{0.34\linewidth}|>{\RaggedRight\arraybackslash}p{0.24\linewidth}|}
+\caption{Вредные факторы при работе над проектом}\label{tab:safety}\\
+\hline
+Фактор & Причина & Профилактика\\ \hline
+\endfirsthead
+\hline
+Фактор & Причина & Профилактика\\ \hline
+\endhead
+Зрительное напряжение & Длительная работа с кодом, браузером и PDF & Перерывы, настройка яркости, удобный масштаб\\ \hline
+Статическая нагрузка & Долгое сидение в одной позе & Регулировка кресла, разминка, смена позы\\ \hline
+Нагрузка на кисти & Набор текста и работа с мышью & Правильная высота клавиатуры, горячие клавиши\\ \hline
+Психоэмоциональное напряжение & Сроки, отладка, параллельная работа с кодом и текстом & Планирование, чек-листы, короткие этапы проверки\\ \hline
+Электробезопасность & Поврежденные кабели, перегрузка розеток & Проверка оборудования, аккуратная организация кабелей\\ \hline
+\end{longtable}
+\end{center}
+
+\unnumberedchapter{ЗАКЛЮЧЕНИЕ}
+
+В результате выполнения дипломного проекта разработано веб-приложение ChessView. Цель работы достигнута: создано full-stack приложение с React/TypeScript frontend, FastAPI backend, PostgreSQL, Alembic migrations, REST API, WebSocket endpoint и шахматной доменной логикой.
+
+В проекте реализованы регистрация и вход, профили пользователей, история партий, матчмейкинг, серверная обработка ходов, контроль времени, reconnect/timeout logic, локальный анализ позиций, задачи, турниры, scheduled matches и административный интерфейс. Дополнительные разделы shop и clubs используются как демонстрационные расширенные сценарии, а платежи реализованы через эмулятор.
+
+Практическая ценность ChessView заключается в том, что проект показывает полный цикл разработки учебной веб-платформы: архитектуру, UI, API, базу данных, realtime events, миграции, тесты и документацию запуска. Перспективами развития являются Redis-backed matchmaking and WebSocket fanout, object storage для медиа, расширенные E2E/load tests, развитие клубов, магазина, уведомлений, античит-механизмов и серверного анализа.
+
+\unnumberedchapter{СПИСОК ИСПОЛЬЗОВАННЫХ ИСТОЧНИКОВ}
+
+\begin{enumerate}[leftmargin=1.25cm,itemsep=0pt,topsep=0pt]
+\item React. Documentation [Электронный ресурс]. — Режим доступа: \url{https://react.dev/} (дата обращения: 28.05.2026).
+\item TypeScript. Documentation [Электронный ресурс]. — Режим доступа: \url{https://www.typescriptlang.org/docs/} (дата обращения: 28.05.2026).
+\item Vite. Guide [Электронный ресурс]. — Режим доступа: \url{https://vite.dev/guide/} (дата обращения: 28.05.2026).
+\item FastAPI. Documentation [Электронный ресурс]. — Режим доступа: \url{https://fastapi.tiangolo.com/} (дата обращения: 28.05.2026).
+\item SQLAlchemy. Documentation [Электронный ресурс]. — Режим доступа: \url{https://docs.sqlalchemy.org/} (дата обращения: 28.05.2026).
+\item Alembic. Documentation [Электронный ресурс]. — Режим доступа: \url{https://alembic.sqlalchemy.org/} (дата обращения: 28.05.2026).
+\item PostgreSQL. Documentation [Электронный ресурс]. — Режим доступа: \url{https://www.postgresql.org/docs/} (дата обращения: 28.05.2026).
+\item Uvicorn. Documentation [Электронный ресурс]. — Режим доступа: \url{https://www.uvicorn.org/} (дата обращения: 28.05.2026).
+\item PyJWT. Documentation [Электронный ресурс]. — Режим доступа: \url{https://pyjwt.readthedocs.io/} (дата обращения: 28.05.2026).
+\item python-chess. Documentation [Электронный ресурс]. — Режим доступа: \url{https://python-chess.readthedocs.io/} (дата обращения: 28.05.2026).
+\item chess.js. Documentation [Электронный ресурс]. — Режим доступа: \url{https://www.npmjs.com/package/chess.js} (дата обращения: 28.05.2026).
+\item react-chessboard. Documentation [Электронный ресурс]. — Режим доступа: \url{https://www.npmjs.com/package/react-chessboard} (дата обращения: 28.05.2026).
+\item TanStack Query. Documentation [Электронный ресурс]. — Режим доступа: \url{https://tanstack.com/query/latest} (дата обращения: 28.05.2026).
+\item Zustand. Documentation [Электронный ресурс]. — Режим доступа: \url{https://docs.pmnd.rs/zustand/getting-started/introduction} (дата обращения: 28.05.2026).
+\item Docker Compose. Documentation [Электронный ресурс]. — Режим доступа: \url{https://docs.docker.com/compose/} (дата обращения: 28.05.2026).
+\item FIDE Rules Commission. Laws of Chess [Электронный ресурс]. — Режим доступа: \url{https://rcc.fide.com/documentation/} (дата обращения: 28.05.2026).
+\item Chess.com. Features [Электронный ресурс]. — Режим доступа: \url{https://www.chess.com/} (дата обращения: 28.05.2026).
+\item Lichess. Free Online Chess [Электронный ресурс]. — Режим доступа: \url{https://lichess.org/} (дата обращения: 28.05.2026).
+\item Tornelo. Online chess tournament platform [Электронный ресурс]. — Режим доступа: \url{https://home.tornelo.com/} (дата обращения: 28.05.2026).
+\item MDN Web Docs. WebSocket API [Электронный ресурс]. — Режим доступа: \url{https://developer.mozilla.org/en-US/docs/Web/API/WebSocket} (дата обращения: 28.05.2026).
+\item MDN Web Docs. WebRTC API [Электронный ресурс]. — Режим доступа: \url{https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API} (дата обращения: 28.05.2026).
+\item OWASP Foundation. Authentication Cheat Sheet [Электронный ресурс]. — Режим доступа: \url{https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html} (дата обращения: 28.05.2026).
+\item International Labour Organization. Occupational safety and health [Электронный ресурс]. — Режим доступа: \url{https://www.ilo.org/topics/safety-and-health-work} (дата обращения: 28.05.2026).
+\end{enumerate}
+
+\unnumberedchapter{ПРИЛОЖЕНИЯ}
+
+\appsection{Приложение А. Структура проекта}
+
+\begin{lstlisting}
+chessview/
+  backend/
+    app/
+    domains/
+    infrastructure/
+    shared/
+    alembic/
+    tests/
+  frontend/
+    src/app
+    src/pages
+    src/widgets
+    src/features
+    src/entities
+    src/shared
+  admin-frontend/
+  docs/
+  docker-compose.yml
+  justfile
+  README.md
+\end{lstlisting}
+
+\appsection{Приложение Б. Фрагменты программного кода}
+
+Фрагмент из `backend/domains/game/domain/moves.py`:
+
+\begin{lstlisting}
+board = chess.Board(game.fen)
+expected_player = game.white_id if board.turn == chess.WHITE else game.black_id
+if user_id != expected_player:
+    raise NotYourTurn()
+
+parsed_move = board.parse_uci(uci)
+if parsed_move not in board.legal_moves:
+    raise IllegalMove()
+
+snapshot = capture_clock_snapshot(game, now)
+board.push(parsed_move)
+game.fen = board.fen()
+apply_board_outcome(game, board, now)
+\end{lstlisting}
+
+Фрагмент из `backend/app/ws_entry.py`:
+
+\begin{lstlisting}
+data = json.loads(raw)
+envelope = WSEnvelope(**data)
+handler = EVENT_HANDLERS.get(envelope.type)
+if handler is None:
+    await manager.send_error(user_id, "INVALID_EVENT", ...)
+    continue
+
+async with async_session_factory() as session:
+    await handler(envelope, user_id, session)
+\end{lstlisting}
+
+Фрагмент из `frontend/src/shared/api/http.ts`:
+
+\begin{lstlisting}
+if (token) {
+  headers.Authorization = `Bearer ${token}`;
+}
+
+const fullUrl = buildUrl(API_BASE_URL, endpoint);
+response = await fetch(fullUrl, { ...options, headers });
+\end{lstlisting}
+
+Фрагмент из `frontend/src/shared/api/ws.ts`:
+
+\begin{lstlisting}
+const envelope: WSEnvelope<EventPayload<K>> = {
+  type,
+  payload,
+  game_id: gameId,
+  timestamp: new Date().toISOString(),
+};
+this.ws.send(JSON.stringify(envelope));
+\end{lstlisting}
+
+\appsection{Приложение В. Примеры API-запросов}
+
+\begin{lstlisting}
+POST /api/v1/identity/register
+Content-Type: application/json
+
+{
+  "username": "player",
+  "email": "player@example.com",
+  "password": "Password123!"
+}
+\end{lstlisting}
+
+\begin{lstlisting}
+GET /api/v1/games?page=1&size=20
+Authorization: Bearer <access_token>
+\end{lstlisting}
+
+\begin{lstlisting}
+Endpoint: /ws?token=<access_token>
+{
+  "type": "move",
+  "game_id": "<uuid>",
+  "payload": { "uci": "e2e4" },
+  "timestamp": "2026-05-28T00:00:00Z"
+}
+\end{lstlisting}
+
+\appsection{Приложение Г. Материалы для финальной демонстрации}
+
+Перед сдачей рекомендуется обновить актуальные скриншоты из локально запущенного приложения: главная страница, форма входа, dashboard, лобби, live-партия, анализ, задачи, турниры, профиль, scheduled matches, OTB manager и admin frontend. Скриншоты должны соответствовать последнему коду и не должны заменяться макетами.
+
+\clearpage
+\thispagestyle{plain}
+\begin{center}
+ОТЗЫВ
+
+на дипломный проект
+\end{center}
+
+Студента: \filledfield{9cm}{Сакенов Ануар Сункарулы}
+
+Группы: \filledfield{9cm}{ПО 2302}
+
+Тема дипломного проекта: «Разработка веб-приложения ChessView».
+
+Руководитель: \filledfield{8cm}{Мартынцов Николай Викторович}
+
+\vspace{0.5cm}
+Текст отзыва заполняется руководителем.
+
+\vspace{0.4cm}
+Оценка руководителя: \blankfield{5cm}
+
+\vspace{0.25cm}
+\begin{flushright}
+Руководитель: \blankfield{6cm}\\[0.4cm]
+\filledfield{6cm}{Мартынцов Николай Викторович}\\[0.4cm]
+Дата: \blankfield{7cm}
+\end{flushright}
+
+\clearpage
+\thispagestyle{plain}
+\begin{center}
+РЕЦЕНЗИЯ
+
+на дипломный проект
+\end{center}
+
+Студента: \filledfield{9cm}{Сакенов Ануар Сункарулы}
+
+Группы: \filledfield{9cm}{ПО 2302}
+
+Тема дипломного проекта: «Разработка веб-приложения ChessView».
+
+Рецензент: \blankfield{9cm}
+
+\vspace{0.5cm}
+Текст рецензии заполняется рецензентом.
+
+\vspace{0.4cm}
+Оценка рецензента: \blankfield{5cm}
+
+\vspace{0.25cm}
+\begin{flushright}
+Рецензент: \blankfield{6cm}\\[0.4cm]
+\blankfield{6cm}\\[0.4cm]
+Дата: \blankfield{7cm}
+\end{flushright}
+
+\end{document}

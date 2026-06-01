@@ -1,6 +1,6 @@
 # Scaling Readiness Notes
 
-ChessView is in a good place for feature completeness, but the current deployment model still assumes a single application instance.
+ChessView currently targets local development and single-instance Docker Compose deployment. The codebase has clear extension points, but it should not be described as horizontally scalable without additional shared infrastructure.
 
 ## Current Single-Instance Assumptions
 
@@ -14,6 +14,12 @@ ChessView is in a good place for feature completeness, but the current deploymen
   - See `backend/storage/`.
 
 These are all reasonable for a single VM or one Docker Compose deployment, but they limit safe horizontal scaling.
+
+Other current constraints:
+
+- WebSocket authentication uses a query token for the SPA connection flow.
+- Payment flows use an internal emulator, not a real provider.
+- Automated E2E and load tests are not part of the current verification baseline.
 
 ## Where Redis Should Be Introduced Next
 

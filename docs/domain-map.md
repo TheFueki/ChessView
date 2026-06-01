@@ -1,91 +1,142 @@
 # ChessView Domain Map
 
+This map describes the current repository, not planned production scope.
+
 ## Identity
 
 Purpose:
 
-- registration
-- login and current-user flows
+- registration, login, token refresh, current-user loading
 - JWT-backed session handling
-- avatar upload
+- profile update and avatar upload
+- local face-verification/passkey flows
 
 Main surfaces:
 
 - `backend/domains/identity/`
-- `/api/identity/*`
+- `/api/v1/identity/*`
+- `frontend/src/pages/auth-page/`
+- `frontend/src/pages/settings-page/`
 
 ## Matchmaking
 
 Purpose:
 
-- queue users into compatible live games
-- create games with the selected time control
+- queue authenticated users into compatible live games
+- create games with selected time controls
 
 Main surfaces:
 
 - `backend/domains/matchmaking/`
-- live WebSocket events for queue join/leave and match creation
+- WebSocket events: `queue_join`, `queue_leave`, `queue_joined`, `match_found`
+
+Current limitation:
+
+- queue state is in memory and assumes one backend process.
 
 ## Game
 
 Purpose:
 
 - server-authoritative gameplay
-- clocks, timeout, reconnect, abort logic
+- legal move validation, clocks, timeout, reconnect, abort, resign, and draw flows
 - finished-game history and replay data
 
 Main surfaces:
 
 - `backend/domains/game/`
-- `/api/games`
+- `/api/v1/games`
 - live game WebSocket events
+- `frontend/src/pages/game-page/`
+- `frontend/src/pages/game-review-page/`
 
 ## Ratings
 
 Purpose:
 
 - apply rating updates when rated games complete
-- expose rating deltas and before/after snapshots
+- expose rating snapshots and before/after deltas
 
 Main surfaces:
 
 - `backend/domains/ratings/`
+- game serialization and profile read models
 
 ## Profiles
 
 Purpose:
 
-- self and public player profiles
-- summary statistics and recent games
+- current and public player profiles
+- summary statistics, recent games, leaderboard, and head-to-head comparison
 
 Main surfaces:
 
 - `backend/domains/profiles/`
-- `/api/profiles/*`
+- `/api/v1/profiles/*`
+- `frontend/src/pages/profile-page/`
+- `frontend/src/pages/leaderboard-page/`
+- `frontend/src/pages/compare-page/`
 
 ## Communication
 
 Purpose:
 
-- in-game chat
+- game-scoped chat history and live chat events
 
 Main surfaces:
 
 - `backend/domains/communication/`
-- game-scoped message history and live chat events
+- `/api/v1/chat/{game_id}/messages`
+- WebSocket events: `chat_send`, `chat_message`
 
 ## Tournaments
 
 Purpose:
 
 - tournament creation and membership
-- round lifecycle
-- pairings and standings
+- lifecycle actions, standings, Swiss helpers, and round progression
+- entry-payment emulator integration
+- OTB tournament type used by the OTB manager page
 
 Main surfaces:
 
 - `backend/domains/tournaments/`
-- `/api/tournaments/*`
+- `/api/v1/tournaments/*`
+- `frontend/src/pages/tournaments-page/`
+- `frontend/src/pages/tournament-detail-page/`
+- `frontend/src/pages/otb-manager-page/`
+
+## Scheduled Matches
+
+Purpose:
+
+- direct planned match invitations
+- accept/decline/cancel/start lifecycle
+- optional emulator payment scenario
+- optional tournament pairing integration
+
+Main surfaces:
+
+- `backend/domains/scheduled_matches/`
+- `/api/v1/scheduled-matches/*`
+- `frontend/src/pages/scheduled-matches-page/`
+
+## Payments
+
+Purpose:
+
+- internal payment intent records
+- emulator state transitions
+- wallet coin debit/refund flows for supported scenarios
+
+Main surfaces:
+
+- `backend/domains/payments/`
+- `/api/v1/payments/*`
+
+Current limitation:
+
+- this is not a real payment provider integration.
 
 ## Puzzles
 
@@ -98,32 +149,38 @@ Purpose:
 Main surfaces:
 
 - `backend/domains/puzzles/`
-- `/api/puzzles/*`
+- `/api/v1/puzzles/*`
+- `frontend/src/pages/puzzle-page/`
 
 ## RTC
 
 Purpose:
 
-- relay WebRTC signaling for live games
+- relay WebRTC signaling events for live games
 
 Main surfaces:
 
 - `backend/domains/rtc/`
-- WebSocket signaling events only
+- WebSocket events: `rtc_offer`, `rtc_answer`, `rtc_ice`
 
-## Frontend Product Surfaces
+## Admin
 
-These backend domains feed the main frontend routes:
+Purpose:
 
-- `/`: landing page when logged out, dashboard when logged in
-- `/lobby`: live play entry
-- `/game/:gameId`: active live game
-- `/history`: archive and replay entry
-- `/games/:gameId`: replay review
-- `/analysis`: board editor, PGN import, sandbox analysis
-- `/puzzles`: tactical training
-- `/tournaments`: tournament list and detail
-- `/profile` and `/players/:userId`: player surfaces
+- admin-only user management
+- audit logs
+- payment/verification inspection and emulator refund
+
+Main surfaces:
+
+- `backend/domains/admin/`
+- `/api/v1/admin/*`
+- `admin-frontend/`
+
+## Demo Frontend Modules
+
+- `frontend/src/pages/clubs-page/ClubsPage.tsx` is a local-state demonstration of a club UI.
+- `frontend/src/pages/shop-page/ShopPage.tsx` is a marketplace UI demonstration that reads profile coins and stores purchased item state in browser local storage.
 
 ## Cross-Cutting Rules
 
@@ -131,3 +188,4 @@ These backend domains feed the main frontend routes:
 - analysis and Stockfish stay in the browser
 - product defaults belong in domain or policy code, not persistence models
 - routers should stay thin and delegate to application/domain code
+- current deployment assumes one backend instance unless Redis/pub-sub and shared storage are introduced

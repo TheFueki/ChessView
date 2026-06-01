@@ -7,45 +7,52 @@ import {
 import { resolvePostAuthPath, withRedirectQuery } from "@/app/authRedirect";
 import { useUserStore, type AuthenticatedUser } from "@/entities/user";
 import { http, wsClient } from "@/shared/api";
+import { LanguageSwitcher, useI18n } from "@/shared/i18n";
 import type { TokenResponse } from "@/shared/types";
 import { API_BASE_URL } from "@/shared/config";
 import { Button, Card, Input } from "@/shared/ui";
 import "../../pages-style/auth-page/authpage.scss";
 import logoImage from '../../assets/logo.jpeg';
 
-type AuthMode = "login" | "register";
+type AuthMode = "login" | "register" | "forgot" | "reset";
 
 interface AuthFormState {
   username: string;
   email: string;
   password: string;
+  resetToken: string;
+  resetEmail: string;
 }
 
 const initialFormState: AuthFormState = {
   username: "",
   email: "",
   password: "",
+  resetToken: "",
+  resetEmail: "",
 };
 
 const authHighlights = [
   {
     icon: Swords,
-    title: "Return to the Board",
-    description: "Jump back into live games, reviews, and tournaments.",
+    titleKey: "auth.highlights.boardTitle",
+    descriptionKey: "auth.highlights.boardDescription",
   },
   {
     icon: Video,
-    title: "Fair Live Matches",
-    description: "Play rated games and join organized events.",
+    titleKey: "auth.highlights.matchesTitle",
+    descriptionKey: "auth.highlights.matchesDescription",
   },
   {
     icon: ShieldCheck,
-    title: "One Chess Profile",
-    description: "Keep ratings, history, and community activity together.",
+    titleKey: "auth.highlights.profileTitle",
+    descriptionKey: "auth.highlights.profileDescription",
   },
 ];
 
 function getMode(pathname: string): AuthMode {
+  if (pathname.includes("forgot-password")) return "forgot";
+  if (pathname.includes("reset-password")) return "reset";
   return pathname.includes("register") ? "register" : "login";
 }
 
@@ -63,22 +70,29 @@ export default function AuthPage() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const mode = getMode(location.pathname);
+  const resetTokenFromUrl = mode === "reset" ? searchParams.get("token") || "" : "";
+  const { t } = useI18n();
   
   const { isAuthenticated, setAuth, hasHydrated } = useUserStore();
   
-  const [form, setForm] = useState<AuthFormState>(initialFormState);
+  const [form, setForm] = useState<AuthFormState>(() => ({ ...initialFormState, resetToken: resetTokenFromUrl }));
   const [error, setError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const redirectTo = resolvePostAuthPath(searchParams.get("redirectTo"));
 
   useEffect(() => {
+    if (mode === "reset") {
+      setForm((current) => current.resetToken === resetTokenFromUrl ? current : { ...current, resetToken: resetTokenFromUrl });
+      return;
+    }
+
     const token = searchParams.get("access_token") || searchParams.get("token");
     const refresh = searchParams.get("refresh_token") || "";
     const oauthError = searchParams.get("error");
 
     if (oauthError) {
-      setError(`Social Auth Failed: ${oauthError}`);
+      setError(`${t("auth.errors.oauthFailed")}: ${oauthError}`);
       setSearchParams({}, { replace: true });
       return;
     }
@@ -93,22 +107,23 @@ export default function AuthPage() {
           navigate(redirectTo, { replace: true });
         } catch {
           // Исправлено: убрана неиспользуемая переменная 'err' (строка 94)
-          setError("OAuth session initialization failed");
+          setError(t("auth.errors.oauthSession"));
         } finally {
           setIsSubmitting(false);
         }
       };
       handleOAuthFlow();
     }
-  }, [searchParams, setAuth, navigate, redirectTo, setSearchParams]);
+  }, [mode, resetTokenFromUrl, searchParams, setAuth, navigate, redirectTo, setSearchParams, t]);
 
   if (hasHydrated && isAuthenticated) {
     return <Navigate to={redirectTo} replace />;
   }
 
-  const title = mode === "login" ? "Welcome Back" : "Create Account";
+  const title = mode === "login" ? t("auth.titles.login") : t("auth.titles.register");
+  const resolvedTitle = mode === "forgot" ? t("auth.titles.forgot") : mode === "reset" ? t("auth.titles.reset") : title;
   const alternateHref = withRedirectQuery(mode === "login" ? "/register" : "/login", redirectTo);
-  const alternateLabel = mode === "login" ? "New player? Create an account" : "Already have an account? Sign in";
+  const alternateLabel = mode === "login" ? t("auth.actions.create") : t("auth.actions.login");
 
   const handleChange = (field: keyof AuthFormState, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -126,7 +141,23 @@ export default function AuthPage() {
 
     try {
       wsClient.disconnect();
-      const payload = mode === "register" ? { ...form } : { email: form.email, password: form.password };
+      if (mode === "forgot") {
+        const response = await http.post<{ detail: string }>("/identity/password-reset/request", { email: form.resetEmail || form.email });
+        setError(response.detail);
+        return;
+      }
+
+      if (mode === "reset") {
+        const response = await http.post<{ detail: string }>("/identity/password-reset/complete", {
+          token: form.resetToken,
+          password: form.password,
+        });
+        setError(response.detail);
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      const payload = mode === "register" ? { username: form.username, email: form.email, password: form.password } : { email: form.email, password: form.password };
       const endpoint = mode === "register" ? "/identity/register" : "/identity/login";
       
       const response = await http.post<TokenResponse>(endpoint, payload);
@@ -135,10 +166,10 @@ export default function AuthPage() {
       setAuth(user, response.access_token, response.refresh_token);
       navigate(redirectTo, { replace: true });
     } catch (err: unknown) {
-      let message = "Authentication failed";
+      let message = t("auth.errors.authFailed");
       if (err && typeof err === 'object' && 'response' in err) {
-        const axiosErr = err as { response?: { data?: { message?: string } } };
-        message = axiosErr.response?.data?.message || message;
+        const axiosErr = err as { response?: { data?: { detail?: string; message?: string } } };
+        message = axiosErr.response?.data?.detail || axiosErr.response?.data?.message || message;
       } else if (err instanceof Error) {
         message = err.message;
       }
@@ -160,7 +191,7 @@ export default function AuthPage() {
           <div className="top-section">
             <Link to="/" className="nav-back">
               <ArrowLeft size={16} />
-              Back to site
+              {t("auth.hero.back")}
             </Link>
 
             <div className="brand-section">
@@ -171,30 +202,30 @@ export default function AuthPage() {
         className="logo-img" 
       />
                 </div>
-              <span className="brand-name">ChessView</span>
+              <span className="brand-name">{t("common.brand")}</span>
             </div>
             
             <h1 className="hero-title">
               {mode === "login" ? (
-                <>Elevate Your <span>Game</span>.</>
+                <>{t("auth.hero.loginStart")} <span>{t("auth.hero.loginAccent")}</span>.</>
               ) : (
-                <>Master The <span>Board</span>.</>
+                <>{t("auth.hero.registerStart")} <span>{t("auth.hero.registerAccent")}</span>.</>
               )}
             </h1>
             <p className="hero-desc">
-              Play online, join tournaments, review your games, and improve your rating.
+              {t("auth.hero.description")}
             </p>
           </div>
 
           <div className="feature-grid">
             {authHighlights.map((item) => (
-              <div key={item.title} className="feature-item">
+              <div key={item.titleKey} className="feature-item">
                 <div className="icon-box">
                   <item.icon size={20} />
                 </div>
                 <div className="text-wrap">
-                  <h3>{item.title}</h3>
-                  <p>{item.description}</p>
+                  <h3>{t(item.titleKey)}</h3>
+                  <p>{t(item.descriptionKey)}</p>
                 </div>
               </div>
             ))}
@@ -204,33 +235,40 @@ export default function AuthPage() {
         <div className="form-container">
           <Card className="auth-card">
             <div className="card-header">
-              <h2>{title}</h2>
-              <p>Continue with Google or email</p>
+              <h2>{resolvedTitle}</h2>
+              <p>
+                {mode === "forgot"
+                  ? t("auth.subtitles.forgot")
+                  : mode === "reset"
+                    ? t("auth.subtitles.reset")
+                    : t("auth.subtitles.default")}
+              </p>
+              <LanguageSwitcher compact />
             </div>
 
-            <div className="oauth-group">
+            {mode !== "forgot" && mode !== "reset" ? <div className="oauth-group">
               <button 
                 type="button" 
                 onClick={() => handleOAuth('google')} 
                 className="oauth-btn"
                 disabled={isSubmitting}
-                aria-label="Continue with Google"
+                aria-label={t("auth.actions.google")}
               >
                 <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" />
-                <span>Continue with Google</span>
+                <span>{t("auth.actions.google")}</span>
               </button>
-            </div>
+            </div> : null}
 
-            <div className="divider">
-              <span>Or use email</span>
-            </div>
+            {mode !== "forgot" && mode !== "reset" ? <div className="divider">
+              <span>{t("auth.actions.divider")}</span>
+            </div> : null}
 
             <form onSubmit={handleSubmit}>
               {mode === "register" && (
                 <div className="input-group">
-                  <label><User size={12} /> Username</label>
+                  <label><User size={12} /> {t("auth.fields.username")}</label>
                   <Input
-                    placeholder="Username"
+                    placeholder={t("auth.placeholders.username")}
                     value={form.username}
                     onChange={(e) => handleChange("username", e.target.value)}
                     required
@@ -238,27 +276,52 @@ export default function AuthPage() {
                 </div>
               )}
 
-              <div className="input-group">
-                <label><Mail size={12} /> Email Address</label>
+              {(mode === "login" || mode === "register") && <div className="input-group">
+                <label><Mail size={12} /> {t("auth.fields.email")}</label>
                 <Input
                   type="email"
-                  placeholder="name@example.com"
+                  placeholder={t("auth.placeholders.email")}
                   value={form.email}
                   onChange={(e) => handleChange("email", e.target.value)}
                   required
                 />
-              </div>
+              </div>}
 
-              <div className="input-group">
-                <label><Lock size={12} /> Password</label>
+              {mode === "forgot" && (
+                <div className="input-group">
+                  <label><Mail size={12} /> {t("auth.fields.email")}</label>
+                  <Input
+                    type="email"
+                    placeholder={t("auth.placeholders.email")}
+                    value={form.resetEmail}
+                    onChange={(e) => handleChange("resetEmail", e.target.value)}
+                    required
+                  />
+                </div>
+              )}
+
+              {mode === "reset" && (
+                <div className="input-group">
+                  <label><ShieldCheck size={12} /> {t("auth.fields.resetToken")}</label>
+                  <Input
+                    placeholder={t("auth.placeholders.resetToken")}
+                    value={form.resetToken}
+                    onChange={(e) => handleChange("resetToken", e.target.value)}
+                    required
+                  />
+                </div>
+              )}
+
+              {mode !== "forgot" && <div className="input-group">
+                <label><Lock size={12} /> {mode === "reset" ? t("auth.fields.newPassword") : t("auth.fields.password")}</label>
                 <Input
                   type="password"
-                  placeholder="        "
+                  placeholder={mode === "reset" ? t("auth.placeholders.newPassword") : t("auth.placeholders.password")}
                   value={form.password}
                   onChange={(e) => handleChange("password", e.target.value)}
                   required
                 />
-              </div>
+              </div>}
 
               {error && <div className="error-msg">{error}</div>}
 
@@ -267,11 +330,25 @@ export default function AuthPage() {
                 className="submit-btn"
                 disabled={isSubmitting}
               >
-                {isSubmitting ? "Processing..." : mode === "login" ? "Sign In" : "Get Started"}
+                {isSubmitting
+                  ? t("auth.actions.processing")
+                  : mode === "forgot"
+                    ? t("auth.actions.sendReset")
+                    : mode === "reset"
+                      ? t("auth.actions.resetPassword")
+                      : mode === "login"
+                        ? t("auth.actions.signIn")
+                        : t("auth.actions.getStarted")}
               </Button>
             </form>
 
             <div className="footer-link">
+              {mode === "login" ? (
+                <>
+                  <Link to="/forgot-password">{t("auth.actions.forgot")}</Link>
+                  <span className="mx-2 text-neutral-600">·</span>
+                </>
+              ) : null}
               <Link to={alternateHref}>
                 {alternateLabel}
               </Link>

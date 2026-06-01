@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { BarChart3, ChevronLeft, ChevronRight, RotateCcw, SkipBack, SkipForward, Sparkles } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Chessboard } from "react-chessboard";
@@ -47,6 +48,20 @@ const TONE_STYLES = {
   warning: "border-amber-400/40 bg-amber-400/10 text-amber-200",
   bad: "border-red-400/40 bg-red-400/10 text-red-200",
 } as const;
+
+const BOARD_EFFECTS: Record<MoveClass, { glow: string; arrow: string; label: string }> = {
+  brilliant: { glow: "rgba(168, 85, 247, 0.38)", arrow: "rgba(168, 85, 247, 0.95)", label: "Brilliant" },
+  best: { glow: "rgba(139, 92, 246, 0.34)", arrow: "rgba(139, 92, 246, 0.95)", label: "Best move" },
+  forced: { glow: "rgba(148, 163, 184, 0.28)", arrow: "rgba(148, 163, 184, 0.9)", label: "Forced" },
+  great: { glow: "rgba(34, 197, 94, 0.34)", arrow: "rgba(34, 197, 94, 0.95)", label: "Great" },
+  excellent: { glow: "rgba(132, 204, 22, 0.32)", arrow: "rgba(132, 204, 22, 0.95)", label: "Excellent" },
+  good: { glow: "rgba(74, 222, 128, 0.28)", arrow: "rgba(74, 222, 128, 0.9)", label: "Good" },
+  book: { glow: "rgba(59, 130, 246, 0.26)", arrow: "rgba(59, 130, 246, 0.88)", label: "Book" },
+  inaccuracy: { glow: "rgba(251, 191, 36, 0.34)", arrow: "rgba(251, 191, 36, 0.95)", label: "Inaccuracy" },
+  mistake: { glow: "rgba(249, 115, 22, 0.34)", arrow: "rgba(249, 115, 22, 0.95)", label: "Mistake" },
+  miss: { glow: "rgba(244, 63, 94, 0.36)", arrow: "rgba(244, 63, 94, 0.95)", label: "Missed chance" },
+  blunder: { glow: "rgba(239, 68, 68, 0.38)", arrow: "rgba(239, 68, 68, 0.95)", label: "Blunder" },
+};
 
 function formatResult(result: string | null, status: string) {
   return result || (status === "active" ? "In progress" : status.replaceAll("_", " "));
@@ -167,10 +182,47 @@ function ReplayContent({ game, currentUserId }: { game: GameDetailResponse; curr
   const bestMove = nextMove?.bestMove ?? null;
   const bestMoveLabel = bestMove ? uciToSan(currentFen, bestMove) ?? bestMove : null;
   const bestMoveSquares = getMoveSquares(bestMove);
+  const selectedMoveSquares = getMoveSquares(selectedMove?.uci);
+  const selectedEffect = selectedMove ? BOARD_EFFECTS[selectedMove.classification] : null;
   const bestMoveArrows = useMemo<[Square, Square, string?][]>(
-    () => (bestMoveSquares ? [[bestMoveSquares[0] as Square, bestMoveSquares[1] as Square, "rgba(139, 92, 246, 0.85)"]] : []),
-    [bestMoveSquares],
+    () => {
+      const arrows: [Square, Square, string?][] = [];
+      if (selectedMoveSquares && selectedEffect) {
+        arrows.push([selectedMoveSquares[0] as Square, selectedMoveSquares[1] as Square, selectedEffect.arrow]);
+      }
+      if (bestMoveSquares) {
+        arrows.push([bestMoveSquares[0] as Square, bestMoveSquares[1] as Square, "rgba(255, 255, 255, 0.78)"]);
+      }
+      return arrows;
+    },
+    [bestMoveSquares, selectedEffect, selectedMoveSquares],
   );
+  const boardSquareStyles = useMemo(() => {
+    const styles: Record<string, CSSProperties> = {};
+    if (selectedMoveSquares && selectedEffect) {
+      styles[selectedMoveSquares[0]] = {
+        backgroundColor: selectedEffect.glow,
+        boxShadow: `inset 0 0 18px ${selectedEffect.arrow}`,
+      };
+      styles[selectedMoveSquares[1]] = {
+        backgroundColor: selectedEffect.glow,
+        boxShadow: `inset 0 0 0 4px ${selectedEffect.arrow}, inset 0 0 22px ${selectedEffect.arrow}`,
+      };
+    }
+    if (bestMoveSquares) {
+      styles[bestMoveSquares[0]] = {
+        ...styles[bestMoveSquares[0]],
+        outline: "3px solid rgba(255,255,255,0.72)",
+        outlineOffset: "-5px",
+      };
+      styles[bestMoveSquares[1]] = {
+        ...styles[bestMoveSquares[1]],
+        outline: "3px solid rgba(255,255,255,0.72)",
+        outlineOffset: "-5px",
+      };
+    }
+    return styles;
+  }, [bestMoveSquares, selectedEffect, selectedMoveSquares]);
   const principalVariation = bestMove ? formatPrincipalVariation(currentFen, [bestMove]) : "";
   const analysisEnabled = game.status !== "active" && review.rows.length > 0;
 
@@ -240,7 +292,16 @@ function ReplayContent({ game, currentUserId }: { game: GameDetailResponse; curr
           <div className="px-6 pb-6">
             <div className="grid gap-4 md:grid-cols-[40px_minmax(0,1fr)]">
               <EvalBar score={currentScore} />
-              <div className="mx-auto aspect-square w-full max-w-[min(100%,calc(100vh-16rem),680px)] overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950/60 p-4">
+              <div className="relative mx-auto aspect-square w-full max-w-[min(100%,calc(100vh-16rem),680px)] overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950/60 p-4">
+                {selectedMove && selectedEffect ? (
+                  <div className="pointer-events-none absolute left-6 top-6 z-10 rounded-lg border border-white/15 bg-neutral-950/85 px-4 py-3 shadow-2xl shadow-black/40 backdrop-blur">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">Board effect</div>
+                    <div className="mt-1 flex items-center gap-2 text-sm font-semibold text-neutral-100">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: selectedEffect.arrow }} />
+                      {selectedEffect.label} · {selectedMove.san}
+                    </div>
+                  </div>
+                ) : null}
                 <Chessboard
                   id={`review-${game.id}`}
                   position={currentFen}
@@ -251,6 +312,7 @@ function ReplayContent({ game, currentUserId }: { game: GameDetailResponse; curr
                   customBoardStyle={{ borderRadius: "0.75rem" }}
                   animationDuration={170}
                   customArrows={bestMoveArrows}
+                  customSquareStyles={boardSquareStyles}
                 />
               </div>
             </div>

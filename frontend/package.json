@@ -1,13 +1,14 @@
 {
   "name": "chessview-frontend",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "packageManager": "yarn@1.22.22",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test:i18n": "node scripts/check-i18n-locales.mjs",
     "test:ui-consistency": "node scripts/check-ui-consistency.mjs",
     "preview": "vite preview"
   },

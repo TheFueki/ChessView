@@ -7,8 +7,10 @@ import { useConnectRtc } from "@/features/connect-rtc";
 import { ChatInput, useGameChat } from "@/features/send-chat-message";
 import { ToggleCameraButton, ToggleMicButton } from "@/features/toggle-media-devices";
 import { http } from "@/shared/api";
-import type { FaceVerificationSessionResponse } from "@/shared/types";
+import type { FaceVerificationProfileResponse, FaceVerificationSessionResponse } from "@/shared/types";
 import { Spinner } from "@/shared/ui";
+
+const FACE_TEMPLATE_PROVIDER = "local_face_template";
 
 function formatTime(value: string) {
   const date = new Date(value);
@@ -156,6 +158,17 @@ export function VideoChatPanel({ gameId }: { gameId?: string }) {
     setFaceError(null);
     try {
       const faceSample = captureFaceSample(video);
+      const profiles = await http.get<FaceVerificationProfileResponse[]>("/identity/face-verification/me");
+      const hasFaceTemplate = profiles.some(
+        (profile) => profile.provider === FACE_TEMPLATE_PROVIDER && profile.status === "enrolled",
+      );
+      if (!hasFaceTemplate) {
+        await http.post<FaceVerificationProfileResponse>("/identity/face-verification/faces/enroll", {
+          device_label: "Primary camera",
+          consent: true,
+          face_sample: faceSample,
+        });
+      }
       const session = await http.post<FaceVerificationSessionResponse>("/identity/face-verification/faces/verify", {
         game_id: gameId ?? null,
         face_sample: faceSample,

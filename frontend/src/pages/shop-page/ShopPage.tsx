@@ -5,6 +5,14 @@ import { http } from "@/shared/api";
 import { Button, Card } from "@/shared/ui";
 import type { ProfileResponse } from "@/shared/types";
 import { AppShell } from "@/widgets/app-shell";
+import blunderShieldImage from "@/assets/shop/blunder-shield.png";
+import classicPiecesImage from "@/assets/shop/classic-pieces.png";
+import coachReviewTokenImage from "@/assets/shop/coach-review-token.png";
+import neonMoveTrailImage from "@/assets/shop/neon-move-trail.png";
+import openingLabPassImage from "@/assets/shop/opening-lab-pass.png";
+import profileFrameImage from "@/assets/shop/profile-frame.png";
+import tournamentBoardImage from "@/assets/shop/tournament-board.png";
+import victoryAccentImage from "@/assets/shop/victory-accent.png";
 
 type ShopItemType = "board" | "avatar" | "effect" | "training" | "boost";
 type ShopCategory = ShopItemType | "all";
@@ -16,6 +24,18 @@ interface ShopItem {
   type: ShopItemType;
   rarity: "common" | "rare" | "epic" | "legendary";
   description: string;
+  imageUrl: string;
+  consumable?: boolean;
+}
+
+interface RemoteShopItem {
+  id: number;
+  name: string;
+  price: number;
+  type: ShopItemType;
+  rarity: "common" | "rare" | "epic" | "legendary";
+  description: string;
+  image_url?: string | null;
   consumable?: boolean;
 }
 
@@ -25,16 +45,18 @@ interface ShopCategoryOption {
   icon: LucideIcon;
 }
 
-const shopItems: ShopItem[] = [
-  { id: 1, name: "Tournament Board", price: 500, type: "board", rarity: "rare", description: "A restrained green board tuned for long rated sessions." },
-  { id: 2, name: "Profile Frame", price: 1200, type: "avatar", rarity: "epic", description: "A metallic profile frame for leaderboard and lobby surfaces." },
-  { id: 3, name: "Classic Pieces", price: 150, type: "board", rarity: "common", description: "Readable pieces for rapid games and review." },
-  { id: 4, name: "Victory Accent", price: 5000, type: "effect", rarity: "legendary", description: "A subtle win-state accent for post-game overlays." },
-  { id: 5, name: "Opening Lab Pass", price: 900, type: "training", rarity: "rare", description: "Unlocks a focused opening prep pack in the analysis hub.", consumable: true },
-  { id: 6, name: "Blunder Shield", price: 650, type: "boost", rarity: "epic", description: "Adds one extra review hint to the next training game.", consumable: true },
-  { id: 7, name: "Neon Move Trail", price: 1800, type: "effect", rarity: "epic", description: "Highlights your last move with a sharper animated trail." },
-  { id: 8, name: "Coach Review Token", price: 750, type: "training", rarity: "rare", description: "Marks one completed game for deeper review.", consumable: true },
+const fallbackShopItems: ShopItem[] = [
+  { id: 1, name: "Tournament Board", price: 500, type: "board", rarity: "rare", description: "A restrained green board tuned for long rated sessions.", imageUrl: tournamentBoardImage },
+  { id: 2, name: "Profile Frame", price: 1200, type: "avatar", rarity: "epic", description: "A metallic profile frame for leaderboard and lobby surfaces.", imageUrl: profileFrameImage },
+  { id: 3, name: "Classic Pieces", price: 150, type: "board", rarity: "common", description: "Readable pieces for rapid games and review.", imageUrl: classicPiecesImage },
+  { id: 4, name: "Victory Accent", price: 5000, type: "effect", rarity: "legendary", description: "A subtle win-state accent for post-game overlays.", imageUrl: victoryAccentImage },
+  { id: 5, name: "Opening Lab Pass", price: 900, type: "training", rarity: "rare", description: "Unlocks a focused opening prep pack in the analysis hub.", imageUrl: openingLabPassImage, consumable: true },
+  { id: 6, name: "Blunder Shield", price: 650, type: "boost", rarity: "epic", description: "Adds one extra review hint to the next training game.", imageUrl: blunderShieldImage, consumable: true },
+  { id: 7, name: "Neon Move Trail", price: 1800, type: "effect", rarity: "epic", description: "Highlights your last move with a sharper animated trail.", imageUrl: neonMoveTrailImage },
+  { id: 8, name: "Coach Review Token", price: 750, type: "training", rarity: "rare", description: "Marks one completed game for deeper review.", imageUrl: coachReviewTokenImage, consumable: true },
 ];
+
+const fallbackImages = new Map(fallbackShopItems.map((item) => [item.id, item.imageUrl]));
 
 const categories: ShopCategoryOption[] = [
   { id: "all", label: "All", icon: Layout },
@@ -83,12 +105,23 @@ export default function ShopPage() {
     queryKey: ["marketplace-profile"],
     queryFn: () => http.get<ProfileResponse>("/profiles/me"),
   });
+  const shopCatalogQuery = useQuery({
+    queryKey: ["marketplace-catalog"],
+    queryFn: () => http.get<RemoteShopItem[]>("/admin/shop-items/public"),
+  });
 
   const { ownedItemIds, equippedItemId, usedItemIds, spentCoins } = shopState;
   const coinBalance = Math.max((profileQuery.data?.coins ?? 0) - spentCoins, 0);
+  const shopItems = useMemo(
+    () => (shopCatalogQuery.data ?? fallbackShopItems).map((item) => ({
+      ...item,
+      imageUrl: "imageUrl" in item ? item.imageUrl : item.image_url || fallbackImages.get(item.id) || tournamentBoardImage,
+    })),
+    [shopCatalogQuery.data],
+  );
   const visibleItems = useMemo(
     () => shopItems.filter((item) => category === "all" || item.type === category),
-    [category],
+    [category, shopItems],
   );
 
   const buyItem = (item: ShopItem) => {
@@ -195,8 +228,17 @@ export default function ShopPage() {
 
           return (
             <Card key={item.id} className="flex min-h-[220px] flex-col justify-between gap-5">
-              <div className="flex h-24 items-center justify-center rounded-lg border border-neutral-800 bg-neutral-950/70">
-                <ItemIcon className="h-9 w-9 text-violet-300" />
+              <div className="relative h-32 overflow-hidden rounded-lg border border-neutral-800 bg-neutral-950/70">
+                <img
+                  src={item.imageUrl}
+                  alt=""
+                  className="h-full w-full object-cover opacity-85 transition duration-300 hover:scale-105"
+                  loading="lazy"
+                />
+                <div className="absolute inset-0 bg-linear-to-t from-neutral-950 via-neutral-950/15 to-transparent" />
+                <div className="absolute bottom-3 right-3 rounded-full border border-white/15 bg-neutral-950/80 p-2 backdrop-blur">
+                  <ItemIcon className="h-5 w-5 text-violet-200" />
+                </div>
               </div>
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.22em] text-neutral-500">{item.rarity}</div>

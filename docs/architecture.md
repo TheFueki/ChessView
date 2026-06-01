@@ -2,68 +2,73 @@
 
 ## Overview
 
-ChessView is a browser-based chess product with three major responsibilities:
+ChessView is a browser-based educational chess platform with three core responsibilities:
 
 - live competitive play
-- post-game review and analysis
-- study tooling such as puzzles, board editing, and PGN import
+- post-game review and local analysis
+- study and organization tooling such as puzzles, tournaments, and scheduled matches
 
-The stack is intentionally split between:
+The stack is split between:
 
-- a server-authoritative backend for game state, ratings, profiles, tournaments, and persistence
-- a frontend that owns interaction, presentation, and browser-local Stockfish analysis
+- a server-authoritative backend for game state, ratings, profiles, tournaments, payments emulator data, and persistence
+- a frontend that owns interaction, presentation, route guards, and browser-local Stockfish analysis
+- PostgreSQL as the relational store, with schema history managed by Alembic
 
 ## System Shape
 
 ```text
-Browser (React SPA)
-  -> HTTPS REST API
-  -> WebSocket connection for live events
-  -> WebRTC peer media between players
-  -> Local Stockfish worker for replay/study analysis
+Browser
+  -> React/Vite user frontend
+  -> REST requests to /api/v1/*
+  -> WebSocket connection to /ws?token=<access_token>
+  -> local Stockfish worker for analysis/review
+  -> optional WebRTC peer connection after WS signaling
+
+Admin browser
+  -> React/Vite admin frontend
+  -> admin REST requests to /api/v1/admin/*
 
 FastAPI backend
   -> domain/application/infrastructure/presentation modules
-  -> PostgreSQL persistence
-  -> room-based WebSocket fanout for live games
+  -> PostgreSQL persistence through SQLAlchemy async
+  -> Alembic migrations
+  -> in-memory WebSocket connection manager and matchmaking queue
+  -> local media storage under backend/storage
 ```
 
 ## Backend Architecture
 
 The backend is organized by domain under `backend/domains/`.
 
-Each domain follows the same shape:
+Common domain shape:
 
 - `domain/`: entities, value objects, policies, pure rules, repository interfaces
 - `application/`: commands, services, orchestration
-- `infrastructure/`: SQLAlchemy models, repository implementations, storage helpers
+- `infrastructure/`: SQLAlchemy models and repository implementations
 - `presentation/`: REST routers, WebSocket handlers, schemas, serializers
 
 Key domains:
 
-- `identity`: auth, current user, avatar flows
-- `game`: live games, clocks, history, replay data
-- `matchmaking`: queueing and game creation
-- `profiles`: player profile read models
+- `identity`: auth, current user, avatars, face/passkey flows
+- `game`: live games, clocks, reconnect, timeouts, history, replay data
+- `matchmaking`: in-memory queueing and game creation
+- `profiles`: profile read models, leaderboard, search, head-to-head
 - `ratings`: Elo updates and rating snapshots
-- `communication`: chat
-- `tournaments`: tournament lifecycle, pairings, standings
+- `communication`: game chat
+- `tournaments`: lifecycle, pairings, standings, Swiss helpers
+- `scheduled_matches`: planned match invitations and start flow
 - `puzzles`: puzzle catalog and attempt tracking
+- `payments`: payment intent emulator and coin debit/refund helpers
+- `rtc`: WebRTC signaling relay
+- `admin`: admin-only user, audit, payment, and verification views
 
 Shared infrastructure lives under `backend/infrastructure/` and `backend/shared/`.
-
-Important current backend choices:
-
-- live chess state remains server-authoritative
-- persistence models describe storage concerns, not product policy
-- database bootstrap applies tracked Alembic migrations before seeding starter puzzle data
-- repositories use explicit mapping helpers instead of generic magic or copy-paste walls
 
 ## Frontend Architecture
 
 The frontend lives in `frontend/src/` and follows a feature-sliced structure:
 
-- `app/`: providers, router, app-wide concerns
+- `app/`: providers, router, app-wide route guards
 - `pages/`: route-level surfaces
 - `widgets/`: composite UI blocks
 - `features/`: focused interactive capabilities
@@ -72,56 +77,60 @@ The frontend lives in `frontend/src/` and follows a feature-sliced structure:
 
 Important frontend choices:
 
-- auth is bootstrapped once at app start and guarded at the router layer
+- auth is bootstrapped once and guarded at the router layer
 - live game flow stays separate from replay, analysis, and puzzles
 - browser-local Stockfish is used for review and study, not for backend move authority
-- navigation and shell patterns are shared across the product surfaces
+- `ShopPage` and `ClubsPage` are demo/extended surfaces rather than complete backend-backed product modules
 
 ## Live Game Ownership
 
-The server is the single source of truth for gameplay.
+The server is the source of truth for gameplay.
 
 Flow:
 
-1. Client sends a move event.
-2. Backend validates the move against stored game state.
-3. Backend persists the new state and broadcasts the updated game room state.
-4. Clients render from server state rather than optimistic local commits.
+1. Client sends a `move` WebSocket event with a UCI move and game id.
+2. Backend loads the active game and checks the user, side to move, UCI parsing, legal moves, and clock state.
+3. Backend persists the move and updated FEN.
+4. Backend broadcasts `game_state` or `game_over` to the room.
+5. Clients render from server state.
 
 This keeps clocks, results, reconnect behavior, and move legality authoritative.
 
 ## Analysis Ownership
 
-Replay and study analysis are intentionally local to the browser.
+Replay and study analysis are local to the browser.
 
 - replay uses finished game positions
-- analysis workspace uses the currently displayed sandbox or editor position
-- puzzle mode validates moves against stored solution lines
-- Stockfish worker output is fenced to the current FEN so stale results do not leak between positions
+- analysis workspace uses the displayed sandbox/editor position
+- puzzle mode validates attempts against stored solution lines
+- Stockfish worker output is tied to the active FEN so stale results are ignored
 
-This preserves backend simplicity while still giving players strong study tools.
+This preserves backend simplicity and avoids mixing engine output into live game authority.
 
 ## Deployment Model
 
 Supported workflows:
 
-- Docker Compose for the full stack
+- Docker Compose for the full local stack
 - local split development for faster iteration
 
 Development topology:
 
 - frontend on `localhost:5173`
+- admin frontend on `localhost:5174`
 - backend on `localhost:8000`
-- postgres on `localhost:5432`
+- PostgreSQL on `localhost:5432`
 
 The frontend dev server proxies `/api` and `/ws` to the backend.
 
-## Why This Architecture Fits v1
+## Current Limitations
 
-This structure keeps the product shippable without over-engineering:
+The current deployment model assumes a single backend instance:
 
-- clean enough to extend
-- explicit enough to own
-- practical enough to run locally and demo easily
+- matchmaking queue state is in memory
+- WebSocket connections and room membership are in memory
+- background game monitoring runs inside the FastAPI process lifespan
+- avatar/media storage is local filesystem storage
+- payment workflows are emulator-based
 
-That balance is exactly what ChessView v1 needs.
+Scaling to multiple backend instances would require Redis or equivalent shared ephemeral state, cross-instance WebSocket fanout, distributed monitor coordination, and shared object storage.

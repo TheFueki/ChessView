@@ -21,7 +21,7 @@ ChessView supports both of these local workflows:
   - backend: `cd backend && uv sync && uv run uvicorn app.main:app --reload --host localhost --port 8000`
   - frontend: `cd frontend && yarn install --frozen-lockfile && yarn dev`
 
-See the root [README](README.md) for the full setup details.
+See the root [README](README.md) for full setup details.
 
 ## Package Managers and Commands
 
@@ -44,14 +44,14 @@ just check
 Run the checks that match your change:
 
 ```powershell
-cd C:\Users\Anek\chessview\backend
+cd backend
 uv run python -m compileall app domains infrastructure shared tests
 uv run python -c "import app.main"
 uv run pytest tests
 ```
 
 ```powershell
-cd C:\Users\Anek\chessview\frontend
+cd frontend
 yarn install --frozen-lockfile
 yarn lint
 yarn build

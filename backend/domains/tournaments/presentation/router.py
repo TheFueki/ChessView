@@ -16,9 +16,11 @@ from domains.tournaments.domain.value_objects import TournamentStatus
 from domains.scheduled_matches.tournament import ensure_scheduled_matches_for_round
 from domains.tournaments.infrastructure.repository import SqlAlchemyTournamentRepository
 from domains.tournaments.presentation.schemas import (
+    OTBPlayerCreateRequest,
     TournamentCreateRequest,
     TournamentDetailResponse,
     TournamentPatchRequest,
+    TournamentPlayerResponse,
     TournamentSummaryResponse,
     TournamentStandingResponse,
 )
@@ -250,6 +252,24 @@ async def leave_tournament(
     tournament = await service.leave_tournament(tournament_id, viewer_id)
     player_count = len(await SqlAlchemyTournamentRepository(session).list_players(tournament_id))
     return await _serialize_summary(session, tournament, viewer_id, player_count)
+
+
+@router.post("/{tournament_id}/otb-players", response_model=TournamentPlayerResponse, status_code=status.HTTP_201_CREATED)
+async def add_otb_player(
+    tournament_id: UUID,
+    request: OTBPlayerCreateRequest,
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_db),
+):
+    service = _build_service(session)
+    player = await service.add_otb_player(
+        tournament_id,
+        UUID(user_id),
+        display_name=request.display_name,
+        seed_rating=request.seed_rating,
+    )
+    player_lookup = await _resolve_players(session, {player.user_id})
+    return player_lookup.get(player.user_id, player.seed_rating)
 
 
 @router.post("/{tournament_id}/start", response_model=TournamentSummaryResponse)

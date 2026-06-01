@@ -2,6 +2,8 @@
 
 from collections.abc import Mapping
 from datetime import datetime, timezone
+import re
+import secrets
 from uuid import UUID
 
 from domains.game.application.commands import CreateGameCommand
@@ -176,6 +178,39 @@ class TournamentService:
         )
         return tournament
 
+    async def add_otb_player(
+        self,
+        tournament_id: UUID,
+        owner_id: UUID,
+        *,
+        display_name: str,
+        seed_rating: int = 1200,
+    ) -> TournamentPlayer:
+        tournament = await self._require_tournament(tournament_id)
+        self._ensure_owner(tournament, owner_id)
+        self._ensure_registration_open(tournament)
+
+        normalized_name = display_name.strip()
+        if not normalized_name:
+            raise InvalidTournamentConfiguration()
+
+        username = await self._available_otb_username(normalized_name)
+        user = await self._users.create(
+            User(
+                username=username,
+                email=f"{username.lower()}-{secrets.token_hex(4)}@otb.chessview.local",
+                password_hash=f"otb:{secrets.token_urlsafe(24)}",
+                rating=max(100, min(3000, seed_rating)),
+                bio="OTB tournament entrant managed by the tournament owner.",
+            )
+        )
+        player = TournamentPlayer(
+            tournament_id=tournament_id,
+            user_id=user.id,
+            seed_rating=user.rating,
+        )
+        return await self._tournaments.add_player(player)
+
     async def leave_tournament(self, tournament_id: UUID, user_id: UUID) -> Tournament:
         tournament = await self._require_tournament(tournament_id)
         self._ensure_registration_open(tournament)
@@ -307,6 +342,16 @@ class TournamentService:
                     round_number=round_number,
                     white_id=assignment.white_id,
                     black_id=assignment.black_id,
+                    game_id=(
+                        await self._game_service.create_game(
+                            self._build_game_command(
+                                tournament=tournament,
+                                assignment=assignment,
+                                users=users,
+                                players_by_id=players_by_id,
+                            )
+                        )
+                    ).id,
                 )
             )
 
@@ -361,6 +406,17 @@ class TournamentService:
     def _ensure_owner(tournament: Tournament, user_id: UUID) -> None:
         if tournament.owner_id != user_id:
             raise TournamentForbidden()
+
+    async def _available_otb_username(self, display_name: str) -> str:
+        compact = re.sub(r"[^A-Za-z0-9]", "", display_name)
+        base = (compact or "OTBPlayer")[:24]
+        candidate = base
+        suffix = 1
+        while await self._users.get_by_username(candidate):
+            suffix += 1
+            suffix_text = str(suffix)
+            candidate = f"{base[: 32 - len(suffix_text)]}{suffix_text}"
+        return candidate
 
     @staticmethod
     def standings(players: list[TournamentPlayer]) -> list[TournamentPlayer]:

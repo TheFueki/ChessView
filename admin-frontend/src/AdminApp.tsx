@@ -43,14 +43,14 @@ function readStoredSession(): AdminSession | null {
   }
 }
 
-async function postJson<TResponse>(path: string, body: unknown, token?: string): Promise<TResponse> {
+async function requestJson<TResponse>(path: string, method: string, body?: unknown, token?: string): Promise<TResponse> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
+    method,
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify(body),
+    body: body ? JSON.stringify(body) : undefined,
   });
 
   if (!response.ok) {
@@ -58,7 +58,15 @@ async function postJson<TResponse>(path: string, body: unknown, token?: string):
     throw new Error(detail || `Request failed with ${response.status}`);
   }
 
+  if (response.status === 204) {
+    return undefined as TResponse;
+  }
+
   return response.json() as Promise<TResponse>;
+}
+
+async function postJson<TResponse>(path: string, body: unknown, token?: string): Promise<TResponse> {
+  return requestJson<TResponse>(path, "POST", body, token);
 }
 
 export async function adminGet<TResponse>(path: string, token: string): Promise<TResponse> {
@@ -76,6 +84,18 @@ export async function adminGet<TResponse>(path: string, token: string): Promise<
 
 export async function adminPost<TResponse>(path: string, token: string): Promise<TResponse> {
   return postJson<TResponse>(path, {}, token);
+}
+
+export async function adminCreate<TResponse>(path: string, body: unknown, token: string): Promise<TResponse> {
+  return requestJson<TResponse>(path, "POST", body, token);
+}
+
+export async function adminPatch<TResponse>(path: string, body: unknown, token: string): Promise<TResponse> {
+  return requestJson<TResponse>(path, "PATCH", body, token);
+}
+
+export async function adminDelete(path: string, token: string): Promise<void> {
+  return requestJson<void>(path, "DELETE", undefined, token);
 }
 
 export function AdminButton({

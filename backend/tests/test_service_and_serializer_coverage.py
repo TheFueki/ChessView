@@ -36,8 +36,10 @@ from domains.game.presentation.serializers import (
 from domains.identity.application.commands import (
     LoginUserCommand,
     OAuthUserCommand,
+    CompletePasswordResetCommand,
     RefreshTokenCommand,
     RegisterUserCommand,
+    RequestPasswordResetCommand,
     UpdateProfileCommand,
 )
 from domains.identity.application.services import IdentityService
@@ -122,6 +124,7 @@ def identity_service(repo: InMemoryUserRepo) -> IdentityService:
         verify_password=lambda plain, hashed: hashed == f"hashed:{plain}",
         create_access_token=lambda user_id: f"access:{user_id}",
         create_refresh_token=lambda user_id: f"refresh:{user_id}",
+        create_password_reset_token=lambda user_id: f"token:{user_id}",
         decode_token=lambda token: {"type": "refresh", "sub": token.removeprefix("refresh:")},
     )
 
@@ -169,6 +172,25 @@ async def test_identity_service_register_login_refresh_oauth_and_profile_updates
     service._decode_token = lambda _token: {"type": "refresh"}
     with pytest.raises(InvalidCredentials):
         await service.refresh(RefreshTokenCommand(refresh_token="missing-subject"))
+
+    reset_ticket = await service.request_password_reset(
+        RequestPasswordResetCommand(email="alice@example.com", frontend_url="http://localhost:5173")
+    )
+    assert reset_ticket is not None
+    assert reset_ticket.email == "alice@example.com"
+    assert reset_ticket.reset_url.startswith("http://localhost:5173/reset-password?token=reset:")
+
+    assert await service.request_password_reset(
+        RequestPasswordResetCommand(email="missing@example.com", frontend_url="http://localhost:5173")
+    ) is None
+
+    service._decode_token = lambda token: {"type": "password_reset", "sub": str(user_id)} if token == "token:" + str(user_id) else {}
+    await service.complete_password_reset(CompletePasswordResetCommand(token=reset_ticket.token, password="new-secret"))
+    assert repo.users[user_id].password_hash == "hashed:new-secret"
+
+    with pytest.raises(InvalidCredentials):
+        await service.login(LoginUserCommand(email="alice@example.com", password="secret"))
+    assert (await service.login(LoginUserCommand(email="alice@example.com", password="new-secret")))["user"]["username"] == "alice"
 
     updated = await service.update_profile(UpdateProfileCommand(user_id=user_id, username="alice2", bio="hi"))
     assert updated.username == "alice2"
