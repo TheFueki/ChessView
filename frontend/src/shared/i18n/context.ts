@@ -31,3 +31,28 @@ export function readTranslation(source: Record<string, unknown>, key: string): s
 
   return typeof value === "string" ? value : undefined;
 }
+
+export function readLiteral(locale: Locale, value: string): string | undefined {
+  const normalized = value.trim().replace(/\s+/g, " ");
+  const canonical = findCanonicalLiteral(normalized);
+  if (!canonical) {
+    return undefined;
+  }
+
+  return readTranslation(resources[locale], `literals.${canonical}`);
+}
+
+function findCanonicalLiteral(value: string): string | undefined {
+  const entries = Object.entries(resources.en.literals);
+  if (value in resources.en.literals) {
+    return value;
+  }
+
+  for (const [canonical] of entries) {
+    if (Object.values(resources).some((resource) => resource.literals[canonical as keyof typeof resources.en.literals] === value)) {
+      return canonical;
+    }
+  }
+
+  return undefined;
+}
