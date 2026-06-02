@@ -2,7 +2,10 @@ import pytest
 
 from domains.admin.infrastructure import seed as admin_seed
 from infrastructure.database_bootstrap import initialize_database
-from infrastructure.database_migrations import to_migration_database_url
+from infrastructure.database_migrations import ALEMBIC_SCRIPT_PATH, HEAD_REVISION, to_migration_database_url
+
+
+MAX_ALEMBIC_VERSION_LENGTH = 32
 
 
 @pytest.mark.asyncio
@@ -45,6 +48,17 @@ def test_to_migration_database_url_rewrites_asyncpg_for_alembic():
         to_migration_database_url("postgresql+asyncpg://user:password@db.example.invalid:5432/app")
         == "postgresql+psycopg://user:password@db.example.invalid:5432/app"
     )
+
+
+def test_alembic_revision_ids_fit_version_table():
+    assert len(HEAD_REVISION) <= MAX_ALEMBIC_VERSION_LENGTH
+
+    for migration_file in (ALEMBIC_SCRIPT_PATH / "versions").glob("*.py"):
+        namespace: dict[str, object] = {}
+        exec(migration_file.read_text(encoding="utf-8"), namespace)
+        revision = namespace.get("revision")
+        assert isinstance(revision, str)
+        assert len(revision) <= MAX_ALEMBIC_VERSION_LENGTH, migration_file.name
 
 
 @pytest.mark.asyncio

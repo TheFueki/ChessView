@@ -3,7 +3,7 @@
 from datetime import datetime
 import uuid
 
-from sqlalchemy import Boolean, ForeignKey, Integer, JSON, String, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, JSON, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from infrastructure.database import Base
@@ -38,7 +38,10 @@ class ShopItemModel(Base):
 
 class UserShopItemModel(Base):
     __tablename__ = "user_shop_items"
-    __table_args__ = (UniqueConstraint("user_id", "item_id", name="uq_user_shop_items_user_item"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "item_id", name="uq_user_shop_items_user_item"),
+        Index("ix_user_shop_items_user_id", "user_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     user_id: Mapped[uuid.UUID] = uuid_reference("users.id")
