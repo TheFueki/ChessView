@@ -25,15 +25,19 @@ async def test_initialize_database_runs_migrations_before_seeding(monkeypatch):
     async def fake_seed_demo_tournaments(received_engine) -> None:
         calls.append(("demo", received_engine))
 
+    async def fake_seed_default_shop_items(received_engine) -> None:
+        calls.append(("shop", received_engine))
+
     monkeypatch.setattr("infrastructure.database_bootstrap.register_models", fake_register_models)
     monkeypatch.setattr("infrastructure.database_bootstrap.run_database_migrations", fake_run_database_migrations)
     monkeypatch.setattr("infrastructure.database_bootstrap.seed_starter_puzzles", fake_seed_starter_puzzles)
+    monkeypatch.setattr("infrastructure.database_bootstrap.seed_default_shop_items", fake_seed_default_shop_items)
     monkeypatch.setattr("infrastructure.database_bootstrap.seed_demo_tournaments", fake_seed_demo_tournaments)
     monkeypatch.setattr("infrastructure.database_bootstrap.seed_first_admin", fake_seed_first_admin)
 
     await initialize_database(engine)
 
-    assert calls == ["register", "migrate", ("seed", engine), ("demo", engine), ("admin", engine)]
+    assert calls == ["register", "migrate", ("seed", engine), ("shop", engine), ("demo", engine), ("admin", engine)]
 
 
 def test_to_migration_database_url_rewrites_asyncpg_for_alembic():

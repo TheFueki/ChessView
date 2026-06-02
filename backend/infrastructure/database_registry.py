@@ -11,4 +11,5 @@ def register_models() -> None:
     import domains.payments.infrastructure.models  # noqa: F401
     import domains.puzzles.infrastructure.models  # noqa: F401
     import domains.scheduled_matches.infrastructure.models  # noqa: F401
+    import domains.shop.infrastructure.models  # noqa: F401
     import domains.tournaments.infrastructure.models  # noqa: F401

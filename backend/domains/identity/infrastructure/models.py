@@ -20,6 +20,7 @@ PASSWORD_HASH_LENGTH = 255
 AVATAR_PATH_LENGTH = 255
 USER_ROLE_LENGTH = 20
 USER_BIO_LENGTH = 160
+SHOP_SKU_LENGTH = 80
 
 
 class UserModel(Base):
@@ -39,6 +40,8 @@ class UserModel(Base):
     coins: Mapped[int] = mapped_column(Integer, nullable=False, default=2000)
     bio: Mapped[str | None] = mapped_column(String(USER_BIO_LENGTH), nullable=True)
     avatar_path: Mapped[str | None] = mapped_column(String(AVATAR_PATH_LENGTH), nullable=True)
+    equipped_board_sku: Mapped[str | None] = mapped_column(String(SHOP_SKU_LENGTH), nullable=True)
+    equipped_banner_sku: Mapped[str | None] = mapped_column(String(SHOP_SKU_LENGTH), nullable=True)
     role: Mapped[str] = mapped_column(String(USER_ROLE_LENGTH), nullable=False, default="user")
     banned_at: Mapped[datetime | None] = utc_timestamp_column(nullable=True)
     created_at: Mapped[datetime] = created_at_column()

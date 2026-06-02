@@ -1,6 +1,5 @@
 """Admin REST router."""
 
-import json
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
@@ -8,7 +7,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
 from app.dependencies import get_db, require_admin
 from domains.admin.infrastructure.models import AdminAuditLogModel
 from domains.admin.presentation.schemas import (
@@ -36,22 +34,11 @@ from domains.payments.infrastructure.models import PaymentIntentModel
 from domains.payments.presentation.schemas import PaymentIntentResponse
 from domains.payments.service import PaymentService
 from domains.scheduled_matches.infrastructure.models import ScheduledMatchModel
+from domains.shop.infrastructure.models import ShopItemModel
 from domains.tournaments.infrastructure.models import TournamentModel
 from infrastructure.security import hash_password
 
 router = APIRouter()
-
-SHOP_CATALOG_PATH = settings.resolved_storage_dir / "shop_catalog.json"
-DEFAULT_SHOP_ITEMS = [
-    {"id": 1, "name": "Tournament Board", "price": 500, "type": "board", "rarity": "rare", "description": "A restrained green board tuned for long rated sessions.", "image_url": None, "consumable": False},
-    {"id": 2, "name": "Profile Frame", "price": 1200, "type": "avatar", "rarity": "epic", "description": "A metallic profile frame for leaderboard and lobby surfaces.", "image_url": None, "consumable": False},
-    {"id": 3, "name": "Classic Pieces", "price": 150, "type": "board", "rarity": "common", "description": "Readable pieces for rapid games and review.", "image_url": None, "consumable": False},
-    {"id": 4, "name": "Victory Accent", "price": 5000, "type": "effect", "rarity": "legendary", "description": "A subtle win-state accent for post-game overlays.", "image_url": None, "consumable": False},
-    {"id": 5, "name": "Opening Lab Pass", "price": 900, "type": "training", "rarity": "rare", "description": "Unlocks a focused opening prep pack in the analysis hub.", "image_url": None, "consumable": True},
-    {"id": 6, "name": "Blunder Shield", "price": 650, "type": "boost", "rarity": "epic", "description": "Adds one extra review hint to the next training game.", "image_url": None, "consumable": True},
-    {"id": 7, "name": "Neon Move Trail", "price": 1800, "type": "effect", "rarity": "epic", "description": "Highlights your last move with a sharper animated trail.", "image_url": None, "consumable": False},
-    {"id": 8, "name": "Coach Review Token", "price": 750, "type": "training", "rarity": "rare", "description": "Marks one completed game for deeper review.", "image_url": None, "consumable": True},
-]
 
 
 async def _audit(session: AsyncSession, actor_user_id: UUID, action: str, target_type: str, target_id: str, payload: dict) -> None:
@@ -71,19 +58,17 @@ def _to_user_response(user: UserModel) -> AdminUserResponse:
     )
 
 
-def _read_shop_items() -> list[dict]:
-    if not SHOP_CATALOG_PATH.exists():
-        return [dict(item) for item in DEFAULT_SHOP_ITEMS]
-    try:
-        raw = json.loads(SHOP_CATALOG_PATH.read_text(encoding="utf-8"))
-        return raw if isinstance(raw, list) else [dict(item) for item in DEFAULT_SHOP_ITEMS]
-    except Exception:
-        return [dict(item) for item in DEFAULT_SHOP_ITEMS]
-
-
-def _write_shop_items(items: list[dict]) -> None:
-    SHOP_CATALOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    SHOP_CATALOG_PATH.write_text(json.dumps(items, indent=2), encoding="utf-8")
+def _to_shop_item_response(item: ShopItemModel) -> AdminShopItem:
+    return AdminShopItem(
+        id=item.id,
+        name=item.name,
+        price=item.price,
+        type=item.type,
+        rarity=item.rarity,
+        description=item.description,
+        image_url=item.image_url,
+        consumable=item.consumable,
+    )
 
 
 @router.get("/users", response_model=list[AdminUserResponse])
@@ -324,45 +309,60 @@ async def list_face_verification_sessions(
 
 
 @router.get("/shop-items/public", response_model=list[AdminShopItem])
-async def public_shop_items():
-    return _read_shop_items()
+async def public_shop_items(session: AsyncSession = Depends(get_db)):
+    result = await session.execute(select(ShopItemModel).where(ShopItemModel.is_active.is_(True)).order_by(ShopItemModel.id))
+    return [_to_shop_item_response(item) for item in result.scalars().all()]
 
 
 @router.get("/shop-items", response_model=list[AdminShopItem])
-async def list_shop_items(_admin_id: str = Depends(require_admin)):
-    return _read_shop_items()
+async def list_shop_items(session: AsyncSession = Depends(get_db), _admin_id: str = Depends(require_admin)):
+    result = await session.execute(select(ShopItemModel).order_by(ShopItemModel.id))
+    return [_to_shop_item_response(item) for item in result.scalars().all()]
 
 
 @router.post("/shop-items", response_model=AdminShopItem, status_code=status.HTTP_201_CREATED)
 async def create_shop_item(body: AdminShopItem, admin_id: str = Depends(require_admin), session: AsyncSession = Depends(get_db)):
-    items = _read_shop_items()
-    if any(item["id"] == body.id for item in items):
+    if await session.get(ShopItemModel, body.id) is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Shop item id already exists")
-    item = body.model_dump()
-    items.append(item)
-    _write_shop_items(items)
-    await _audit(session, UUID(admin_id), "shop_item.create", "shop_item", str(body.id), item)
-    return item
+    item = ShopItemModel(
+        id=body.id,
+        sku=f"admin-{body.id}",
+        name=body.name,
+        price=body.price,
+        type=body.type,
+        rarity=body.rarity,
+        description=body.description,
+        image_url=body.image_url,
+        asset_key=None,
+        metadata_json={},
+        consumable=body.consumable,
+        is_active=True,
+    )
+    session.add(item)
+    await _audit(session, UUID(admin_id), "shop_item.create", "shop_item", str(body.id), body.model_dump())
+    await session.refresh(item)
+    return _to_shop_item_response(item)
 
 
 @router.patch("/shop-items/{item_id}", response_model=AdminShopItem)
 async def patch_shop_item(item_id: int, body: AdminShopItemPatchRequest, admin_id: str = Depends(require_admin), session: AsyncSession = Depends(get_db)):
-    items = _read_shop_items()
-    for item in items:
-        if item["id"] == item_id:
-            payload = body.model_dump(exclude_unset=True)
-            item.update(payload)
-            _write_shop_items(items)
-            await _audit(session, UUID(admin_id), "shop_item.patch", "shop_item", str(item_id), payload)
-            return item
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shop item not found")
+    item = await session.get(ShopItemModel, item_id)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shop item not found")
+    payload = body.model_dump(exclude_unset=True)
+    for field, value in payload.items():
+        setattr(item, field, value)
+    item.updated_at = datetime.now(timezone.utc)
+    await _audit(session, UUID(admin_id), "shop_item.patch", "shop_item", str(item_id), payload)
+    await session.refresh(item)
+    return _to_shop_item_response(item)
 
 
 @router.delete("/shop-items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_shop_item(item_id: int, admin_id: str = Depends(require_admin), session: AsyncSession = Depends(get_db)):
-    items = _read_shop_items()
-    next_items = [item for item in items if item["id"] != item_id]
-    if len(next_items) == len(items):
+    item = await session.get(ShopItemModel, item_id)
+    if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shop item not found")
-    _write_shop_items(next_items)
+    item.is_active = False
+    item.updated_at = datetime.now(timezone.utc)
     await _audit(session, UUID(admin_id), "shop_item.delete", "shop_item", str(item_id), {})

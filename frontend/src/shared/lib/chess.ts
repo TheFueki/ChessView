@@ -236,8 +236,21 @@ function getMaterialValidationError(position: BoardPosition): string | null {
 
 function isKingInCheck(fen: string, color: PlayerColor): boolean {
   const game = new Chess(fen);
-  game.setTurn(toChessColor(color));
-  return game.isCheck();
+  const kingSquares = game.findPiece({
+    type: "k",
+    color: toChessColor(color),
+  });
+  const kingSquare = kingSquares[0];
+  if (!kingSquare) {
+    return false;
+  }
+
+  const attackers = (game as unknown as { attackers?: (square: string, color?: "w" | "b") => string[] }).attackers;
+  if (!attackers) {
+    return game.turn() === toChessColor(color) && game.isCheck();
+  }
+
+  return attackers.call(game, kingSquare, toChessColor(oppositeColor(color))).length > 0;
 }
 
 function getCheckValidationError(fen: string): string | null {

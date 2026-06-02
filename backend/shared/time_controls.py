@@ -21,6 +21,13 @@ class RatingSpeed(StrEnum):
     CLASSICAL = "classical"
 
 
+DISPLAY_RATING_SPEEDS: tuple[RatingSpeed, ...] = (
+    RatingSpeed.BULLET,
+    RatingSpeed.BLITZ,
+    RatingSpeed.RAPID,
+)
+
+
 _PRESET_CATALOG = (
     TimeControl(name="1+0", initial_time_ms=60_000, increment_ms=0),
     TimeControl(name="1+1", initial_time_ms=60_000, increment_ms=1_000),
@@ -70,6 +77,23 @@ def rating_speed_for_time_control_name(name: str) -> RatingSpeed:
     """Resolve a preset or minutes+increment name to a rating speed category."""
     time_control = get_time_control_preset(name) or _parse_time_control_name(name) or DEFAULT_TIME_CONTROL
     return rating_speed_for_clock(time_control.initial_time_ms, time_control.increment_ms)
+
+
+def rating_attr_for_speed(speed: RatingSpeed) -> str:
+    """Return the user model attribute that stores a speed-category rating."""
+    return f"{speed.value}_rating"
+
+
+def rating_for_user(user: object | None, speed: RatingSpeed, default: int = 1200) -> int:
+    """Read a user's speed-category rating, falling back to the legacy global rating."""
+    if user is None:
+        return default
+    return int(getattr(user, rating_attr_for_speed(speed), getattr(user, "rating", default)) or default)
+
+
+def public_rating_categories(user: object) -> dict[str, int]:
+    """Expose the public rating buckets used by player-facing screens."""
+    return {speed.value: rating_for_user(user, speed) for speed in DISPLAY_RATING_SPEEDS}
 
 
 def _parse_time_control_name(name: str) -> TimeControl | None:

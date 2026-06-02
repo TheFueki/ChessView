@@ -35,7 +35,6 @@ const ratingCategories: { value: RatingCategory; label: string }[] = [
   { value: "bullet", label: "Bullet" },
   { value: "blitz", label: "Blitz" },
   { value: "rapid", label: "Rapid" },
-  { value: "classical", label: "Classical" },
 ];
 
 function selectedRating(player: Leader, selectedCategory: RatingCategory) {
@@ -76,7 +75,7 @@ export default function LeaderboardPage() {
       description="Track the strongest players by rating and open a profile for deeper head-to-head comparison."
       actions={
         <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
-          <div className="grid grid-cols-4 rounded-md border border-neutral-800 bg-neutral-950 p-1">
+          <div className="grid grid-cols-3 rounded-md border border-neutral-800 bg-neutral-950 p-1">
             {ratingCategories.map((category) => {
               const isSelected = category.value === selectedCategory;
               return (

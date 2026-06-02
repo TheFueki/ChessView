@@ -15,7 +15,7 @@ from domains.identity.infrastructure.models import UserModel
 from domains.scheduled_matches.infrastructure.models import ScheduledMatchModel
 from domains.scheduled_matches.presentation.schemas import ScheduledMatchResponse
 from domains.tournaments.infrastructure.models import TournamentModel, TournamentPairingModel
-from shared.time_controls import TimeControl, get_time_control_preset, make_time_control
+from shared.time_controls import TimeControl, get_time_control_preset, make_time_control, rating_for_user, rating_speed_for_clock
 
 
 STARTABLE_MATCH_STATUSES = {"scheduled", "accepted", "rescheduled"}
@@ -161,12 +161,13 @@ class ScheduledMatchService:
             time_control = self._resolve_match_time_control(tournament)
         if time_control is None:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Default time control missing")
+        rating_speed = rating_speed_for_clock(time_control.initial_time_ms, time_control.increment_ms)
         game = await GameService(SqlAlchemyGameRepository(self._session)).create_game(
             CreateGameCommand(
                 white_id=match.white_player_id,
                 black_id=match.black_player_id,
                 time_control=time_control,
-                starting_ratings=StartingRatings(white=white.rating, black=black.rating),
+                starting_ratings=StartingRatings(white=rating_for_user(white, rating_speed), black=rating_for_user(black, rating_speed)),
                 rated=True,
             )
         )

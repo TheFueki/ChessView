@@ -41,7 +41,7 @@ export type ConnectionState = "idle" | "connecting" | "open" | "disconnected" | 
 export type PlayerColor = "white" | "black";
 export type GameStatus = "active" | "checkmate" | "stalemate" | "draw" | "resigned" | "timeout" | "aborted";
 export type GameResult = "1-0" | "0-1" | "1/2-1/2";
-export type RatingCategory = "bullet" | "blitz" | "rapid" | "classical";
+export type RatingCategory = "bullet" | "blitz" | "rapid";
 export type TimeControlKey = "1+0" | "1+1" | "1+2" |  "2+1" | "3+0" | "3+1" | "3+2" | "5+0" | "5+3" | "10+0" | "15+0" | "15+10";
 export type TerminationReason =
   | "checkmate"
@@ -288,6 +288,9 @@ export interface ProfileResponse {
   draws: number;
   win_rate: number;
   coins: number;
+  equipped_board_sku?: string | null;
+  equipped_banner_sku?: string | null;
+  equipped_banner?: ShopItemResponse | null;
   recent_games: ProfileRecentGameResponse[];
 }
 
@@ -296,6 +299,33 @@ export interface PlayerSearchResult {
   username: string;
   avatar_url?: string | null;
   ratings?: Record<string, number | null>;
+}
+
+export type ShopItemType = "board" | "banner" | "piece_set" | "effect" | "consumable";
+
+export interface ShopItemResponse {
+  id: number;
+  sku: string;
+  name: string;
+  price: number;
+  type: ShopItemType;
+  rarity: "common" | "rare" | "epic" | "legendary" | string;
+  description: string;
+  image_url?: string | null;
+  asset_key?: string | null;
+  metadata: Record<string, unknown>;
+  consumable: boolean;
+  is_active: boolean;
+  owned: boolean;
+  quantity: number;
+  equipped: boolean;
+}
+
+export interface ShopInventoryResponse {
+  coins: number;
+  equipped_board_sku: string | null;
+  equipped_banner_sku: string | null;
+  items: ShopItemResponse[];
 }
 
 export type TournamentStatus =

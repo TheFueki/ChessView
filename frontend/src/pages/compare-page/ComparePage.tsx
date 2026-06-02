@@ -7,10 +7,14 @@ import type { HeadToHeadResponse, PlayerSearchResult, ProfileResponse } from "@/
 import { Card, Spinner } from "@/shared/ui";
 import { AppShell } from "@/widgets/app-shell";
 
-const TIME_CONTROLS = ["1+0", "1+1", "1+2", "2+1", "3+0", "3+1", "3+2", "5+0", "5+3", "10+0", "15+0", "15+10"];
+const RATING_CATEGORIES = [
+  { key: "bullet", label: "Bullet" },
+  { key: "blitz", label: "Blitz" },
+  { key: "rapid", label: "Rapid" },
+] as const;
 
-function ratingValue(profile: ProfileResponse | undefined, control: string) {
-  const value = profile?.ratings?.[control];
+function ratingValue(profile: ProfileResponse | undefined, category: string) {
+  const value = profile?.ratings?.[category];
   return typeof value === "number" ? value : "Not rated";
 }
 
@@ -184,11 +188,11 @@ export default function ComparePage() {
       <Card className="p-5">
         <h2 className="text-xl font-semibold text-neutral-100">Ratings</h2>
         <div className="mt-4 divide-y divide-neutral-800 overflow-hidden rounded-md border border-neutral-800">
-          {TIME_CONTROLS.map((control) => (
-            <div key={control} className="grid grid-cols-[1fr_1fr_1fr] px-4 py-3 text-sm">
-              <span className="text-neutral-500">{control}</span>
-              <strong>{ratingValue(profileAQuery.data, control)}</strong>
-              <strong>{ratingValue(profileBQuery.data, control)}</strong>
+          {RATING_CATEGORIES.map((category) => (
+            <div key={category.key} className="grid grid-cols-[1fr_1fr_1fr] px-4 py-3 text-sm">
+              <span className="text-neutral-500">{category.label}</span>
+              <strong>{ratingValue(profileAQuery.data, category.key)}</strong>
+              <strong>{ratingValue(profileBQuery.data, category.key)}</strong>
             </div>
           ))}
         </div>

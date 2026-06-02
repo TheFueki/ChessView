@@ -62,6 +62,7 @@ from domains.identity.face_verification.service import (
     FaceVerificationService,
 )
 from domains.identity.infrastructure.models import UserModel
+from domains.identity.presentation.mailer import send_password_reset_email
 from domains.matchmaking.application.services import MatchmakingService
 from domains.matchmaking.domain.exceptions import AlreadyInQueue, NotInQueue
 from domains.payments.infrastructure.models import PaymentEventModel, PaymentIntentModel
@@ -74,6 +75,8 @@ from domains.puzzles.domain.value_objects import PuzzleAttemptResult
 from domains.rtc.application.services import SignalingService
 from domains.scheduled_matches.infrastructure.models import ScheduledMatchModel
 from domains.scheduled_matches.service import ScheduledMatchService
+from domains.shop.application import ShopService
+from domains.shop.infrastructure.models import ShopItemModel, UserShopItemModel
 from domains.tournaments.domain.entities import TournamentPairing
 from domains.tournaments.infrastructure.models import TournamentModel, TournamentPlayerModel
 from domains.tournaments.presentation.serializers import (
@@ -757,7 +760,7 @@ async def test_face_verification_service_enrolls_profiles_sessions_and_passkeys(
 
 
 @pytest.mark.asyncio
-async def test_face_verification_service_face_templates_and_failure_paths(monkeypatch):
+async def test_face_verification_service_face_templates_and_failure_paths():
     user_id = uuid4()
     session = InMemoryFaceSession(user_id)
     service = FaceVerificationService(session)
@@ -776,6 +779,14 @@ async def test_face_verification_service_face_templates_and_failure_paths(monkey
     )
     assert profile.device_label == "Primary camera"
     assert FaceVerificationService._normalize_face_sample("  same   face  ") == "same face"
+
+    with pytest.raises(HTTPException):
+        await service.enroll_face_template(
+            user_id=user_id,
+            device_label="replacement camera",
+            consent=True,
+            face_sample="same face",
+        )
 
     verified = await service.verify_live_face_sample(
         user_id=user_id,
@@ -796,23 +807,7 @@ async def test_face_verification_service_face_templates_and_failure_paths(monkey
     assert failed.status == "failed"
 
     assert await service.stop_game_after_failed_verification(verified) is None
-
-    class Repo:
-        def __init__(self, _session):
-            pass
-
-    class GameService:
-        def __init__(self, _repo):
-            pass
-
-        async def stop_for_identity_verification_failure(self, command):
-            return SimpleNamespace(id=command.game_id, stopped_for=command.user_id)
-
-    monkeypatch.setattr("domains.game.infrastructure.repository.SqlAlchemyGameRepository", Repo)
-    monkeypatch.setattr("domains.game.application.services.GameService", GameService)
-    stopped = await service.stop_game_after_failed_verification(failed)
-
-    assert stopped.stopped_for == user_id
+    assert await service.stop_game_after_failed_verification(failed) is None
 
 
 class GenericMemorySession:
@@ -832,6 +827,8 @@ class GenericMemorySession:
         self.added.append(item)
         if isinstance(item, TournamentPlayerModel):
             self.store[(TournamentPlayerModel, (item.tournament_id, item.user_id))] = item
+        if isinstance(item, UserShopItemModel):
+            self.store[(UserShopItemModel, (item.user_id, item.item_id))] = item
         key = getattr(item, "id", None)
         if key is not None:
             self.store[(type(item), key)] = item
@@ -840,6 +837,19 @@ class GenericMemorySession:
         return self.store.get((model, key))
 
     async def execute(self, _statement):
+        entities = [description.get("entity") for description in getattr(_statement, "column_descriptions", [])]
+        if entities == [UserShopItemModel, ShopItemModel]:
+            rows = []
+            for item in self.store.values():
+                if isinstance(item, UserShopItemModel):
+                    shop_item = self.store.get((ShopItemModel, item.item_id))
+                    if shop_item is not None:
+                        rows.append((item, shop_item))
+            return ScalarList(rows)
+        if entities == [UserShopItemModel]:
+            return ScalarList([item for item in self.store.values() if isinstance(item, UserShopItemModel)])
+        if entities == [ShopItemModel]:
+            return ScalarList([item for item in self.store.values() if isinstance(item, ShopItemModel)])
         return ScalarList([item for item in self.store.values() if isinstance(item, ScheduledMatchModel)])
 
     async def flush(self):
@@ -924,6 +934,84 @@ async def test_payment_service_creates_simulates_confirms_and_refunds():
 
     with pytest.raises(HTTPException):
         await service.create_scheduled_match_payment(match_id, uuid4())
+
+
+@pytest.mark.asyncio
+async def test_shop_service_purchases_and_equips_backend_inventory():
+    session = GenericMemorySession()
+    user_id = uuid4()
+    user = UserModel(id=user_id, username="shopper", email="shopper@example.com", password="hash", rating=1500, coins=1000)
+    board = ShopItemModel(
+        id=1,
+        sku="board-test",
+        name="Test Board",
+        price=300,
+        type="board",
+        rarity="rare",
+        description="Test board",
+        asset_key="test",
+        metadata_json={"light": "#fff", "dark": "#000"},
+        consumable=False,
+        is_active=True,
+    )
+    session.store[(UserModel, user_id)] = user
+    session.store[(ShopItemModel, board.id)] = board
+
+    service = ShopService(session)
+    updated_user, purchased = await service.purchase(user_id, board.id)
+
+    assert updated_user.coins == 700
+    assert purchased.owned is True
+    assert session.store[(UserShopItemModel, (user_id, board.id))].quantity == 1
+
+    with pytest.raises(HTTPException):
+        await service.purchase(user_id, board.id)
+
+    equipped_user, equipped = await service.equip(user_id, board.id)
+    assert equipped_user.equipped_board_sku == "board-test"
+    assert equipped.equipped is True
+
+
+def test_password_reset_mailer_sends_configured_smtp(monkeypatch):
+    sent_messages = []
+    calls = []
+
+    class FakeSMTP:
+        def __init__(self, host, port, timeout):
+            calls.append(("connect", host, port, timeout))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def starttls(self):
+            calls.append(("starttls",))
+
+        def login(self, username, password):
+            calls.append(("login", username, password))
+
+        def send_message(self, message):
+            sent_messages.append(message)
+
+    monkeypatch.setattr("domains.identity.presentation.mailer.smtplib.SMTP", FakeSMTP)
+    monkeypatch.setattr("domains.identity.presentation.mailer.settings.SMTP_HOST", "smtp.gmail.com")
+    monkeypatch.setattr("domains.identity.presentation.mailer.settings.SMTP_PORT", 587)
+    monkeypatch.setattr("domains.identity.presentation.mailer.settings.SMTP_USERNAME", "user@gmail.com")
+    monkeypatch.setattr("domains.identity.presentation.mailer.settings.SMTP_PASSWORD", "app-password")
+    monkeypatch.setattr("domains.identity.presentation.mailer.settings.SMTP_FROM_EMAIL", "user@gmail.com")
+    monkeypatch.setattr("domains.identity.presentation.mailer.settings.SMTP_USE_TLS", True)
+    monkeypatch.setattr("domains.identity.presentation.mailer.settings.SMTP_USE_SSL", False)
+    monkeypatch.setattr("domains.identity.presentation.mailer.settings.SMTP_TIMEOUT_SECONDS", 7)
+
+    assert send_password_reset_email("player@example.com", "https://example.test/reset") is True
+    assert calls == [
+        ("connect", "smtp.gmail.com", 587, 7),
+        ("starttls",),
+        ("login", "user@gmail.com", "app-password"),
+    ]
+    assert sent_messages[0]["To"] == "player@example.com"
 
 
 @pytest.mark.asyncio

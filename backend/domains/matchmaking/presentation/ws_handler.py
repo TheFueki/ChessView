@@ -18,7 +18,7 @@ from domains.game.application.commands import CreateGameCommand, StartingRatings
 from domains.game.application.services import GameService
 from domains.game.infrastructure.repository import SqlAlchemyGameRepository
 from domains.identity.infrastructure.repository import SqlAlchemyUserRepository
-from shared.time_controls import TIME_CONTROL_PRESETS
+from shared.time_controls import TIME_CONTROL_PRESETS, rating_for_user, rating_speed_for_clock
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +35,12 @@ async def handle_queue_join(envelope: WSEnvelope, user_id: str, session: AsyncSe
         return
 
     time_control = TIME_CONTROL_PRESETS[requested_time_control]
+    rating_speed = rating_speed_for_clock(time_control.initial_time_ms, time_control.increment_ms)
 
     # Fetch actual user rating from DB
     user_repo = SqlAlchemyUserRepository(session)
     user = await user_repo.get_by_id(uid)
-    rating = user.rating if user else 1200
+    rating = rating_for_user(user, rating_speed)
 
     try:
         position = await _service.join_queue(
@@ -76,8 +77,8 @@ async def handle_queue_join(envelope: WSEnvelope, user_id: str, session: AsyncSe
             black_id=match.black_id,
             time_control=time_control,
             starting_ratings=StartingRatings(
-                white=white_user.rating if white_user else 1200,
-                black=black_user.rating if black_user else 1200,
+                white=rating_for_user(white_user, rating_speed),
+                black=rating_for_user(black_user, rating_speed),
             ),
             rated=True,
         )
@@ -91,8 +92,8 @@ async def handle_queue_join(envelope: WSEnvelope, user_id: str, session: AsyncSe
     manager.join_room(game_id, white_id)
     manager.join_room(game_id, black_id)
 
-    white_info = {"id": white_id, "username": white_user.username if white_user else "?", "rating": white_user.rating if white_user else 1200}
-    black_info = {"id": black_id, "username": black_user.username if black_user else "?", "rating": black_user.rating if black_user else 1200}
+    white_info = {"id": white_id, "username": white_user.username if white_user else "?", "rating": rating_for_user(white_user, rating_speed)}
+    black_info = {"id": black_id, "username": black_user.username if black_user else "?", "rating": rating_for_user(black_user, rating_speed)}
 
     # Send match_found to white
     await manager.send_to_user(white_id, EventType.MATCH_FOUND, {

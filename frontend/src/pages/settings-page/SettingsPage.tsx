@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useUserStore } from "@/entities/user";
 import { http } from "@/shared/api";
 import type {
@@ -197,40 +197,9 @@ export default function SettingsPage() {
     queryFn: () => http.get<FaceVerificationProfileResponse[]>("/identity/face-verification/me"),
     enabled: Boolean(user),
   });
-
-  const enrollFaceVerification = useMutation({
-    mutationFn: () =>
-      http.post<FaceVerificationProfileResponse>("/identity/face-verification/enroll", {
-        device_label: "Primary browser",
-        consent: true,
-      }),
-    onSuccess: async () => {
-      setMessage({ type: 'success', text: "Face verification enrollment created" });
-      await queryClient.invalidateQueries({ queryKey: ["face-verification-profiles"] });
-    },
-    onError: () => setMessage({ type: 'error', text: "Unable to enroll face verification" }),
-  });
-
-  const startFaceVerification = useMutation({
-    mutationFn: () => http.post<FaceVerificationSessionResponse>("/identity/face-verification/sessions", {}),
-    onSuccess: (session) => {
-      setVerificationSession(session);
-      setMessage({ type: 'success', text: "Face verification session started" });
-    },
-    onError: () => setMessage({ type: 'error', text: "Unable to start face verification" }),
-  });
-
-  const submitFaceVerification = useMutation({
-    mutationFn: (scenario: "pass" | "fail" | "uncertain") =>
-      http.post<FaceVerificationSessionResponse>(`/identity/face-verification/sessions/${verificationSession?.id}/submit`, {
-        scenario: scenario === "pass" ? null : scenario,
-      }),
-    onSuccess: (session) => {
-      setVerificationSession(session);
-      setMessage({ type: session.status === "verified" ? 'success' : 'error', text: `Face verification ${session.status}` });
-    },
-    onError: () => setMessage({ type: 'error', text: "Unable to submit face verification" }),
-  });
+  const hasFaceTemplate = (faceProfilesQuery.data ?? []).some(
+    (profile) => profile.provider === "local_face_template" && profile.status === "enrolled",
+  );
 
   const startPasskeyEnrollment = async () => {
     if (!passkeysSupported) {
@@ -543,9 +512,9 @@ export default function SettingsPage() {
           <div className="form-actions flex-wrap gap-2">
             <Button
               onClick={enrollFaceFromCamera}
-              disabled={!cameraSupported || faceTemplateAction !== "idle"}
+              disabled={!cameraSupported || hasFaceTemplate || faceTemplateAction !== "idle"}
             >
-              <Shield size={18} /> {faceTemplateAction === "enrolling" ? "Enrolling..." : "Enroll Face from Camera"}
+              <Shield size={18} /> {hasFaceTemplate ? "Face ID Enrolled" : faceTemplateAction === "enrolling" ? "Enrolling..." : "Enroll Face from Camera"}
             </Button>
             <Button
               variant="secondary"
@@ -553,13 +522,6 @@ export default function SettingsPage() {
               disabled={!passkeysSupported || passkeyAction !== "idle"}
             >
               <Shield size={18} /> {passkeyAction === "enrolling" ? "Enrolling..." : "Enroll Device Passkey"}
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => enrollFaceVerification.mutate()}
-              disabled={enrollFaceVerification.isPending || passkeyAction !== "idle"}
-            >
-              <Camera size={18} /> Dev Stub Enrollment
             </Button>
           </div>
         </Card>
@@ -573,7 +535,7 @@ export default function SettingsPage() {
             </div>
             <div className="avatar-info">
               <h3>Passkey Verification Check</h3>
-              <p>Verify the current session with your device passkey. Local simulation remains available for development.</p>
+              <p>Verify the current session with your device passkey.</p>
             </div>
           </div>
           <div className="stub-list">
@@ -588,18 +550,6 @@ export default function SettingsPage() {
               disabled={!passkeysSupported || passkeyAction !== "idle"}
             >
               <Shield size={18} /> {passkeyAction === "verifying" ? "Verifying..." : "Verify with Face ID"}
-            </Button>
-            <Button variant="secondary" onClick={() => startFaceVerification.mutate()} disabled={startFaceVerification.isPending}>
-              Dev Start Check
-            </Button>
-            <Button onClick={() => submitFaceVerification.mutate("pass")} disabled={!verificationSession || submitFaceVerification.isPending}>
-              Dev Verify
-            </Button>
-            <Button variant="ghost" onClick={() => submitFaceVerification.mutate("uncertain")} disabled={!verificationSession || submitFaceVerification.isPending}>
-              Dev Uncertain
-            </Button>
-            <Button variant="danger" onClick={() => submitFaceVerification.mutate("fail")} disabled={!verificationSession || submitFaceVerification.isPending}>
-              Dev Fail
             </Button>
           </div>
         </Card>

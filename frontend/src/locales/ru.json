@@ -379,6 +379,8 @@
     "Lobby": "Лобби",
     "Settings": "Настройки",
     "error": "ошибка",
-    "not set": "не задано"
+    "not set": "не задано",
+    "Verify the current session with your device passkey.": "Подтвердите текущую сессию ключом доступа устройства.",
+    "Use the live video identity check in the chat panel.": "Используйте проверку личности по видео в панели чата."
   }
 }

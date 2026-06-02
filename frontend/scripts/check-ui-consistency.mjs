@@ -127,7 +127,7 @@ const noGradientChecks = [
 const failures = [];
 
 const leaderboardText = readFileSync(join(root, "src/pages/leaderboard-page/LeaderboardPage.tsx"), "utf8");
-for (const token of ["Bullet", "Blitz", "Rapid", "Classical", "selectedCategory", "category: selectedCategory"]) {
+for (const token of ["Bullet", "Blitz", "Rapid", "selectedCategory", "category: selectedCategory"]) {
   if (!leaderboardText.includes(token)) {
     failures.push(`src/pages/leaderboard-page/LeaderboardPage.tsx must support rating category filters: "${token}"`);
   }

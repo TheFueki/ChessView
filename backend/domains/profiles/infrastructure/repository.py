@@ -9,7 +9,7 @@ from domains.game.infrastructure.models import GameModel, MoveModel
 from domains.identity.infrastructure.models import UserModel
 from domains.profiles.domain.entities import ProfileGamePreview, ProfilePlayer, ProfileSummary
 from domains.profiles.domain.repository import AbstractProfileRepository
-from shared.time_controls import RatingSpeed, rating_speed_for_clock, rating_speed_for_time_control_name
+from shared.time_controls import DISPLAY_RATING_SPEEDS, RatingSpeed, public_rating_categories, rating_for_user, rating_speed_for_clock, rating_speed_for_time_control_name
 
 UNKNOWN_PLAYER_USERNAME = "?"
 UNKNOWN_PLAYER_RATING = 1200
@@ -79,7 +79,7 @@ class SqlAlchemyProfileRepository(AbstractProfileRepository):
         return ProfileSummary(
             id=str(user.id),
             username=user.username,
-            rating=user.rating,
+            rating=user.rapid_rating,
             avatar_url=self._avatar_url(user.avatar_path),
             created_at=user.created_at,
             games_played=games_played,
@@ -133,7 +133,7 @@ class SqlAlchemyProfileRepository(AbstractProfileRepository):
                 ProfileSummary(
                     id=str(user.id),
                     username=user.username,
-                    rating=getattr(user, rating_column.key),
+                    rating=rating_for_user(user, category or RatingSpeed.RAPID),
                     avatar_url=self._avatar_url(user.avatar_path),
                     created_at=user.created_at,
                     games_played=total,
@@ -141,7 +141,7 @@ class SqlAlchemyProfileRepository(AbstractProfileRepository):
                     losses=losses,
                     draws=draws,
                     win_rate=wr,
-                    ratings=self._category_ratings_response(self._category_ratings_for_user(user)),
+                    ratings=public_rating_categories(user),
                     recent_games=[],
                     global_rank=index + 1,
                     coins=user.coins,
@@ -164,8 +164,9 @@ class SqlAlchemyProfileRepository(AbstractProfileRepository):
                 ProfilePlayer(
                     id=str(user.id),
                     username=user.username,
-                    rating=user.rating,
+                    rating=user.rapid_rating,
                     avatar_url=self._avatar_url(user.avatar_path),
+                    ratings=public_rating_categories(user),
                 )
             )
         return players
@@ -195,8 +196,9 @@ class SqlAlchemyProfileRepository(AbstractProfileRepository):
             player.id: ProfilePlayer(
                 id=str(player.id),
                 username=player.username,
-                rating=player.rating,
+                rating=player.rapid_rating,
                 avatar_url=self._avatar_url(player.avatar_path),
+                ratings=public_rating_categories(player),
             )
             for player in player_result.scalars().all()
         }
@@ -236,7 +238,7 @@ class SqlAlchemyProfileRepository(AbstractProfileRepository):
 
     @staticmethod
     def _category_ratings_response(ratings: dict[RatingSpeed, int]) -> dict[str, int]:
-        return {speed.value: ratings[speed] for speed in RatingSpeed}
+        return {speed.value: ratings[speed] for speed in DISPLAY_RATING_SPEEDS}
 
     @staticmethod
     def _rating_column_for_speed(speed: RatingSpeed | None):

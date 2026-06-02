@@ -163,11 +163,8 @@ export function VideoChatPanel({ gameId }: { gameId?: string }) {
         (profile) => profile.provider === FACE_TEMPLATE_PROVIDER && profile.status === "enrolled",
       );
       if (!hasFaceTemplate) {
-        await http.post<FaceVerificationProfileResponse>("/identity/face-verification/faces/enroll", {
-          device_label: "Primary camera",
-          consent: true,
-          face_sample: faceSample,
-        });
+        setFaceError("Enroll Face ID from Settings before verifying a live game.");
+        return;
       }
       const session = await http.post<FaceVerificationSessionResponse>("/identity/face-verification/faces/verify", {
         game_id: gameId ?? null,

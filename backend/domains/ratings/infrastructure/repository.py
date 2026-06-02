@@ -12,7 +12,7 @@ from domains.identity.infrastructure.models import UserModel
 from domains.ratings.domain.entities import RatingChange, RatingUpdate
 from domains.ratings.domain.repository import AbstractRatingRepository
 from domains.ratings.domain.services import calculate_rating_update
-from shared.time_controls import RatingSpeed, rating_speed_for_clock, rating_speed_for_time_control_name
+from shared.time_controls import RatingSpeed, rating_attr_for_speed, rating_speed_for_clock, rating_speed_for_time_control_name
 
 
 class SqlAlchemyRatingRepository(AbstractRatingRepository):
@@ -46,7 +46,7 @@ class SqlAlchemyRatingRepository(AbstractRatingRepository):
             return None
 
         speed = self._rating_speed_for_game(game)
-        rating_attr = self._rating_attr_for_speed(speed)
+        rating_attr = rating_attr_for_speed(speed)
         white_before = getattr(white, rating_attr)
         black_before = getattr(black, rating_attr)
         rating_update = calculate_rating_update(
@@ -84,6 +84,3 @@ class SqlAlchemyRatingRepository(AbstractRatingRepository):
             return rating_speed_for_clock(initial_time_ms, increment_ms)
         return rating_speed_for_time_control_name(getattr(game, "time_control_name", ""))
 
-    @staticmethod
-    def _rating_attr_for_speed(speed: RatingSpeed) -> str:
-        return f"{speed.value}_rating"

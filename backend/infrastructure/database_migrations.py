@@ -19,7 +19,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ALEMBIC_INI_PATH = PROJECT_ROOT / "alembic.ini"
 ALEMBIC_SCRIPT_PATH = PROJECT_ROOT / "alembic"
 BASELINE_REVISION = "0001_baseline"
-HEAD_REVISION = "0002_add_disconnect_player_fk"
+HEAD_REVISION = "0009_shop_inventory_and_fixed_face"
 BASELINE_TABLES = frozenset(
     {
         "chat_messages",

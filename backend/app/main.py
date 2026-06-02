@@ -84,6 +84,7 @@ def _register_routers(application: FastAPI) -> None:
     from domains.puzzles.presentation.router import router as puzzle_router
     from domains.profiles.presentation.router import router as profile_router
     from domains.scheduled_matches.presentation.router import router as scheduled_match_router
+    from domains.shop.presentation.router import router as shop_router
     from domains.tournaments.presentation.router import router as tournament_router
 
     v1 = "/api/v1"
@@ -95,6 +96,7 @@ def _register_routers(application: FastAPI) -> None:
     application.include_router(communication_router, prefix=f"{v1}/chat", tags=["communication"])
     application.include_router(puzzle_router, prefix=f"{v1}/puzzles", tags=["puzzles"])
     application.include_router(payments_router, prefix=f"{v1}/payments", tags=["payments"])
+    application.include_router(shop_router, prefix=f"{v1}/shop", tags=["shop"])
     application.include_router(scheduled_match_router, prefix=f"{v1}/scheduled-matches", tags=["scheduled-matches"])
     application.include_router(tournament_router, prefix=f"{v1}/tournaments", tags=["tournaments"])
 

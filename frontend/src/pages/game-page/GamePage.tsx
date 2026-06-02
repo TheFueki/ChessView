@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Crown, Shield, ShieldAlert, ShieldCheck } from "lucide-react";
 import { Chessboard } from "react-chessboard";
 import type { CustomSquareStyles, Square } from "react-chessboard/dist/chessboard/types";
@@ -9,6 +9,7 @@ import { useGameRealtime, useMakeMove } from "@/features/make-move";
 import { http, wsClient } from "@/shared/api";
 import { useLiveClock } from "@/shared/hooks";
 import { getCheckSquare, getMoveSquares, getSquareColor } from "@/shared/lib/chess";
+import { useEquippedBoardTheme } from "@/shared/lib/shop";
 import type { FaceVerificationSessionResponse } from "@/shared/types";
 import { Button, Card } from "@/shared/ui";
 import { GameLayout } from "@/widgets/game-layout";
@@ -217,11 +218,11 @@ function verificationTone(status: string | null) {
 export default function GamePage() {
   const navigate = useNavigate();
   const { gameId } = useParams();
-  const queryClient = useQueryClient();
 
   useGameRealtime(gameId);
 
   const user = useUserStore((state) => state.user);
+  const boardTheme = useEquippedBoardTheme(Boolean(user?.id));
   const logout = useUserStore((state) => state.logout);
   const fen = useGameStore((state) => state.fen);
   const myColor = useGameStore((state) => state.myColor);
@@ -264,16 +265,6 @@ export default function GamePage() {
     enabled: Boolean(gameId && user),
   });
   const latestVerification = verificationQuery.data?.[0] ?? null;
-  const submitFaceVerification = useMutation({
-    mutationFn: (scenario: "pass" | "fail" | "uncertain") =>
-      http.post<FaceVerificationSessionResponse>(`/games/${gameId}/face-verification/submit`, {
-        scenario: scenario === "pass" ? null : scenario,
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["game-face-verification", gameId] });
-    },
-  });
-
   const handleLogout = () => {
     wsClient.disconnect();
     resetGame();
@@ -343,8 +334,8 @@ export default function GamePage() {
                       onSquareClick={onSquareClick}
                       autoPromoteToQueen
                       animationDuration={220}
-                      customDarkSquareStyle={{ backgroundColor: "#2B3A30" }}
-                      customLightSquareStyle={{ backgroundColor: "#D9DFC8" }}
+                      customDarkSquareStyle={{ backgroundColor: boardTheme.dark }}
+                      customLightSquareStyle={{ backgroundColor: boardTheme.light }}
                       customSquareStyles={boardHighlights}
                       customBoardStyle={{ borderRadius: "0.75rem" }}
                     />
@@ -433,40 +424,8 @@ export default function GamePage() {
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => submitFaceVerification.mutate("pass")}
-                    disabled={!gameId || status !== "active" || submitFaceVerification.isPending}
-                  >
-                    <ShieldCheck className="mr-2 h-4 w-4" />
-                    Verify
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => submitFaceVerification.mutate("uncertain")}
-                    disabled={!gameId || status !== "active" || submitFaceVerification.isPending}
-                  >
-                    Review
-                  </Button>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => submitFaceVerification.mutate("fail")}
-                    disabled={!gameId || status !== "active" || submitFaceVerification.isPending}
-                  >
-                    Fail
-                  </Button>
-                </div>
+                <div className="text-xs text-neutral-400">Use the live video identity check in the chat panel.</div>
               </div>
-              {submitFaceVerification.error ? (
-                <div className="mt-2 text-xs text-red-200">
-                  {submitFaceVerification.error instanceof Error
-                    ? submitFaceVerification.error.message
-                    : "Face ID check failed to submit."}
-                </div>
-              ) : null}
             </div>
           </Card>
         </div>

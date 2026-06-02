@@ -3,7 +3,7 @@
 from datetime import datetime
 import uuid
 
-from sqlalchemy import Float, Index, JSON, String
+from sqlalchemy import Float, Index, JSON, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from infrastructure.database import Base
@@ -12,7 +12,15 @@ from infrastructure.orm import created_at_column, utc_timestamp_column, uuid_pri
 
 class FaceVerificationProfileModel(Base):
     __tablename__ = "face_verification_profiles"
-    __table_args__ = (Index("ix_face_verification_profiles_user_id", "user_id"),)
+    __table_args__ = (
+        Index("ix_face_verification_profiles_user_id", "user_id"),
+        Index(
+            "uq_face_verification_profiles_fixed_face",
+            "user_id",
+            unique=True,
+            postgresql_where=text("provider = 'local_face_template'"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = uuid_primary_key()
     user_id: Mapped[uuid.UUID] = uuid_reference("users.id")

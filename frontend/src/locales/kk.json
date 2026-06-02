@@ -379,6 +379,8 @@
     "Lobby": "Лобби",
     "Settings": "Баптаулар",
     "error": "қате",
-    "not set": "орнатылмаған"
+    "not set": "орнатылмаған",
+    "Verify the current session with your device passkey.": "Ағымдағы сессияны құрылғы кілтімен растаңыз.",
+    "Use the live video identity check in the chat panel.": "Чат панеліндегі тікелей видео арқылы тұлғаны тексеруді пайдаланыңыз."
   }
 }

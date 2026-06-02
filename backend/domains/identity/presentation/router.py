@@ -2,8 +2,6 @@ import httpx
 import logging
 import aiofiles
 import re
-import smtplib
-from email.message import EmailMessage
 from pathlib import Path
 from urllib.parse import urlencode, urlparse
 from uuid import UUID, uuid4
@@ -46,6 +44,7 @@ from domains.identity.face_verification.schemas import (
     PasskeyVerificationCompleteRequest,
 )
 from domains.identity.face_verification.service import FaceVerificationService, require_game_face_verification_access
+from domains.identity.presentation.mailer import send_password_reset_email
 from domains.identity.presentation.schemas import (
     LoginRequest,
     PublicProfileResponse,
@@ -58,7 +57,6 @@ from domains.identity.presentation.schemas import (
     PasswordResetRequestResponse,
     UpdateProfileRequest,
 )
-from domains.game.presentation.identity_verification import broadcast_identity_verification_forfeit
 from infrastructure.security import (
     create_access_token,
     create_password_reset_token,
@@ -109,29 +107,6 @@ def _build_service(session: AsyncSession) -> IdentityService:
         create_password_reset_token=create_password_reset_token,
         decode_token=decode_token,
     )
-
-
-def _send_password_reset_email(email: str, reset_url: str) -> None:
-    if not settings.SMTP_HOST:
-        logger.warning("LOCAL SMTP password reset link for %s: %s", email, reset_url)
-        return
-
-    message = EmailMessage()
-    message["Subject"] = "Reset your ChessView password"
-    message["From"] = settings.SMTP_FROM_EMAIL
-    message["To"] = email
-    message.set_content(
-        "Open this link to reset your ChessView password:\n\n"
-        f"{reset_url}\n\n"
-        "This link expires in 30 minutes."
-    )
-
-    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as smtp:
-        if settings.SMTP_USE_TLS:
-            smtp.starttls()
-        if settings.SMTP_USERNAME:
-            smtp.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
-        smtp.send_message(message)
 
 
 def _serialize_user_profile(user) -> UserProfileResponse:
@@ -197,7 +172,10 @@ async def request_password_reset(body: PasswordResetRequest, session: AsyncSessi
         RequestPasswordResetCommand(email=str(body.email), frontend_url=settings.FRONTEND_URL)
     )
     if ticket is not None:
-        _send_password_reset_email(ticket.email, ticket.reset_url)
+        try:
+            send_password_reset_email(ticket.email, ticket.reset_url)
+        except Exception:
+            logger.exception("Failed to send password reset email for %s", ticket.email)
     return PasswordResetRequestResponse(
         detail="If that email exists, a password reset link has been sent."
     )
@@ -415,9 +393,6 @@ async def submit_face_verification_session(
 ):
     service = FaceVerificationService(session)
     verification = await service.submit(session_id, UUID(user_id), body.scenario)
-    stopped_game = await service.stop_game_after_failed_verification(verification)
-    if stopped_game is not None and verification.game_id is not None:
-        await broadcast_identity_verification_forfeit(verification.game_id, stopped_game, session)
     return service.session_response(verification)
 
 
@@ -454,9 +429,6 @@ async def verify_face_template(
         tournament_id=body.tournament_id,
         scheduled_match_id=body.scheduled_match_id,
     )
-    stopped_game = await service.stop_game_after_failed_verification(verification)
-    if stopped_game is not None and verification.game_id is not None:
-        await broadcast_identity_verification_forfeit(verification.game_id, stopped_game, session)
     return service.session_response(verification)
 
 
@@ -521,7 +493,4 @@ async def complete_passkey_verification(
         challenge_id=body.challenge_id,
         credential=body.credential,
     )
-    stopped_game = await service.stop_game_after_failed_verification(verification)
-    if stopped_game is not None and verification.game_id is not None:
-        await broadcast_identity_verification_forfeit(verification.game_id, stopped_game, session)
     return service.session_response(verification)

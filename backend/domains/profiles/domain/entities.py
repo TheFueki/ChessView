@@ -10,6 +10,7 @@ class ProfilePlayer:
     username: str
     rating: int
     avatar_url: str | None = None
+    ratings: dict[str, int | None] | None = None
 
 
 @dataclass(frozen=True)

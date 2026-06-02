@@ -596,7 +596,6 @@ def test_profile_ratings_are_grouped_by_speed_not_exact_time_control():
         "bullet": 1200,
         "blitz": 1490,
         "rapid": 1605,
-        "classical": 1700,
     }
 
 
@@ -702,10 +701,10 @@ def test_completed_face_verification_accepts_only_verified_sessions():
     assert has_completed_face_verification(None) is False
 
 
-def test_failed_game_bound_face_verification_is_terminal_for_game():
+def test_failed_game_bound_face_verification_records_status_without_terminal_game_action():
     game_id = uuid4()
 
-    assert should_stop_game_for_verification_session(SimpleNamespace(status="failed", game_id=game_id)) is True
+    assert should_stop_game_for_verification_session(SimpleNamespace(status="failed", game_id=game_id)) is False
     assert should_stop_game_for_verification_session(SimpleNamespace(status="verified", game_id=game_id)) is False
     assert should_stop_game_for_verification_session(SimpleNamespace(status="uncertain", game_id=game_id)) is False
     assert should_stop_game_for_verification_session(SimpleNamespace(status="failed", game_id=None)) is False
@@ -888,7 +887,7 @@ def test_face_template_enrollment_and_live_video_sample_matching_are_determinist
     face_sample = "camera-frame:alice:front-facing"
     template = FaceVerificationService.build_face_template(face_sample)
 
-    assert template["algorithm"] == "local_face_template_v1"
+    assert template["algorithm"] == "local_face_template_v2"
     assert "template_hash" in template
     assert "camera-frame" not in template["template_hash"]
 
@@ -906,7 +905,7 @@ def test_face_template_enrollment_and_live_video_sample_matching_are_determinist
     assert failed.status == "failed"
 
 
-def test_face_template_accepts_nearby_live_camera_frames_without_storing_raw_image():
+def test_face_template_requires_the_fixed_enrolled_camera_sample():
     first_frame = "data:image/jpeg;base64," + ("a" * 32_000)
     next_frame = "data:image/jpeg;base64," + ("b" * 32_200)
     different_size_frame = "data:image/jpeg;base64," + ("c" * 96_000)
@@ -916,7 +915,7 @@ def test_face_template_accepts_nearby_live_camera_frames_without_storing_raw_ima
     assert FaceVerificationService.verify_face_sample(
         stored_template=template,
         live_sample=next_frame,
-    ).status == "verified"
+    ).status == "failed"
     assert FaceVerificationService.verify_face_sample(
         stored_template=template,
         live_sample=different_size_frame,

@@ -20,7 +20,6 @@ from domains.game.presentation.serializers import (
     to_game_detail_response,
     to_game_list_item,
 )
-from domains.game.presentation.identity_verification import broadcast_identity_verification_forfeit
 from domains.identity.infrastructure.repository import SqlAlchemyUserRepository
 from domains.identity.face_verification.schemas import (
     FaceVerificationSessionResponse,
@@ -125,9 +124,6 @@ async def submit_game_face_verification(
     service = FaceVerificationService(session)
     verification = await service.start_session(user_id=UUID(user_id), game_id=game_id, tournament_id=None, scheduled_match_id=None)
     verification = await service.submit(verification.id, UUID(user_id), body.scenario)
-    stopped_game = await service.stop_game_after_failed_verification(verification)
-    if stopped_game is not None:
-        await broadcast_identity_verification_forfeit(game_id, stopped_game, session)
     return service.session_response(verification)
 
 

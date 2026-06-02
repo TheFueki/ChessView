@@ -18,17 +18,17 @@ def test_frontend_chat_history_uses_mounted_communication_api_prefix():
     assert "`/chat/${gameId}/messages`" in chat_model_text
 
 
-def test_shop_page_purchase_controls_have_client_state():
+def test_shop_page_purchase_controls_use_backend_inventory():
     shop_page_text = (
         PROJECT_ROOT / "frontend" / "src" / "pages" / "shop-page" / "ShopPage.tsx"
     ).read_text(encoding="utf-8")
 
-    assert "ownedItemIds" in shop_page_text
-    assert "spentCoins" in shop_page_text
-    assert "buyItem" in shop_page_text
-    assert "onClick={() => buyItem(item)}" in shop_page_text
+    assert "useShopInventory" in shop_page_text
+    assert "/shop/items/${itemId}/purchase" in shop_page_text
+    assert "/shop/items/${itemId}/equip" in shop_page_text
+    assert "localStorage" not in shop_page_text
+    assert "spentCoins" not in shop_page_text
     assert "Owned" in shop_page_text
-    assert "Not enough coins" in shop_page_text
 
 
 def test_clubs_page_search_create_and_details_are_interactive():

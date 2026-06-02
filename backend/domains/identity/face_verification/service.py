@@ -36,7 +36,7 @@ def has_completed_face_verification(session: object | None) -> bool:
 
 
 def should_stop_game_for_verification_session(session: object | None) -> bool:
-    return getattr(session, "status", None) == "failed" and getattr(session, "game_id", None) is not None
+    return False
 
 
 async def require_game_face_verification_access(session: AsyncSession, game_id: UUID, user_id: UUID) -> GameModel:
@@ -218,6 +218,12 @@ class FaceVerificationService:
     ) -> FaceVerificationProfileModel:
         if not consent:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Consent is required")
+        existing = await self._latest_face_template_profile(user_id)
+        if existing is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Face ID is already enrolled for this account",
+            )
         template = self.build_face_template(face_sample)
         profile = FaceVerificationProfileModel(
             user_id=user_id,
@@ -304,20 +310,7 @@ class FaceVerificationService:
         return session
 
     async def stop_game_after_failed_verification(self, verification: FaceVerificationSessionModel) -> object | None:
-        if not should_stop_game_for_verification_session(verification):
-            return None
-
-        from domains.game.application.commands import IdentityVerificationFailureCommand
-        from domains.game.application.services import GameService
-        from domains.game.domain.exceptions import GameAccessDenied, GameNotActive, GameNotFound
-        from domains.game.infrastructure.repository import SqlAlchemyGameRepository
-
-        try:
-            return await GameService(SqlAlchemyGameRepository(self._session)).stop_for_identity_verification_failure(
-                IdentityVerificationFailureCommand(game_id=verification.game_id, user_id=verification.user_id)
-            )
-        except (GameAccessDenied, GameNotActive, GameNotFound):
-            return None
+        return None
 
     def _event(self, session_id: UUID, event_type: str, payload: dict) -> None:
         self._session.add(FaceVerificationEventModel(session_id=session_id, event_type=event_type, payload=payload))
@@ -384,17 +377,21 @@ class FaceVerificationService:
     @staticmethod
     def build_face_template(face_sample: str) -> dict:
         normalized = FaceVerificationService._face_sample_signature(face_sample)
-        digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+        digest = hashlib.sha256(normalized).hexdigest()
         return {
-            "algorithm": "local_face_template_v1",
+            "algorithm": "local_face_template_v2",
             "template_hash": digest,
         }
 
     @staticmethod
     def verify_face_sample(*, stored_template: dict | None, live_sample: str) -> FaceVerificationResult:
-        if not stored_template or stored_template.get("algorithm") != "local_face_template_v1":
+        if not stored_template:
             return FaceVerificationResult("failed", 0.0, "face template is missing")
         live_template = FaceVerificationService.build_face_template(live_sample)
+        if stored_template.get("algorithm") == "local_face_template_v1":
+            return FaceVerificationResult("failed", 0.0, "face template must be re-enrolled with fixed sample matching")
+        if stored_template.get("algorithm") != live_template["algorithm"]:
+            return FaceVerificationResult("failed", 0.0, "face template is missing")
         if live_template["template_hash"] != stored_template.get("template_hash"):
             return FaceVerificationResult("failed", 0.0, "live camera sample does not match enrolled face template")
         return FaceVerificationResult("verified", 0.98, "live camera sample matches enrolled face template")
@@ -404,17 +401,15 @@ class FaceVerificationService:
         return " ".join(face_sample.strip().split())
 
     @staticmethod
-    def _face_sample_signature(face_sample: str) -> str:
+    def _face_sample_signature(face_sample: str) -> bytes:
         normalized = FaceVerificationService._normalize_face_sample(face_sample)
         header, separator, payload = normalized.partition(",")
         if separator and header.startswith("data:image/"):
             try:
-                raw_size = len(base64.b64decode(payload, validate=False))
+                return base64.b64decode(payload, validate=False)
             except Exception:
-                raw_size = len(payload)
-            size_bucket = max(1, round(raw_size / 25_000))
-            return f"{header.split(';', 1)[0]}:{size_bucket}"
-        return normalized
+                return payload.encode("utf-8")
+        return normalized.encode("utf-8")
 
     @staticmethod
     def _creation_options(

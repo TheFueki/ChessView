@@ -8,6 +8,7 @@ import {
 import { useNavigate, useParams } from "react-router";
 import { useUserStore } from "@/entities/user";
 import { http } from "@/shared/api";
+import { bannerStyleFromItem, useShopInventory } from "@/shared/lib/shop";
 import type { GameHistoryItemResponse, HeadToHeadResponse, PlayerSearchResult, ProfileResponse, UserProfile } from "@/shared/types";
 import { Avatar, Button, Card, Spinner } from "@/shared/ui";
 import { SERVER_URL } from "@/shared/config";
@@ -86,6 +87,7 @@ export default function ProfilePage() {
     queryKey: ["profile", isOwnProfile ? "me" : userId],
     queryFn: () => http.get<ProfileResponse>(isOwnProfile ? "/profiles/me" : `/profiles/${userId}`),
   });
+  const shopInventoryQuery = useShopInventory(isOwnProfile);
 
   const h2hPerspectiveId = !isOwnProfile && currentUser && profile ? currentUser.id : profile?.id;
   const h2hOpponentId = !isOwnProfile && currentUser && profile ? profile.id : selectedOpponent?.id;
@@ -190,6 +192,8 @@ export default function ProfilePage() {
       ? currentAvatarUrl 
       : `${SERVER_URL}${currentAvatarUrl.startsWith('/') ? '' : '/'}${currentAvatarUrl}`
     : null;
+  const equippedBanner = shopInventoryQuery.data?.items.find((item) => item.type === "banner" && item.equipped);
+  const heroBannerStyle = isOwnProfile ? bannerStyleFromItem(equippedBanner) : undefined;
 
   return (
     <AppShell
@@ -201,7 +205,7 @@ export default function ProfilePage() {
     <div className="profile-page-root profile-page-embedded">
       <main className="profile-content">
         <div className="profile-container">
-          <section className="profile-hero">
+          <section className="profile-hero" style={heroBannerStyle}>
             <div className="hero-card-inner">
               <div className="avatar-section">
                 <div className="avatar-container">

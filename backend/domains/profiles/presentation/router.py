@@ -25,6 +25,14 @@ router = APIRouter()
 def _build_service(session: AsyncSession) -> ProfileService:
     return ProfileService(profile_repo=SqlAlchemyProfileRepository(session))
 
+
+def _public_ratings(player) -> dict[str, int | None]:
+    ratings = getattr(player, "ratings", None)
+    if isinstance(ratings, dict) and ratings:
+        return {key: value for key, value in ratings.items() if key in {"bullet", "blitz", "rapid"}}
+    fallback = getattr(player, "rating", 1200)
+    return {"bullet": fallback, "blitz": fallback, "rapid": fallback}
+
 def _serialize_profile(profile) -> ProfileResponse:
     return ProfileResponse(
         id=str(profile.id),
@@ -47,19 +55,22 @@ def _serialize_profile(profile) -> ProfileResponse:
                     id=str(game.white.id),
                     username=game.white.username,
                     rating=game.white.rating,
-                    avatar_url=game.white.avatar_url
+                    avatar_url=game.white.avatar_url,
+                    ratings=_public_ratings(game.white),
                 ),
                 black=ProfilePlayerResponse(
                     id=str(game.black.id),
                     username=game.black.username,
                     rating=game.black.rating,
-                    avatar_url=game.black.avatar_url
+                    avatar_url=game.black.avatar_url,
+                    ratings=_public_ratings(game.black),
                 ),
                 opponent=ProfilePlayerResponse(
                     id=str(game.opponent.id),
                     username=game.opponent.username,
                     rating=game.opponent.rating,
-                    avatar_url=game.opponent.avatar_url
+                    avatar_url=game.opponent.avatar_url,
+                    ratings=_public_ratings(game.opponent),
                 ),
                 player_color=game.player_color,
                 time_control_name=game.time_control_name,
@@ -113,7 +124,7 @@ async def search_profiles(
             id=player.id,
             username=player.username,
             avatar_url=player.avatar_url,
-            ratings={},
+            ratings=_public_ratings(player),
         )
         for player in players
     ]

@@ -379,6 +379,8 @@
     "Lobby": "Lobby",
     "Settings": "Settings",
     "error": "error",
-    "not set": "not set"
+    "not set": "not set",
+    "Verify the current session with your device passkey.": "Verify the current session with your device passkey.",
+    "Use the live video identity check in the chat panel.": "Use the live video identity check in the chat panel."
   }
 }

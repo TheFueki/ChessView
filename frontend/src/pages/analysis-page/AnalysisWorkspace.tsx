@@ -38,6 +38,7 @@ import {
   type FenMetadata,
   type SandboxMove,
 } from "@/shared/lib/chess";
+import { useEquippedBoardTheme } from "@/shared/lib/shop";
 import type { GameDetailResponse, ProfileResponse } from "@/shared/types";
 import { Avatar, Button, Card } from "@/shared/ui";
 import { AppShell } from "@/widgets/app-shell";
@@ -73,6 +74,7 @@ const piecePalette: Array<{ value: EditorSelection; label: string; glyph: string
 ];
 
 export function AnalysisWorkspace() {
+  const boardTheme = useEquippedBoardTheme();
   const [searchParams] = useSearchParams();
   const sourceGameId = searchParams.get("gameId");
   
@@ -378,8 +380,8 @@ export function AnalysisWorkspace() {
                   onPieceDrop={handlePieceDrop}
                   onSquareClick={handleSquareClick}
                   animationDuration={180}
-                  customDarkSquareStyle={{ backgroundColor: "#2B3A30" }}
-                  customLightSquareStyle={{ backgroundColor: "#D9DFC8" }}
+                  customDarkSquareStyle={{ backgroundColor: boardTheme.dark }}
+                  customLightSquareStyle={{ backgroundColor: boardTheme.light }}
                   customBoardStyle={{ borderRadius: "1rem" }}
                   customSquareStyles={boardHighlights}
                   customArrows={analysisUnavailableReason ? [] : bestMoveArrows}
