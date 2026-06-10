@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 const frontendUrl = process.env.E2E_FRONTEND_URL ?? "http://127.0.0.1:5173";
 const adminUrl = process.env.E2E_ADMIN_URL ?? "http://127.0.0.1:5174";
-const reuseExistingServer = !process.env.CI;
+const reuseExistingServer = process.env.E2E_REUSE_EXISTING_SERVER === "1" || !process.env.CI;
 
 export default defineConfig({
   testDir: "./e2e",

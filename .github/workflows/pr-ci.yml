@@ -194,5 +194,43 @@ jobs:
       - name: Install Playwright browsers
         run: yarn playwright install chromium --with-deps
 
+      - name: Prepare Compose environment
+        run: cp .env.example .env
+
+      - name: Start Docker stack
+        run: docker compose up --build -d
+
+      - name: Wait for stack health
+        run: |
+          for attempt in {1..60}; do
+            if curl -fsS http://127.0.0.1:8000/health \
+              && curl -fsS http://127.0.0.1:5173 \
+              && curl -fsS http://127.0.0.1:5174; then
+              exit 0
+            fi
+            docker compose ps
+            sleep 5
+          done
+          docker compose logs --tail=200 backend
+          exit 1
+
+      - name: Check Docker migrations
+        run: |
+          docker compose exec -T backend uv run alembic current
+          docker compose exec -T backend uv run alembic check
+
       - name: Run desktop E2E tests
+        env:
+          E2E_BACKEND_URL: http://127.0.0.1:8000
+          E2E_FRONTEND_URL: http://127.0.0.1:5173
+          E2E_ADMIN_URL: http://127.0.0.1:5174
+          E2E_REUSE_EXISTING_SERVER: "1"
         run: yarn test:e2e
+
+      - name: Dump Docker logs on failure
+        if: failure()
+        run: docker compose logs --tail=200
+
+      - name: Stop Docker stack
+        if: always()
+        run: docker compose down --volumes --remove-orphans

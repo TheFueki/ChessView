@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { http, HttpError } from "../http";
 import { useUserStore, type AuthenticatedUser } from "@/entities/user";
+import { API_BASE_URL } from "@/shared/config";
 
 const USER: AuthenticatedUser = {
   id: "user-1",
@@ -37,7 +38,7 @@ describe("http client", () => {
     await expect(http.post("/games", { rated: true })).resolves.toEqual({ ok: true });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:8000/api/v1/games",
+      `${API_BASE_URL}/games`,
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ rated: true }),
@@ -58,8 +59,9 @@ describe("http client", () => {
     await http.post("/profiles/me/avatar", formData);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:8000/api/v1/profiles/me/avatar",
+      `${API_BASE_URL}/profiles/me/avatar`,
       expect.objectContaining({
+        method: "POST",
         body: formData,
         headers: {},
       }),
