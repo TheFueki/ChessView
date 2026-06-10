@@ -1,6 +1,8 @@
 from pathlib import Path
 
-from pydantic import computed_field
+from typing import Any
+
+from pydantic import ValidationInfo, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -39,6 +41,13 @@ class Settings(BaseSettings):
     SMTP_USE_TLS: bool = True
     SMTP_USE_SSL: bool = False
     SMTP_TIMEOUT_SECONDS: int = 10
+
+    @field_validator("SMTP_PORT", "SMTP_USE_TLS", "SMTP_USE_SSL", "SMTP_TIMEOUT_SECONDS", mode="before")
+    @classmethod
+    def blank_smtp_values_use_defaults(cls, value: Any, info: ValidationInfo) -> Any:
+        if value == "":
+            return cls.model_fields[info.field_name].default
+        return value
 
     @property
     def resolved_storage_dir(self) -> Path:
