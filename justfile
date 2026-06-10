@@ -68,8 +68,35 @@ frontend-dev:
 frontend-lint:
     Set-Location frontend; yarn lint
 
+frontend-i18n:
+    Set-Location frontend; yarn test:i18n
+
+frontend-ui-consistency:
+    Set-Location frontend; yarn test:ui-consistency
+
+frontend-tests:
+    Set-Location frontend; yarn test:unit
+
 frontend-build:
     Set-Location frontend; yarn build
+
+admin-typecheck:
+    Set-Location admin-frontend; yarn typecheck
+
+admin-lint:
+    Set-Location admin-frontend; yarn lint
+
+admin-tests:
+    Set-Location admin-frontend; yarn test:unit
+
+admin-build:
+    Set-Location admin-frontend; yarn build
+
+docker-config:
+    {{docker}} config
+
+e2e-tests:
+    yarn test:e2e
 
 backend-smoke:
     Set-Location backend; uv run python -m compileall app domains infrastructure shared tests; uv run python -c "import app.main"
@@ -82,3 +109,6 @@ backend-coverage:
 
 check:
     Set-Location backend; uv run python -m compileall app domains infrastructure shared tests; uv run python -c "import app.main"; uv run pytest tests; Set-Location ..\frontend; yarn lint; yarn build
+
+check-ci:
+    Set-Location backend; uv sync; uv run python -m compileall app domains infrastructure shared tests; uv run alembic upgrade head; uv run alembic check; uv run python -c "import app.main"; uv run pytest tests; Set-Location ..\frontend; yarn install --frozen-lockfile; yarn lint; yarn test:i18n; yarn test:ui-consistency; yarn test:unit; yarn build; Set-Location ..\admin-frontend; yarn install --frozen-lockfile; yarn typecheck; yarn lint; yarn test:unit; yarn build; Set-Location ..; {{docker}} config; yarn test:e2e

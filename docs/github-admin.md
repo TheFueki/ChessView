@@ -22,6 +22,7 @@ Require these checks from the `PR CI` workflow:
 
 - `PR CI / Backend`
 - `PR CI / Frontend`
+- `PR CI / Admin Frontend`
 
 ## Recommended Merge Policy
 

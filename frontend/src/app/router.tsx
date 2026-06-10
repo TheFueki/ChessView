@@ -48,7 +48,7 @@ function SuspenseWrapper({ children }: { children: ReactNode }) {
   );
 }
 
-function RequireAuth({ children }: { children: ReactNode }) {
+export function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation();
   const hasHydrated = useUserStore((state) => state.hasHydrated);
   const isBootstrapping = useUserStore((state) => state.isBootstrapping);
@@ -77,7 +77,7 @@ function LogoutRedirectHome() {
   return <Navigate to="/" replace />;
 }
 
-function RedirectIfAuthenticated({ children }: { children: ReactNode }) {
+export function RedirectIfAuthenticated({ children }: { children: ReactNode }) {
   const location = useLocation();
   const hasHydrated = useUserStore((state) => state.hasHydrated);
   const isBootstrapping = useUserStore((state) => state.isBootstrapping);

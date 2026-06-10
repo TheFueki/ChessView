@@ -2,11 +2,12 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user_id, get_db
 from domains.puzzles.application.services import PuzzleOverview, PuzzleService
+from domains.puzzles.domain.exceptions import PuzzleNotFound
 from domains.puzzles.domain.value_objects import PuzzleAttemptResult
 from domains.puzzles.infrastructure.repository import SqlAlchemyPuzzleRepository
 from domains.puzzles.presentation.schemas import (
@@ -78,7 +79,10 @@ async def get_random_puzzle(
     session: AsyncSession = Depends(get_db),
 ):
     service = _build_service(session)
-    puzzle = await service.get_random_puzzle(UUID(user_id), exclude_id=exclude_id)
+    try:
+        puzzle = await service.get_random_puzzle(UUID(user_id), exclude_id=exclude_id)
+    except PuzzleNotFound:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Puzzle not found")
     return _serialize_detail(puzzle)
 
 
@@ -89,7 +93,10 @@ async def get_puzzle(
     session: AsyncSession = Depends(get_db),
 ):
     service = _build_service(session)
-    puzzle = await service.get_puzzle(UUID(user_id), puzzle_id)
+    try:
+        puzzle = await service.get_puzzle(UUID(user_id), puzzle_id)
+    except PuzzleNotFound:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Puzzle not found")
     return _serialize_detail(puzzle)
 
 
@@ -101,9 +108,12 @@ async def record_attempt(
     session: AsyncSession = Depends(get_db),
 ):
     service = _build_service(session)
-    attempt = await service.record_attempt(
-        UUID(user_id),
-        puzzle_id,
-        PuzzleAttemptResult(body.result),
-    )
+    try:
+        attempt = await service.record_attempt(
+            UUID(user_id),
+            puzzle_id,
+            PuzzleAttemptResult(body.result),
+        )
+    except PuzzleNotFound:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Puzzle not found")
     return _serialize_attempt(attempt)

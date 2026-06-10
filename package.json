@@ -1,5 +1,12 @@
 {
+  "private": true,
+  "packageManager": "yarn@1.22.22",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed"
+  },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "sass-embedded": "^1.99.0"
   }
 }

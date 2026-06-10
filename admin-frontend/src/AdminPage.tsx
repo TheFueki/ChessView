@@ -167,8 +167,8 @@ export default function AdminPage({ session, onLogout }: { session: AdminSession
     mutationFn: ({ id, verb }: { id: string; verb: "ban" | "unban" }) => adminPost<AdminUserResponse>(`/admin/users/${id}/${verb}`, token),
     onSuccess: async () => invalidate("admin-users"),
   });
-  const patchUser = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: object }) => adminPatch<AdminUserResponse>(`/admin/users/${id}`, body, token),
+  const changeUserRole = useMutation({
+    mutationFn: ({ id, role }: { id: string; role: string }) => adminCreate<AdminUserResponse>(`/admin/users/${id}/role`, { role }, token),
     onSuccess: async () => invalidate("admin-users"),
   });
   const deleteUser = useMutation({ mutationFn: (id: string) => adminDelete(`/admin/users/${id}`, token), onSuccess: async () => invalidate("admin-users") });
@@ -252,8 +252,8 @@ export default function AdminPage({ session, onLogout }: { session: AdminSession
                 <div className="truncate text-xs text-neutral-400">{user.email} / {user.role} / {user.rating}</div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <AdminButton variant="secondary" onClick={() => patchUser.mutate({ id: user.id, body: { role: user.role === "admin" ? "user" : "admin" } })}>Role</AdminButton>
-                <AdminButton variant={user.banned_at ? "secondary" : "danger"} onClick={() => userAction.mutate({ id: user.id, verb: user.banned_at ? "unban" : "ban" })}>
+                <AdminButton variant="secondary" onClick={() => changeUserRole.mutate({ id: user.id, role: user.role === "admin" ? "user" : "admin" })}>Role</AdminButton>
+                <AdminButton aria-label={`${user.banned_at ? "Unban" : "Ban"} ${user.username}`} variant={user.banned_at ? "secondary" : "danger"} onClick={() => userAction.mutate({ id: user.id, verb: user.banned_at ? "unban" : "ban" })}>
                   {user.banned_at ? <RotateCcw size={14} /> : <Ban size={14} />}
                 </AdminButton>
                 <AdminButton variant="danger" onClick={() => window.confirm("Delete user?") && deleteUser.mutate(user.id)}><Trash2 size={14} /></AdminButton>

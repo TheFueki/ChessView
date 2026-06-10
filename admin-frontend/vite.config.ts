@@ -1,3 +1,5 @@
+/// <reference types="vitest/config" />
+
 import { defineConfig, loadEnv, type ConfigEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -24,6 +26,10 @@ export default defineConfig(({ mode }: ConfigEnv) => {
     },
     build: {
       outDir: "dist",
+    },
+    test: {
+      environment: "jsdom",
+      setupFiles: ["./src/test/setup.ts"],
     },
   };
 });

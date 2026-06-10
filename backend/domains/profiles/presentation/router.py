@@ -121,7 +121,7 @@ async def search_profiles(
     players = await service.search_players(query=query, limit=limit)
     return [
         PlayerSearchResultResponse(
-            id=player.id,
+            id=str(player.id),
             username=player.username,
             avatar_url=player.avatar_url,
             ratings=_public_ratings(player),

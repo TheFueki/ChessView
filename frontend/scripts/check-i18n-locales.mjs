@@ -69,8 +69,11 @@ function scanHardcodedJsxText() {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const path = join(dir, entry.name);
       if (entry.isDirectory()) {
+        if (entry.name === "__tests__" || entry.name === "test") {
+          continue;
+        }
         visit(path);
-      } else if (entry.isFile() && path.endsWith(".tsx")) {
+      } else if (entry.isFile() && path.endsWith(".tsx") && !path.endsWith(".test.tsx")) {
         files.push(path);
       }
     }

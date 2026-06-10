@@ -114,6 +114,12 @@ jobs:
       - name: Run frontend lint
         run: yarn lint
 
+      - name: Run frontend unit tests
+        run: yarn test:unit
+
+      - name: Run frontend i18n checks
+        run: yarn test:i18n
+
       - name: Run UI consistency checks
         run: yarn test:ui-consistency
 
@@ -147,5 +153,46 @@ jobs:
       - name: Typecheck admin frontend
         run: yarn typecheck
 
+      - name: Run admin frontend lint
+        run: yarn lint
+
+      - name: Run admin frontend unit tests
+        run: yarn test:unit
+
       - name: Build admin frontend
         run: yarn build
+
+  e2e:
+    name: Desktop E2E
+    runs-on: ubuntu-latest
+    env:
+      VITE_SERVER_URL: ${{ vars.CI_VITE_SERVER_URL || 'http://localhost:8000' }}
+      VITE_API_PROXY_TARGET: ${{ vars.CI_VITE_API_PROXY_TARGET || 'http://localhost:8000' }}
+      VITE_WS_PROXY_TARGET: ${{ vars.CI_VITE_WS_PROXY_TARGET || 'ws://localhost:8000' }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Install root dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Install frontend dependencies
+        run: yarn install --frozen-lockfile
+        working-directory: frontend
+
+      - name: Install admin frontend dependencies
+        run: yarn install --frozen-lockfile
+        working-directory: admin-frontend
+
+      - name: Install Playwright browsers
+        run: yarn playwright install chromium --with-deps
+
+      - name: Run desktop E2E tests
+        run: yarn test:e2e

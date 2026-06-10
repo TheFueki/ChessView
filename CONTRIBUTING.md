@@ -35,8 +35,13 @@ Useful commands:
 just backend-smoke
 just backend-tests
 just frontend-lint
+just frontend-tests
 just frontend-build
+just admin-typecheck
+just admin-tests
+just e2e-tests
 just check
+just check-ci
 ```
 
 ## Before Opening a PR
@@ -54,8 +59,22 @@ uv run pytest tests
 cd frontend
 yarn install --frozen-lockfile
 yarn lint
+yarn test:i18n
+yarn test:ui-consistency
+yarn test:unit
 yarn build
 ```
+
+```powershell
+cd admin-frontend
+yarn install --frozen-lockfile
+yarn typecheck
+yarn lint
+yarn test:unit
+yarn build
+```
+
+For desktop browser coverage, run `yarn test:e2e` from the repository root. For a local CI-equivalent pass, run `just check-ci`.
 
 Expect GitHub Actions to rerun these PR gates on `main`.
 

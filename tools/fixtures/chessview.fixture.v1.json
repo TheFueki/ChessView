@@ -1,0 +1,133 @@
+{
+  "version": 1,
+  "generatedAt": "2026-01-01T00:00:00Z",
+  "notes": "Deterministic local-only test data. Passwords are not production secrets.",
+  "users": [
+    {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "username": "alice",
+      "email": "alice@example.test",
+      "password": "ChessView123!",
+      "role": "user",
+      "rating": 1510,
+      "coins": 120,
+      "is_banned": false
+    },
+    {
+      "id": "22222222-2222-4222-8222-222222222222",
+      "username": "bob",
+      "email": "bob@example.test",
+      "password": "ChessView123!",
+      "role": "user",
+      "rating": 1470,
+      "coins": 80,
+      "is_banned": false
+    },
+    {
+      "id": "33333333-3333-4333-8333-333333333333",
+      "username": "banned",
+      "email": "banned@example.test",
+      "password": "ChessView123!",
+      "role": "user",
+      "rating": 1200,
+      "coins": 0,
+      "is_banned": true
+    },
+    {
+      "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "username": "admin",
+      "email": "admin@chessview.app",
+      "password": "admin123",
+      "role": "admin",
+      "rating": 1800,
+      "coins": 500,
+      "is_banned": false
+    }
+  ],
+  "games": [
+    {
+      "id": "44444444-4444-4444-8444-444444444444",
+      "whiteUserId": "11111111-1111-4111-8111-111111111111",
+      "blackUserId": "22222222-2222-4222-8222-222222222222",
+      "status": "active",
+      "rated": true,
+      "timeControl": "blitz_5_0",
+      "moves": ["e2e4", "e7e5", "g1f3"],
+      "fen": "rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2"
+    },
+    {
+      "id": "55555555-5555-4555-8555-555555555555",
+      "whiteUserId": "22222222-2222-4222-8222-222222222222",
+      "blackUserId": "11111111-1111-4111-8111-111111111111",
+      "status": "completed",
+      "result": "1-0",
+      "rated": true,
+      "timeControl": "rapid_10_0",
+      "moves": ["e2e4", "e7e5", "d1h5", "b8c6", "f1c4", "g8f6", "h5f7"]
+    }
+  ],
+  "puzzles": [
+    {
+      "id": "66666666-6666-4666-8666-666666666666",
+      "title": "Mate in one",
+      "fen": "6k1/5ppp/8/8/8/8/5PPP/6KQ w - - 0 1",
+      "solution": ["h1a8"],
+      "rating": 900,
+      "theme": "mate"
+    }
+  ],
+  "tournaments": [
+    {
+      "id": "77777777-7777-4777-8777-777777777777",
+      "name": "Fixture Swiss",
+      "status": "registration_open",
+      "createdBy": "11111111-1111-4111-8111-111111111111",
+      "entryFee": 25,
+      "players": [
+        "11111111-1111-4111-8111-111111111111",
+        "22222222-2222-4222-8222-222222222222"
+      ]
+    }
+  ],
+  "scheduledMatches": [
+    {
+      "id": "88888888-8888-4888-8888-888888888888",
+      "challengerId": "11111111-1111-4111-8111-111111111111",
+      "opponentId": "22222222-2222-4222-8222-222222222222",
+      "status": "pending",
+      "scheduledFor": "2026-01-02T15:00:00Z",
+      "entryFee": 0
+    }
+  ],
+  "payments": [
+    {
+      "id": "99999999-9999-4999-8999-999999999999",
+      "userId": "11111111-1111-4111-8111-111111111111",
+      "subjectType": "tournament_entry",
+      "subjectId": "77777777-7777-4777-8777-777777777777",
+      "status": "requires_action",
+      "amount": 25,
+      "currency": "coins"
+    }
+  ],
+  "auditLogs": [
+    {
+      "id": "12121212-1212-4121-8121-121212121212",
+      "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "action": "user.ban",
+      "targetType": "user",
+      "targetId": "33333333-3333-4333-8333-333333333333",
+      "createdAt": "2026-01-01T00:10:00Z"
+    }
+  ],
+  "verificationSessions": [
+    {
+      "id": "34343434-3434-4343-8343-343434343434",
+      "userId": "11111111-1111-4111-8111-111111111111",
+      "status": "approved",
+      "provider": "local_stub",
+      "confidence": 0.98,
+      "createdAt": "2026-01-01T00:20:00Z"
+    }
+  ]
+}

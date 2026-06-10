@@ -29,7 +29,7 @@ Implemented core:
 Demo and extended modules:
 
 - `ClubsPage` is a frontend demonstration module with local UI state.
-- `ShopPage` is a marketplace/wallet UI demonstration. It reads profile coins and stores item inventory locally in the browser.
+- `ShopPage` is a marketplace/wallet UI demonstration backed by the shop API and profile coin balance.
 - payments are handled by an emulator for internal scenarios such as scheduled match or tournament entry payments.
 - face verification and passkey flows provide a local architectural foundation, not a certified identity verification service.
 
@@ -40,7 +40,7 @@ Known limitations:
 - media storage is local filesystem storage under `backend/storage`
 - horizontal scaling would require Redis/pub-sub, distributed monitor coordination, and object storage
 - WebSocket authentication uses a query token, which is practical for this local app but should be reviewed for hardened deployments
-- automated E2E and load testing are not part of the current baseline
+- browser E2E coverage is intentionally small and desktop-focused; load testing is not part of the current baseline
 
 ## Tech Stack
 
@@ -158,7 +158,9 @@ Frontend:
 cd frontend
 yarn install --frozen-lockfile
 yarn lint
+yarn test:i18n
 yarn test:ui-consistency
+yarn test:unit
 yarn build
 ```
 
@@ -168,8 +170,25 @@ Admin frontend:
 cd admin-frontend
 yarn install --frozen-lockfile
 yarn typecheck
+yarn lint
+yarn test:unit
 yarn build
 ```
+
+Desktop browser E2E:
+
+```powershell
+yarn install --frozen-lockfile
+yarn test:e2e
+```
+
+Full CI-equivalent local check:
+
+```powershell
+just check-ci
+```
+
+Shared deterministic test data lives in `tools/fixtures/chessview.fixture.v1.json`. Use it for frontend mocks, admin mocks, and future database seed/reset scripts; it contains local-only credentials and no production secrets.
 
 Smoke checks after backend startup:
 
@@ -194,4 +213,4 @@ The second command is expected to return `401` without an access token.
 
 ## CI
 
-Pull request CI runs backend compile/migrations/tests, frontend lint/UI consistency/build, and admin frontend typecheck/build. Keep local commands aligned with `.github/workflows/pr-ci.yml`.
+Pull request CI runs backend compile/migrations/tests, frontend lint/UI consistency/unit/build, and admin frontend typecheck/lint/unit/build. Keep local commands aligned with `.github/workflows/pr-ci.yml`.
