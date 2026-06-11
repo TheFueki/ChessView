@@ -61,6 +61,24 @@ export interface PlayerSummary {
   avatar_url?: string | null;
 }
 
+export type ClubVisibility = "public" | "private";
+export type ClubRole = "owner" | "member";
+
+export interface ClubResponse {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  visibility: ClubVisibility;
+  owner_id: string;
+  owner: PlayerSummary | null;
+  member_count: number;
+  viewer_is_member: boolean;
+  viewer_role: ClubRole | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
 export interface QueueJoinedPayload {
   position: number;
   time_control: TimeControlKey;

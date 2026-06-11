@@ -62,11 +62,12 @@ def test_clubs_page_search_create_and_details_are_interactive():
         PROJECT_ROOT / "frontend" / "src" / "pages" / "clubs-page" / "ClubsPage.tsx"
     ).read_text(encoding="utf-8")
 
+    assert 'http.get<ClubResponse[]>("/clubs")' in clubs_page_text
+    assert 'http.post<ClubResponse>("/clubs"' in clubs_page_text
+    assert '`/clubs/${clubId}/join`' in clubs_page_text
+    assert "http.delete<ClubResponse>(`/clubs/${clubId}/join`)" in clubs_page_text
     assert "filteredClubs" in clubs_page_text
-    assert "createClub" in clubs_page_text
     assert "selectedClub" in clubs_page_text
-    assert "selectedClubIsVisible" in clubs_page_text
-    assert "onClick={createClub}" in clubs_page_text
     assert "value={query}" in clubs_page_text
     assert "No clubs match" in clubs_page_text
 

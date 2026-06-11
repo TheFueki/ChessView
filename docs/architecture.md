@@ -10,7 +10,7 @@ ChessView is a browser-based educational chess platform with three core responsi
 
 The stack is split between:
 
-- a server-authoritative backend for game state, ratings, profiles, tournaments, payments emulator data, and persistence
+- a server-authoritative backend for game state, ratings, profiles, clubs, tournaments, payments emulator data, and persistence
 - a frontend that owns interaction, presentation, route guards, and browser-local Stockfish analysis
 - PostgreSQL as the relational store, with schema history managed by Alembic
 
@@ -55,6 +55,7 @@ Key domains:
 - `profiles`: profile read models, leaderboard, search, head-to-head
 - `ratings`: Elo updates and rating snapshots
 - `communication`: game chat
+- `clubs`: persisted club ownership, discovery, visibility, and membership
 - `tournaments`: lifecycle, pairings, standings, Swiss helpers
 - `scheduled_matches`: planned match invitations and start flow
 - `puzzles`: puzzle catalog and attempt tracking
@@ -80,7 +81,7 @@ Important frontend choices:
 - auth is bootstrapped once and guarded at the router layer
 - live game flow stays separate from replay, analysis, and puzzles
 - browser-local Stockfish is used for review and study, not for backend move authority
-- `ShopPage` and `ClubsPage` are demo/extended surfaces rather than complete backend-backed product modules
+- shop, clubs, scheduled matches, and OTB manager are backend-backed product surfaces; payment and verification providers remain local/emulated
 
 ## Live Game Ownership
 

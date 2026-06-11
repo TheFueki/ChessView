@@ -24,13 +24,14 @@ Implemented core:
 - analysis workspace with FEN/PGN workflows and board editing
 - puzzle catalog and per-user attempt tracking
 - tournaments with Swiss helpers, standings, round progression, entry-payment emulator hooks, and OTB tournament type
+- clubs with persisted ownership, visibility, searchable listings, and membership lifecycle
 - scheduled matches with invite/accept/decline/cancel/start lifecycle
 - admin API and separate admin frontend for user, audit, payment, and verification views
 
-Demo and extended modules:
+Extended modules:
 
-- `ClubsPage` is a frontend demonstration module with local UI state.
-- `ShopPage` is a marketplace/wallet UI demonstration backed by the shop API and profile coin balance.
+- `ClubsPage` is backed by the `/api/v1/clubs` API and PostgreSQL club/member tables.
+- `ShopPage` is a marketplace/wallet surface backed by the shop API and profile coin balance.
 - payments are handled by an emulator for internal scenarios such as scheduled match or tournament entry payments.
 - face verification and passkey flows provide a local architectural foundation, not a certified identity verification service.
 
@@ -111,10 +112,10 @@ docker compose config
 
 ## Quickstart: Split Development
 
-Start PostgreSQL:
+Start PostgreSQL and Redis:
 
 ```powershell
-docker compose up -d postgres
+docker compose up -d postgres redis
 ```
 
 Start backend:

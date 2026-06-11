@@ -49,7 +49,9 @@ VITE_WS_PROXY_TARGET=ws://localhost:8000
 - `/puzzles`: puzzle training
 - `/tournaments`, `/tournaments/:tournamentId`: tournament flows
 - `/scheduled-matches`: planned direct matches
-- `/shop`, `/clubs`, `/otb-manager`: extended/demo surfaces
+- `/shop`: marketplace and inventory
+- `/clubs`: club discovery, creation, and membership
+- `/otb-manager`: OTB tournament creation surface
 
 ## Docker
 

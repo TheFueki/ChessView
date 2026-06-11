@@ -30,9 +30,9 @@ Main surfaces:
 - `backend/domains/matchmaking/`
 - WebSocket events: `queue_join`, `queue_leave`, `queue_joined`, `match_found`
 
-Current limitation:
+Current storage:
 
-- queue state is in memory and assumes one backend process.
+- queue state is stored in Redis so compatible backend instances can coordinate matchmaking.
 
 ## Game
 
@@ -121,6 +121,20 @@ Main surfaces:
 - `/api/v1/scheduled-matches/*`
 - `frontend/src/pages/scheduled-matches-page/`
 
+## Clubs
+
+Purpose:
+
+- persisted community spaces owned by users
+- public discovery and private invite-only visibility state
+- member join/leave lifecycle and owner-only club settings
+
+Main surfaces:
+
+- `backend/domains/clubs/`
+- `/api/v1/clubs/*`
+- `frontend/src/pages/clubs-page/`
+
 ## Payments
 
 Purpose:
@@ -177,10 +191,11 @@ Main surfaces:
 - `/api/v1/admin/*`
 - `admin-frontend/`
 
-## Demo Frontend Modules
+## Extended Product Modules
 
-- `frontend/src/pages/clubs-page/ClubsPage.tsx` is a local-state demonstration of a club UI.
-- `frontend/src/pages/shop-page/ShopPage.tsx` is a marketplace UI demonstration that reads profile coins and stores purchased item state in browser local storage.
+- `frontend/src/pages/clubs-page/ClubsPage.tsx` reads and mutates clubs through the clubs API.
+- `frontend/src/pages/shop-page/ShopPage.tsx` reads catalog/inventory and purchases/equips items through the shop API.
+- `frontend/src/pages/otb-manager-page/OtbManagerPage.tsx` creates OTB tournaments through the tournament API.
 
 ## Cross-Cutting Rules
 
@@ -188,4 +203,4 @@ Main surfaces:
 - analysis and Stockfish stay in the browser
 - product defaults belong in domain or policy code, not persistence models
 - routers should stay thin and delegate to application/domain code
-- current deployment assumes one backend instance unless Redis/pub-sub and shared storage are introduced
+- Redis owns ephemeral realtime coordination; durable product state stays in PostgreSQL

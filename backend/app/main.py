@@ -85,6 +85,7 @@ def create_app() -> FastAPI:
 
 def _register_routers(application: FastAPI) -> None:
     from domains.admin.presentation.router import router as admin_router
+    from domains.clubs.presentation.router import router as clubs_router
     from domains.communication.presentation.router import router as communication_router
     from domains.game.presentation.router import router as game_router
     from domains.identity.presentation.router import router as identity_router
@@ -98,6 +99,7 @@ def _register_routers(application: FastAPI) -> None:
     v1 = "/api/v1"
 
     application.include_router(admin_router, prefix=f"{v1}/admin", tags=["admin"])
+    application.include_router(clubs_router, prefix=f"{v1}/clubs", tags=["clubs"])
     application.include_router(identity_router, prefix=f"{v1}/identity", tags=["identity"])
     application.include_router(profile_router, prefix=f"{v1}/profiles", tags=["profiles"])
     application.include_router(game_router, prefix=f"{v1}/games", tags=["games"])
