@@ -7,6 +7,7 @@ import type { ClubResponse, ClubVisibility } from "@/shared/types";
 import { AppShell } from "@/widgets/app-shell";
 
 const CLUBS_QUERY_KEY = ["clubs"];
+const EMPTY_CLUBS: ClubResponse[] = [];
 
 function visibilityLabel(visibility: ClubVisibility) {
   return visibility === "public" ? "Public" : "Invite only";
@@ -39,7 +40,7 @@ export default function ClubsPage() {
     queryFn: () => http.get<ClubResponse[]>("/clubs"),
   });
 
-  const clubs = clubsQuery.data ?? [];
+  const clubs = clubsQuery.data ?? EMPTY_CLUBS;
   const selectedClub = clubs.find((club) => club.id === selectedClubId) ?? null;
 
   const filteredClubs = useMemo(() => {
