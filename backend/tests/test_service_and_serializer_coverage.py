@@ -98,6 +98,81 @@ from infrastructure.security import (
 from shared.ws_manager import ConnectionManager
 
 
+class FakeRedis:
+    def __init__(self) -> None:
+        self.hashes: dict[str, dict[str, str]] = {}
+        self.zsets: dict[str, dict[str, float]] = {}
+        self.sets: dict[str, set[str]] = {}
+        self.strings: dict[str, str] = {}
+        self.published: list[tuple[str, str]] = []
+
+    async def hgetall(self, key):
+        return dict(self.hashes.get(key, {}))
+
+    async def hset(self, key, mapping):
+        self.hashes.setdefault(key, {}).update({field: str(value) for field, value in mapping.items()})
+
+    async def expire(self, _key, _seconds):
+        return None
+
+    async def zadd(self, key, mapping):
+        self.zsets.setdefault(key, {}).update(mapping)
+
+    async def zrank(self, key, member):
+        ordered = self._ordered(key)
+        return ordered.index(member) if member in ordered else None
+
+    async def zrange(self, key, start, end):
+        ordered = self._ordered(key)
+        return ordered[start:] if end == -1 else ordered[start : end + 1]
+
+    async def zcard(self, key):
+        return len(self.zsets.get(key, {}))
+
+    async def zrem(self, key, *members):
+        for member in members:
+            self.zsets.setdefault(key, {}).pop(member, None)
+
+    async def sadd(self, key, *members):
+        self.sets.setdefault(key, set()).update(members)
+
+    async def srem(self, key, *members):
+        for member in members:
+            self.sets.setdefault(key, set()).discard(member)
+
+    async def smembers(self, key):
+        return set(self.sets.get(key, set()))
+
+    async def set(self, key, value, *, ex=None, nx=False):
+        if nx and key in self.strings:
+            return False
+        self.strings[key] = value
+        return True
+
+    async def get(self, key):
+        return self.strings.get(key)
+
+    async def delete(self, *keys):
+        for key in keys:
+            self.hashes.pop(key, None)
+            self.zsets.pop(key, None)
+            self.sets.pop(key, None)
+            self.strings.pop(key, None)
+
+    async def publish(self, channel, message):
+        self.published.append((channel, message))
+
+    async def eval(self, _script, _numkeys, key, expected):
+        if self.strings.get(key) == expected or self.hashes.get(key, {}).get("connection_id") == expected:
+            self.strings.pop(key, None)
+            self.hashes.pop(key, None)
+            return 1
+        return 0
+
+    def _ordered(self, key):
+        return [member for member, _score in sorted(self.zsets.get(key, {}).items(), key=lambda item: item[1])]
+
+
 class InMemoryUserRepo:
     def __init__(self, users: list[User] | None = None) -> None:
         self.users = {user.id: user for user in users or []}
@@ -238,8 +313,7 @@ async def test_chat_service_persists_and_rejects_oversized_messages():
 
 @pytest.mark.asyncio
 async def test_matchmaking_service_queue_lifecycle_and_pairing(monkeypatch):
-    MatchmakingService._queue = []
-    service = MatchmakingService()
+    service = MatchmakingService(redis_client=FakeRedis(), clock_ms=lambda: 1000)
     first = uuid4()
     second = uuid4()
     third = uuid4()
@@ -277,7 +351,7 @@ async def test_signaling_service_relays_or_reports_missing_opponent():
             self.errors = []
             self.opponent = "black"
 
-        def get_opponent_id(self, game_id, sender_id):
+        async def get_opponent_id(self, game_id, sender_id):
             return self.opponent
 
         async def send_error(self, user_id, code, message):
@@ -313,7 +387,7 @@ async def test_connection_manager_sends_disconnects_and_tracks_rooms():
         async def close(self, code):
             self.closed.append(code)
 
-    manager = ConnectionManager()
+    manager = ConnectionManager(redis_client=FakeRedis(), instance_id="instance-a")
     old = WebSocket()
     new = WebSocket()
 
@@ -322,9 +396,9 @@ async def test_connection_manager_sends_disconnects_and_tracks_rooms():
     assert old.closed == [4000]
     assert manager.is_current_connection("white", new) is True
 
-    manager.join_room("game", "white")
-    manager.join_room("game", "black")
-    assert manager.get_opponent_id("game", "white") == "black"
+    await manager.join_room("game", "white")
+    await manager.join_room("game", "black")
+    assert await manager.get_opponent_id("game", "white") == "black"
 
     await manager.send_to_user("white", "move", {"uci": "e2e4"}, game_id="game")
     assert '"type": "move"' in new.sent[0]
@@ -334,7 +408,7 @@ async def test_connection_manager_sends_disconnects_and_tracks_rooms():
     await manager.send_error("black", "BAD", "Bad event")
     assert "black" not in manager.active_connections
 
-    manager.leave_room("game", "white")
+    await manager.leave_room("game", "white")
     assert "game" not in manager.game_rooms
 
 

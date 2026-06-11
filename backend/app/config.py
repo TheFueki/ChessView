@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=("../.env", ".env"), env_file_encoding="utf-8", extra="ignore")
 
     DATABASE_URL: str
+    REDIS_URL: str
     STORAGE_DIR: Path
     OAUTHLIB_INSECURE_TRANSPORT: bool
 

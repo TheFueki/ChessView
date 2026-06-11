@@ -32,7 +32,7 @@ FastAPI backend
   -> domain/application/infrastructure/presentation modules
   -> PostgreSQL persistence through SQLAlchemy async
   -> Alembic migrations
-  -> in-memory WebSocket connection manager and matchmaking queue
+  -> Redis-backed matchmaking, WebSocket presence/rooms, pub/sub fanout, and monitor locks
   -> local media storage under backend/storage
 ```
 
@@ -51,7 +51,7 @@ Key domains:
 
 - `identity`: auth, current user, avatars, face/passkey flows
 - `game`: live games, clocks, reconnect, timeouts, history, replay data
-- `matchmaking`: in-memory queueing and game creation
+- `matchmaking`: Redis-backed queueing and game creation
 - `profiles`: profile read models, leaderboard, search, head-to-head
 - `ratings`: Elo updates and rating snapshots
 - `communication`: game chat
@@ -120,17 +120,18 @@ Development topology:
 - admin frontend on `localhost:5174`
 - backend on `localhost:8000`
 - PostgreSQL on `localhost:5432`
+- Redis on `localhost:6379`
 
 The frontend dev server proxies `/api` and `/ws` to the backend.
 
 ## Current Limitations
 
-The current deployment model assumes a single backend instance:
+The default Compose deployment still runs a single backend instance. Redis now removes the main realtime process-local coordination assumptions:
 
-- matchmaking queue state is in memory
-- WebSocket connections and room membership are in memory
-- background game monitoring runs inside the FastAPI process lifespan
+- matchmaking queue state is stored in Redis
+- WebSocket presence and room membership are stored in Redis, while socket objects remain local to each backend process
+- background game monitoring uses a Redis lock so one instance owns each monitor tick
 - avatar/media storage is local filesystem storage
 - payment workflows are emulator-based
 
-Scaling to multiple backend instances would require Redis or equivalent shared ephemeral state, cross-instance WebSocket fanout, distributed monitor coordination, and shared object storage.
+Scaling to multiple backend instances still requires load-balancer setup and shared object storage for uploaded media.

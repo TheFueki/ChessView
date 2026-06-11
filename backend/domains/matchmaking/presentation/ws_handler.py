@@ -89,8 +89,8 @@ async def handle_queue_join(envelope: WSEnvelope, user_id: str, session: AsyncSe
     black_id = str(match.black_id)
 
     # Join both players to the game room
-    manager.join_room(game_id, white_id)
-    manager.join_room(game_id, black_id)
+    await manager.join_room(game_id, white_id)
+    await manager.join_room(game_id, black_id)
 
     white_info = {"id": white_id, "username": white_user.username if white_user else "?", "rating": rating_for_user(white_user, rating_speed)}
     black_info = {"id": black_id, "username": black_user.username if black_user else "?", "rating": rating_for_user(black_user, rating_speed)}

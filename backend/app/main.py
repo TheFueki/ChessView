@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from infrastructure.database import close_db, init_db
+from infrastructure.redis import close_redis, init_redis
 from shared.middleware import register_middleware
 from domains.identity.domain.exceptions import IdentityException, UserNotFound
 
@@ -23,20 +24,27 @@ async def lifespan(application: FastAPI):
     logger.info("Starting ChessView - initializing database...")
     await init_db()
     logger.info("Database tables ready.")
+    await init_redis()
+    logger.info("Redis ready.")
 
     stop_event = asyncio.Event()
     from domains.game.presentation.runtime import run_game_monitor
+    from shared.ws_manager import manager
 
     monitor_task = asyncio.create_task(run_game_monitor(stop_event))
+    pubsub_task = asyncio.create_task(manager.run_pubsub_listener(stop_event))
+    heartbeat_task = asyncio.create_task(manager.run_heartbeat(stop_event))
     try:
         yield
     finally:
         stop_event.set()
-        monitor_task.cancel()
-        try:
-            await monitor_task
-        except asyncio.CancelledError:
-            pass
+        for task in (monitor_task, pubsub_task, heartbeat_task):
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        await close_redis()
         await close_db()
         logger.info("Database engine disposed.")
 

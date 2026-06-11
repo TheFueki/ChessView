@@ -79,7 +79,7 @@ async def _restore_active_room_membership(user_id: str):
     async with async_session_factory() as session:
         active_game = await SqlAlchemyGameRepository(session).get_active_by_user(UUID(user_id))
         if active_game is not None:
-            manager.join_room(str(active_game.id), user_id)
+            await manager.join_room(str(active_game.id), user_id)
         return active_game
 
 

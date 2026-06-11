@@ -20,7 +20,7 @@ class SignalingService:
 
         The server does NOT inspect or modify SDP/ICE payloads.
         """
-        opponent_id = self._manager.get_opponent_id(game_id, sender_id)
+        opponent_id = await self._manager.get_opponent_id(game_id, sender_id)
         if opponent_id is None:
             await self._manager.send_error(sender_id, "NOT_IN_GAME", "Opponent not found in room")
             return

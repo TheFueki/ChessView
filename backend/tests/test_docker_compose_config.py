@@ -4,6 +4,32 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
+def test_compose_defines_redis_and_passes_backend_redis_url():
+    compose_text = (PROJECT_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+
+    assert "  redis:" in compose_text
+    assert "image: redis:" in compose_text
+    assert "REDIS_URL: ${DOCKER_REDIS_URL}" in compose_text
+    assert "redis:" in compose_text
+    assert "condition: service_healthy" in compose_text
+
+
+def test_env_example_documents_local_and_docker_redis_urls():
+    env_text = (PROJECT_ROOT / ".env.example").read_text(encoding="utf-8")
+
+    assert "REDIS_URL=redis://localhost:6379/0" in env_text
+    assert "DOCKER_REDIS_URL=redis://redis:6379/0" in env_text
+
+
+def test_pr_ci_provisions_redis_for_backend_job():
+    workflow_text = (PROJECT_ROOT / ".github" / "workflows" / "pr-ci.yml").read_text(encoding="utf-8")
+
+    assert "redis:" in workflow_text
+    assert "image: redis:" in workflow_text
+    assert "6379:6379" in workflow_text
+    assert "REDIS_URL: redis://localhost:6379/0" in workflow_text
+
+
 def test_frontend_websocket_proxy_targets_backend_container_in_docker_compose():
     compose_text = (PROJECT_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
 

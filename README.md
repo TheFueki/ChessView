@@ -7,7 +7,7 @@ Current baseline: `v1.0.1`
 
 ## Status
 
-ChessView is suitable for local development, diploma demonstration, and single-instance Docker Compose deployment. It is not described as a hardened industrial deployment: matchmaking queues, WebSocket rooms, and background game monitors are in memory, and uploaded media is stored locally.
+ChessView is suitable for local development, diploma demonstration, and single-instance Docker Compose deployment. Redis now backs shared ephemeral realtime state for matchmaking, WebSocket presence/rooms, cross-instance fanout, and game-monitor coordination. It is not described as a hardened industrial deployment: uploaded media is still stored locally, and production load-balancer/object-storage setup is outside the current baseline.
 
 ## Features
 
@@ -18,6 +18,7 @@ Implemented core:
 - live 1v1 chess with server-side move validation through `python-chess`
 - time controls, clock snapshots, resign/draw flows, reconnect handling, timeout, and early auto-abort policy
 - WebSocket endpoint at `/ws?token=<access_token>` with typed event envelopes
+- Redis-backed matchmaking, presence, room membership, pub/sub fanout, and game-monitor locking
 - game chat and WebRTC signaling relay for live games
 - replay/review and local Stockfish analysis in the browser
 - analysis workspace with FEN/PGN workflows and board editing
@@ -35,17 +36,17 @@ Demo and extended modules:
 
 Known limitations:
 
-- single application instance is assumed
-- matchmaking queue, WebSocket connection state, room membership, and game monitor are process-local
+- default Compose runs a single backend instance
+- Redis is required for ephemeral realtime coordination
 - media storage is local filesystem storage under `backend/storage`
-- horizontal scaling would require Redis/pub-sub, distributed monitor coordination, and object storage
+- multi-instance production deployment still needs a load balancer and shared object storage
 - WebSocket authentication uses a query token, which is practical for this local app but should be reviewed for hardened deployments
 - browser E2E coverage is intentionally small and desktop-focused; load testing is not part of the current baseline
 
 ## Tech Stack
 
 - Frontend: React, TypeScript, Vite, TanStack Query, Zustand, react-router, react-chessboard, chess.js, Stockfish, Tailwind CSS
-- Backend: FastAPI, SQLAlchemy async, Alembic, PostgreSQL, Uvicorn, PyJWT, python-chess
+- Backend: FastAPI, SQLAlchemy async, Alembic, PostgreSQL, Redis, Uvicorn, PyJWT, python-chess
 - Tooling: Docker Compose, Yarn Classic, uv, pytest, ESLint, TypeScript build
 
 ## Repository Layout
@@ -82,6 +83,8 @@ Important variables:
 
 - `DATABASE_URL`: backend connection string for local split development
 - `DOCKER_DATABASE_URL`: backend container connection string for Docker Compose
+- `REDIS_URL`: backend Redis connection string for local split development
+- `DOCKER_REDIS_URL`: backend container Redis connection string for Docker Compose
 - `STORAGE_DIR`: local media directory for backend commands
 - `DOCKER_STORAGE_DIR`: media directory inside the backend container
 - `VITE_SERVER_URL`: browser-facing backend URL

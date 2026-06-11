@@ -194,7 +194,7 @@ async def handle_draw_offer(envelope: WSEnvelope, user_id: str, session: AsyncSe
     if not game_id:
         await manager.send_error(user_id, "NOT_IN_GAME", "game_id required")
         return
-    opponent_id = manager.get_opponent_id(game_id, user_id)
+    opponent_id = await manager.get_opponent_id(game_id, user_id)
     if opponent_id:
         await manager.send_to_user(opponent_id, EventType.DRAW_OFFERED, {"from_user_id": user_id}, game_id=game_id)
 
@@ -230,6 +230,6 @@ async def handle_draw_decline(envelope: WSEnvelope, user_id: str, session: Async
     game_id = envelope.game_id
     if not game_id:
         return
-    opponent_id = manager.get_opponent_id(game_id, user_id)
+    opponent_id = await manager.get_opponent_id(game_id, user_id)
     if opponent_id:
         await manager.send_to_user(opponent_id, EventType.DRAW_DECLINED, {}, game_id=game_id)

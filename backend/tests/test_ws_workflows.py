@@ -56,12 +56,15 @@ class RecordingManager:
     async def broadcast_to_room(self, game_id: str, event_type: str, payload: dict) -> None:
         self.broadcasts.append((game_id, event_type, payload))
 
-    def join_room(self, game_id: str, user_id: str) -> None:
+    async def join_room(self, game_id: str, user_id: str) -> None:
         self.joined.append((game_id, user_id))
         self.game_rooms.setdefault(game_id, set()).add(user_id)
 
-    def get_opponent_id(self, _game_id: str, _user_id: str) -> str | None:
+    async def get_opponent_id(self, _game_id: str, _user_id: str) -> str | None:
         return self.opponent_id
+
+    async def is_room_member(self, game_id: str, user_id: str) -> bool:
+        return user_id in self.game_rooms.get(game_id, set())
 
 
 class FakeWebSocket:

@@ -1,55 +1,41 @@
 # Scaling Readiness Notes
 
-ChessView currently targets local development and single-instance Docker Compose deployment. The codebase has clear extension points, but it should not be described as horizontally scalable without additional shared infrastructure.
+ChessView now uses Redis for shared ephemeral realtime coordination while keeping PostgreSQL as the durable source of truth. The current Docker Compose stack still runs one backend container by default, but the main process-local realtime bottlenecks have Redis-backed coordination points.
 
-## Current Single-Instance Assumptions
+## Redis-Backed Realtime State
 
-- Matchmaking queue state is in memory.
-  - See `backend/domains/matchmaking/infrastructure/queue.py`.
-- WebSocket connection and room membership state is in memory.
+- Matchmaking queue state is stored in Redis sorted sets and user hashes.
+  - See `backend/domains/matchmaking/application/services.py`.
+- WebSocket presence, active game membership, and room membership are stored in Redis with TTL refresh.
   - See `backend/shared/ws_manager.py`.
-- Background game monitoring runs inside the FastAPI process lifespan.
-  - See `backend/domains/game/presentation/runtime.py`.
-- Uploaded media is stored on the local filesystem.
-  - See `backend/storage/`.
+- Cross-instance WebSocket delivery uses Redis pub/sub channels named `ws:instance:{instance_id}`.
+  - Local sockets remain in the owning backend process.
+  - Remote events are published to the instance that owns the target user's presence record.
+- Background game monitoring uses a Redis lock named `lock:game-monitor`.
+  - Only the lock owner processes timeout/auto-abort work on each poll.
 
-These are all reasonable for a single VM or one Docker Compose deployment, but they limit safe horizontal scaling.
+PostgreSQL remains authoritative for users, games, moves, chat messages, ratings, tournaments, scheduled matches, and payment emulator data. Redis data can expire or be rebuilt from durable state during reconnect flows.
 
-Other current constraints:
+## Current Remaining Single-Deployment Assumptions
 
+- The default Compose stack runs one backend container.
+- Uploaded media is stored on the local filesystem under `backend/storage/`.
 - WebSocket authentication uses a query token for the SPA connection flow.
 - Payment flows use an internal emulator, not a real provider.
-- Automated E2E and load tests are not part of the current verification baseline.
-
-## Where Redis Should Be Introduced Next
-
-Redis is the next infrastructure addition, and it should be introduced in this order:
-
-1. Matchmaking queue and player presence
-2. Cross-instance WebSocket room fanout / reconnect routing
-3. Coordination for background game monitoring jobs
-
-That keeps the product architecture intact while removing the main shared-state bottlenecks.
+- Load testing and production load-balancer configuration are not part of the current verification baseline.
 
 ## Recommended Next Infra Move
 
-The next practical step is:
+The next production-hardening step is:
 
 1. Keep PostgreSQL as the system of record.
-2. Add Redis for shared ephemeral state and pub/sub.
-3. Run multiple stateless API instances behind one load balancer.
-4. Move media from local disk to shared object storage when multi-instance deploys begin.
+2. Run multiple stateless backend instances behind one load balancer.
+3. Move media from local disk to shared object storage before multi-instance production use.
+4. Add load tests for matchmaking, room fanout, reconnect, and timeout flows.
 
-This is a scaling step, not a rewrite. FastAPI, the current domain structure, and browser-local analysis can stay as they are.
+This remains a scaling step, not a rewrite. FastAPI, the current domain structure, and browser-local Stockfish analysis can stay as they are.
 
-## Incremental Migration Plan
-
-1. Introduce thin Redis-backed adapters for matchmaking and connection presence while preserving the current service boundaries.
-2. Add Redis pub/sub so WebSocket events can reach players connected to different instances.
-3. Move the game monitor into a dedicated worker process or add a distributed lock so only one instance runs it at a time.
-4. Replace local avatar/media storage with shared object storage before running multiple instances in production.
-
-## What Does Not Need To Change Yet
+## What Does Not Need To Change
 
 - No Redis-backed move engine
 - No rewrite away from FastAPI

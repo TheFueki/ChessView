@@ -36,8 +36,7 @@ async def handle_chat_send(envelope: WSEnvelope, user_id: str, session: AsyncSes
         return
 
     # Verify sender is actually in this game room
-    room = manager.game_rooms.get(game_id, set())
-    if user_id not in room:
+    if not await manager.is_room_member(game_id, user_id):
         await manager.send_error(user_id, "NOT_IN_GAME", "You are not in this game")
         return
 

@@ -4,7 +4,7 @@ FastAPI backend for ChessView.
 
 Repository baseline: `v1.0.1`
 
-The backend loads configuration from the repository root `.env` when commands are run from `backend/`. By default, local split development uses PostgreSQL on `localhost:5432`, and `STORAGE_DIR=storage` resolves to `backend/storage`.
+The backend loads configuration from the repository root `.env` when commands are run from `backend/`. By default, local split development uses PostgreSQL on `localhost:5432`, Redis on `localhost:6379`, and `STORAGE_DIR=storage` resolves to `backend/storage`.
 
 ## Local Run
 
@@ -75,7 +75,7 @@ uv run pytest tests
 ## Notes
 
 - starter puzzle data is seeded automatically when needed
-- current runtime is single-instance; see [scaling notes](../docs/scaling.md)
+- Redis backs matchmaking, WebSocket presence/rooms, pub/sub fanout, and game-monitor locking; see [scaling notes](../docs/scaling.md)
 - payment flows use an emulator, not a real payment provider
 - local media is stored under `backend/storage`
 
