@@ -17,7 +17,7 @@ frontend/.env.local
 frontend/.env.*.local
 .env.*
 .env
-
+env/
 
 # Python
 __pycache__/
